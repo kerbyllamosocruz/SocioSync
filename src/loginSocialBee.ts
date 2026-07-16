@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { chromium, firefox, webkit } from 'playwright';
 import { loadConfig } from './config/config';
 import * as path from 'path';
 import { humanType, sleep } from './utils/helpers';
@@ -9,7 +9,10 @@ async function main() {
   const config = loadConfig();
   const storagePath = path.join(__dirname, '../config/socialbee_storage.json');
   
-  const browser = await chromium.launch({
+  const browserType = config.browserType || 'chromium';
+  const browserLauncher = browserType === 'firefox' ? firefox : browserType === 'webkit' ? webkit : chromium;
+  
+  const browser = await browserLauncher.launch({
     headless: false
   });
   

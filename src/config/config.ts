@@ -16,6 +16,7 @@ export interface Config {
   maxConcurrentWorkers: number;
   actionDelay: number;
   useProxy?: boolean;
+  browserType?: 'chromium' | 'firefox' | 'webkit';
   socialBee: {
     email: string;
     password: string;
@@ -59,6 +60,11 @@ export function loadConfig(): Config {
     // Set default actionDelay if not defined
     if (config.actionDelay === undefined) {
       config.actionDelay = 1000;
+    }
+    
+    // Set default browserType if not defined
+    if (config.browserType === undefined) {
+      config.browserType = 'chromium';
     }
     
     // Override settings from environment variables if they are set

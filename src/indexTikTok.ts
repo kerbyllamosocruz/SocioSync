@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { chromium, firefox, webkit } from 'playwright';
 import { loadConfig } from './config/config';
 import { SelectorManager } from './config/selectors';
 import { Logger } from './logging/logger';
@@ -90,8 +90,12 @@ async function main() {
           logger.info(`Using proxy: ${proxy.server}`, workerId);
         }
 
-        // Launch browser context
-        context = await chromium.launchPersistentContext(
+        // Launch browser context using configured browser type
+        const browserType = config.browserType || 'chromium';
+        const browserLauncher = browserType === 'firefox' ? firefox : browserType === 'webkit' ? webkit : chromium;
+        logger.info(`Launching ${browserType} browser...`, workerId);
+        
+        context = await browserLauncher.launchPersistentContext(
           path.join(config.paths.userDataDir, `worker-tiktok-${workerId}`),
           {
             headless: config.headless,

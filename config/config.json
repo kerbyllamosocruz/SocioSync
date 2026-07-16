@@ -1,5 +1,5 @@
 {
-  "workers": 2,
+  "workers": 10,
   "headless": false,
   "timeout": 30000,
   "retries": 3,
@@ -9,6 +9,7 @@
   "maxConcurrentWorkers": 4,
   "actionDelay": 1000,
   "useProxy": false,
+  "browserType": "chromium",
 
   "socialBee": {
     "email": "YOUR_SOCIALBEE_EMAIL_HERE",
