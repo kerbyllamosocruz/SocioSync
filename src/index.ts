@@ -6,7 +6,7 @@ import { EmailMonitor } from './modules/emailMonitor';
 import { AuthModule } from './modules/auth';
 import { SocialBeeTasks } from './modules/socialBeeTasks';
 import { readAccountsFromCSV } from './utils/csvReader';
-import { generateRunId, safeCloseBrowser, safeCloseContext, sleep, registerEulerStreamLogger, ProxyConfig, parseProxy, startDolphinProfile, stopDolphinProfile } from './utils/helpers';
+import { generateRunId, safeCloseBrowser, safeCloseContext, sleep, registerEulerStreamLogger, ProxyConfig, parseProxy, startDolphinProfile, stopDolphinProfile, isMaximumAttemptsError } from './utils/helpers';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -200,8 +200,21 @@ async function main() {
           const errorMsg = loginResult.error || 'TikTok login failed on OAuth page';
           logger.error(`TikTok login failed for ${account.email}: ${errorMsg}`, undefined, workerId);
           await logger.writeFailure(account, errorMsg);
-          if (isPopup) {
-            try { await popupPage.close(); } catch(e) {}
+          
+          if (!isMaximumAttemptsError(errorMsg)) {
+            logger.warn(`[PAUSE] Non-rate-limit error encountered on popup. Keeping browser open for manual inspection. Close the popup/browser window to continue.`, workerId);
+            try {
+              const checkPage = isPopup ? popupPage : page;
+              while (checkPage && !checkPage.isClosed()) {
+                await sleep(2000);
+              }
+            } catch (e) {
+              // Ignore
+            }
+          } else {
+            if (isPopup) {
+              try { await popupPage.close(); } catch(e) {}
+            }
           }
           continue;
         }

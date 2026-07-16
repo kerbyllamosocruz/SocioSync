@@ -238,3 +238,11 @@ export async function stopDolphinProfile(profileId: string, apiHost = 'http://lo
     console.warn(`[Dolphin] Failed to stop Dolphin profile ${profileId}: ${(error as Error).message}`);
   }
 }
+
+export function isMaximumAttemptsError(errorMsg: string): boolean {
+  const lower = errorMsg.toLowerCase();
+  return lower.includes('maximum number of attempts') ||
+         lower.includes('try again later') ||
+         lower.includes('too many attempts') ||
+         lower.includes('rate limit');
+}
