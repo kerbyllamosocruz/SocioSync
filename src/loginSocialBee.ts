@@ -38,22 +38,58 @@ async function main() {
   console.log('⏳ Waiting for dashboard to load (5 minutes timeout)...');
   
   try {
-    await page.waitForURL(url => {
-      const href = url.href.toLowerCase();
-      return href.includes('app.socialbee.com') && 
-             !href.includes('login') && 
-             !href.includes('register') && 
-             !href.includes('auth');
-    }, { timeout: 300000 });
+    const startTime = Date.now();
+    let loggedIn = false;
     
-    // Give it a brief moment to write cookies/localStorage completely
-    await sleep(3000);
+    while (Date.now() - startTime < 300000) {
+      if (page.isClosed()) {
+        break;
+      }
+      try {
+        const currentUrl = page.url().toLowerCase();
+        
+        // Check if URL matches common logged-in pages
+        if (currentUrl.includes('dashboard') || currentUrl.includes('social-accounts') || currentUrl.includes('workspaces') || currentUrl.includes('posts')) {
+          loggedIn = true;
+          break;
+        }
+        
+        // Check for dashboard elements
+        const isDashboardVisible = await page.evaluate(() => {
+          return document.querySelector('.dashboard, .home, [class*="dashboard"], a[href*="logout"], .user-avatar') !== null;
+        });
+        
+        if (isDashboardVisible) {
+          loggedIn = true;
+          break;
+        }
+        
+        // Check if login inputs are gone
+        const emailInputExists = await page.$('input[name="email"], input[type="email"], input[placeholder*="Email"]');
+        if (!emailInputExists && currentUrl.includes('socialbee.com') && !currentUrl.includes('login')) {
+          await sleep(2000);
+          const emailInputStillGone = await page.$('input[name="email"], input[type="email"]');
+          if (!emailInputStillGone) {
+            loggedIn = true;
+            break;
+          }
+        }
+      } catch (e) {
+        break;
+      }
+      await sleep(1000);
+    }
     
-    console.log('🎉 Login detected! Saving session state...');
-    await context.storageState({ path: storagePath });
-    console.log(`✅ Session state saved to: ${storagePath}`);
+    if (loggedIn) {
+      await sleep(3000);
+      console.log('🎉 Login detected! Saving session state...');
+      await context.storageState({ path: storagePath });
+      console.log(`✅ Session state saved to: ${storagePath}`);
+    } else {
+      throw new Error('Timeout waiting for login or browser was closed');
+    }
   } catch (error) {
-    console.error('❌ Login timeout or failed:', error);
+    console.error('❌ Login timeout or failed:', (error as Error).message);
   } finally {
     await browser.close();
   }

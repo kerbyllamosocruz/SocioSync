@@ -153,29 +153,35 @@ async function main() {
           }
         }
         
-        // Step 4.2: Initiate TikTok Connection from SocialBee (this opens the popupPage)
+        // Step 4.2: Initiate TikTok Connection from SocialBee (this opens a popup page or redirects the main tab)
         logger.info('Connecting TikTok account in SocialBee...', workerId);
         const connectResult = await auth.connectTikTokAccount(page);
         if (!connectResult.success || !connectResult.popupPage) {
-          throw new Error('Failed to start TikTok connection in SocialBee (popup did not open)');
+          throw new Error('Failed to start TikTok connection in SocialBee');
         }
         
         const popupPage = connectResult.popupPage;
-        registerEulerStreamLogger(popupPage, logger, workerId);
+        const isPopup = popupPage !== page;
         
-        // Step 4.3: Login to TikTok directly inside the OAuth popup
-        logger.info('Logging into TikTok in the OAuth popup...', workerId);
+        if (isPopup) {
+          registerEulerStreamLogger(popupPage, logger, workerId);
+        }
+        
+        // Step 4.3: Login to TikTok directly inside the OAuth page/popup
+        logger.info('Logging into TikTok in the OAuth page...', workerId);
         const loginResult = await auth.loginToTikTokOnPopup(popupPage, account.email, account.password);
         
         if (!loginResult.success) {
-          logger.error(`TikTok login failed on popup for ${account.email}`, undefined, workerId);
-          await logger.writeFailure(account, 'TikTok login failed on OAuth popup');
-          try { await popupPage.close(); } catch(e) {}
+          logger.error(`TikTok login failed for ${account.email}`, undefined, workerId);
+          await logger.writeFailure(account, 'TikTok login failed on OAuth page');
+          if (isPopup) {
+            try { await popupPage.close(); } catch(e) {}
+          }
           continue;
         }
         
         if (loginResult.needsOTP) {
-          logger.info('OTP required on TikTok popup. Waiting for OTP...', workerId);
+          logger.info('OTP required on TikTok page. Waiting for OTP...', workerId);
           if (account.email.includes('kuku.lu') || account.email.includes('addrin.uk') || account.email.includes('mbox.re')) {
             const emailMonitor = new EmailMonitor(logger, config.email.pollInterval, config.email.timeout);
             await emailMonitor.initialize(account.email.split('@')[0]);
@@ -183,29 +189,39 @@ async function main() {
               const otpCode = await emailMonitor.waitForVerificationCode(account.email, 60000);
               const otpSuccess = await auth.handleOTPVerification(popupPage, otpCode);
               if (!otpSuccess) {
-                throw new Error('OTP verification failed on TikTok popup');
+                throw new Error('OTP verification failed on TikTok page');
               }
             } finally {
               await emailMonitor.cleanup();
             }
           } else {
-            logger.warn(`Email domain is not supported for automatic OTP retrieval. Please check manually on the popup.`, workerId);
+            logger.warn(`Email domain is not supported for automatic OTP retrieval. Please check manually.`, workerId);
             await sleep(30000);
           }
         }
         
         // Step 4.4: Complete the TikTok OAuth Authorization
-        logger.info('Completing TikTok authorization on popup...', workerId);
+        logger.info('Completing TikTok authorization...', workerId);
         const authSuccess = await auth.authorizeTikTokApp(popupPage);
         if (!authSuccess) {
-          throw new Error('Failed to authorize TikTok application in the popup');
+          throw new Error('Failed to authorize TikTok application');
         }
         
-        // Wait for the popup page to close after authorization completes
-        try {
-          await popupPage.waitForEvent('close', { timeout: 15000 });
-        } catch (e) {
-          try { await popupPage.close(); } catch(err) {}
+        // Wait for the popup page to close or redirect back
+        if (isPopup) {
+          try {
+            await popupPage.waitForEvent('close', { timeout: 15000 });
+          } catch (e) {
+            try { await popupPage.close(); } catch(err) {}
+          }
+        } else {
+          // If redirected in the main tab, wait for the page to redirect back to SocialBee
+          try {
+            await page.waitForURL(url => url.href.includes('socialbee.com'), { timeout: 20000 });
+          } catch (e) {
+            // Fallback: manually navigate back
+            await page.goto('https://app.socialbee.com/workspaces/social-accounts');
+          }
         }
         
         // Step 4.4: Execute SocialBee Tasks (Categories, Image upload, Variations, Publish)

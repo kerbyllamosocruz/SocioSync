@@ -169,38 +169,105 @@ export class AuthModule {
       this.logger.info('Connecting TikTok account in SocialBee', this.workerId);
       
       const currentUrl = page.url();
-      if (!currentUrl.includes('accounts') && !currentUrl.includes('dashboard')) {
-        await page.goto('https://app.socialbee.com/accounts');
-        await sleep(2000);
+      if (!currentUrl.includes('social-accounts')) {
+        this.logger.info('Navigating to workspaces social-accounts page...', this.workerId);
+        await page.goto('https://app.socialbee.com/workspaces/social-accounts');
+        await sleep(4000);
       }
       
-      const addBtn = await page.$('text=Add Account, button:has-text("Add Account")');
-      if (addBtn) {
-        await addBtn.click();
-        await sleep(2000);
+      // Step 1: Try to click the direct TikTok connect button/form (new UI grid)
+      const directTikTokSelectors = [
+        'form[action*="/signin/"] button:has-text("TikTok")',
+        'form[action*="/signin/"] button:has(.connect-social-tiktok)',
+        'button:has(.connect-social-tiktok)',
+        'form[action*="/signin/"] button',
+        '.connect-social-tiktok'
+      ];
+      
+      let directTikTokBtn = null;
+      for (const sel of directTikTokSelectors) {
+        try {
+          directTikTokBtn = await page.$(sel);
+          if (directTikTokBtn) {
+            this.logger.info(`Found direct TikTok connect button: ${sel}`, this.workerId);
+            break;
+          }
+        } catch (e) {
+          // Ignore selector syntax issues
+        }
       }
       
-      const tiktokOption = await page.$('text=TikTok, [data-testid="tiktok-option"]');
-      if (tiktokOption) {
-        await tiktokOption.click();
-        await sleep(1000);
+      let initiatorElement = directTikTokBtn;
+      
+      // Step 2: Fallback to "Connect social account" / "Add Account" modal if direct button not found
+      if (!initiatorElement) {
+        this.logger.info('Direct TikTok button not found. Checking for Connect social account / Add Account modal...', this.workerId);
+        const addBtnSelectors = [
+          'button:has-text("Connect social account")',
+          'button:has-text("Add Account")',
+          'text=Connect social account',
+          'text=Add Account'
+        ];
+        
+        let addBtn = null;
+        for (const sel of addBtnSelectors) {
+          addBtn = await page.$(sel);
+          if (addBtn) {
+            this.logger.info(`Clicking connection initiator modal button: ${sel}`, this.workerId);
+            await addBtn.click();
+            await sleep(3000);
+            break;
+          }
+        }
+        
+        // Look for TikTok option inside the modal
+        const tiktokModalSelectors = [
+          'text=TikTok',
+          '[data-testid="tiktok-option"]',
+          '.social-option:has-text("TikTok")',
+          'div:has-text("TikTok")'
+        ];
+        
+        for (const sel of tiktokModalSelectors) {
+          initiatorElement = await page.$(sel);
+          if (initiatorElement) {
+            this.logger.info(`Found TikTok option inside modal: ${sel}`, this.workerId);
+            break;
+          }
+        }
       }
       
-      const connectBtn = await page.$('button:has-text("Connect TikTok"), button:has-text("Connect")');
-      if (connectBtn) {
-        const [popupPage] = await Promise.all([
-          page.context().waitForEvent('page', { timeout: 15000 }),
-          connectBtn.click()
+      if (!initiatorElement) {
+        this.logger.warn('Could not find TikTok option button/element (direct or in modal)', this.workerId);
+        return { success: false };
+      }
+      
+      // Wait for either a popup page to open or the current page to redirect
+      this.logger.info('Clicking TikTok option and waiting for OAuth page...', this.workerId);
+      
+      let popupPage: Page | null = null;
+      try {
+        const [popup] = await Promise.all([
+          page.context().waitForEvent('page', { timeout: 8000 }),
+          initiatorElement.click()
         ]);
-        
-        await popupPage.waitForTimeout(3000);
-        
-        this.logger.info('TikTok connection popup opened', this.workerId);
-        return { success: true, popupPage };
+        popupPage = popup;
+        await popupPage.waitForLoadState('load');
+        this.logger.info('TikTok connection page opened in a popup window', this.workerId);
+      } catch (e) {
+        // No popup opened, check if the main page redirected
+        this.logger.info('No popup window detected. Checking for main page redirect...', this.workerId);
+        try {
+          await page.waitForURL(url => url.href.includes('tiktok.com'), { timeout: 10000 });
+          popupPage = page;
+          this.logger.info('TikTok connection redirected in the main browser tab', this.workerId);
+        } catch (err) {
+          this.logger.error('Failed to detect TikTok OAuth connection page (no popup and no redirect)', err as Error, this.workerId);
+          return { success: false };
+        }
       }
       
-      this.logger.warn('Could not find Connect TikTok button', this.workerId);
-      return { success: false };
+      return { success: true, popupPage };
       
     } catch (error) {
       this.logger.error('Failed to connect TikTok account', error as Error, this.workerId);
