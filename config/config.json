@@ -8,6 +8,7 @@
   "emailPollTimeout": 120000,
   "maxConcurrentWorkers": 4,
   "actionDelay": 1000,
+  "useProxy": false,
 
   "socialBee": {
     "email": "YOUR_SOCIALBEE_EMAIL_HERE",

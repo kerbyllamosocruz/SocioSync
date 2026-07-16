@@ -38,7 +38,7 @@ async function main() {
   const proxiesPath = path.join(__dirname, '../data/proxies.txt');
   let proxies: ProxyConfig[] = [];
   try {
-    if (fs.existsSync(proxiesPath)) {
+    if (config.useProxy !== false && fs.existsSync(proxiesPath)) {
       const content = fs.readFileSync(proxiesPath, 'utf8');
       const lines = content.split(/\r?\n/);
       for (const line of lines) {
@@ -46,6 +46,8 @@ async function main() {
         if (p) proxies.push(p);
       }
       logger.info(`Loaded ${proxies.length} proxies from proxies.txt`);
+    } else if (config.useProxy === false) {
+      logger.info('Proxies are disabled in configuration.');
     } else {
       logger.warn('No data/proxies.txt file found. Running without proxies.');
     }

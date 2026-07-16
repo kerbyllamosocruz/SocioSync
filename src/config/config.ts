@@ -15,6 +15,7 @@ export interface Config {
   emailPollTimeout: number;
   maxConcurrentWorkers: number;
   actionDelay: number;
+  useProxy?: boolean;
   socialBee: {
     email: string;
     password: string;
