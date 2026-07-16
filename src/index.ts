@@ -197,8 +197,9 @@ async function main() {
         const loginResult = await auth.loginToTikTokOnPopup(popupPage, account.email, account.password);
         
         if (!loginResult.success) {
-          logger.error(`TikTok login failed for ${account.email}`, undefined, workerId);
-          await logger.writeFailure(account, 'TikTok login failed on OAuth page');
+          const errorMsg = loginResult.error || 'TikTok login failed on OAuth page';
+          logger.error(`TikTok login failed for ${account.email}: ${errorMsg}`, undefined, workerId);
+          await logger.writeFailure(account, errorMsg);
           if (isPopup) {
             try { await popupPage.close(); } catch(e) {}
           }

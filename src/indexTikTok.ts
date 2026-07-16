@@ -133,8 +133,9 @@ async function main() {
         const loginResult = await auth.loginToTikTok(page, account.email, account.password);
         
         if (!loginResult.success) {
-          logger.error(`TikTok login failed for ${account.email}`, undefined, workerId);
-          await logger.writeFailure(account, 'TikTok login failed');
+          const errorMsg = loginResult.error || 'TikTok login failed';
+          logger.error(`TikTok login failed for ${account.email}: ${errorMsg}`, undefined, workerId);
+          await logger.writeFailure(account, errorMsg);
           continue;
         }
         

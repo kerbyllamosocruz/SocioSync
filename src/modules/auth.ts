@@ -14,7 +14,72 @@ export class AuthModule {
     this.workerId = workerId;
   }
 
-  async loginToTikTok(page: Page, username: string, password: string): Promise<{ success: boolean; needsOTP: boolean }> {
+  private async getSpecificError(p: Page): Promise<string | undefined> {
+    try {
+      return await p.evaluate(() => {
+        const possibleErrorSelectors = [
+          '[class*="DivError"]',
+          '[class*="error-message"]',
+          '[class*="error"]',
+          '[class*="DivTip"]',
+          '[class*="Tip"]',
+          '[role="alert"]'
+        ];
+        
+        for (const selector of possibleErrorSelectors) {
+          const elements = Array.from(document.querySelectorAll(selector));
+          for (const el of elements) {
+            const text = el.textContent?.trim();
+            if (text && text.length > 2 && text.length < 150) {
+              const lowerText = text.toLowerCase();
+              if (
+                lowerText.includes('incorrect') ||
+                lowerText.includes('invalid') ||
+                lowerText.includes('failed') ||
+                lowerText.includes('not found') ||
+                lowerText.includes('exist') ||
+                lowerText.includes('attempt') ||
+                lowerText.includes('try again') ||
+                lowerText.includes('suspended') ||
+                lowerText.includes('locked') ||
+                lowerText.includes('error') ||
+                lowerText.includes('verification code')
+              ) {
+                return text;
+              }
+            }
+          }
+        }
+        
+        const bodyText = document.body.innerText;
+        const matches = [
+          /maximum number of attempts/i,
+          /try again later/i,
+          /too many attempts/i,
+          /incorrect password/i,
+          /incorrect email/i,
+          /incorrect code/i,
+          /account doesn't exist/i,
+          /verification code is incorrect/i,
+          /account has been suspended/i,
+          /account has been locked/i
+        ];
+        
+        for (const regex of matches) {
+          const match = bodyText.match(regex);
+          if (match && match[0]) {
+            return match[0];
+          }
+        }
+        
+        return undefined;
+      });
+    } catch (e) {
+      return undefined;
+    }
+  }
+
+  async loginToTikTok(page: Page, username: string, password: string): Promise<{ success: boolean; needsOTP: boolean; error?: string }> {
     try {
       this.logger.info(`Logging into TikTok as ${username}`, this.workerId);
       
@@ -29,17 +94,11 @@ export class AuthModule {
       await page.click('button[type="submit"]');
       await sleep(3000);
       
-      // Check for rate limit or maximum attempts reached
-      const isRateLimited = await page.evaluate(() => {
-        const bodyText = document.body.innerText;
-        return bodyText.includes('Maximum number of attempts') || 
-               bodyText.includes('Try again later') || 
-               bodyText.includes('Too many attempts');
-      });
-      
-      if (isRateLimited) {
-        this.logger.error(`Rate limit / maximum attempts reached for TikTok account: ${username}`, undefined, this.workerId);
-        return { success: false, needsOTP: false };
+      // Check for specific error message on the page (including rate limits, invalid password, etc.)
+      const specificError = await this.getSpecificError(page);
+      if (specificError) {
+        this.logger.error(`TikTok login failed for ${username}: ${specificError}`, undefined, this.workerId);
+        return { success: false, needsOTP: false, error: specificError };
       }
       
       const pageUrl = page.url();
@@ -60,14 +119,14 @@ export class AuthModule {
       const errorMsg = await page.$('text=Incorrect password, please try again');
       if (errorMsg) {
         this.logger.error(`Invalid credentials for ${username}`, undefined, this.workerId);
-        return { success: false, needsOTP: false };
+        return { success: false, needsOTP: false, error: 'Incorrect password, please try again' };
       }
       
       return { success: true, needsOTP: false };
       
     } catch (error) {
       this.logger.error(`Failed to login to TikTok as ${username}`, error as Error, this.workerId);
-      return { success: false, needsOTP: false };
+      return { success: false, needsOTP: false, error: (error as Error).message };
     }
   }
 
@@ -315,7 +374,7 @@ export class AuthModule {
     }
   }
 
-  async loginToTikTokOnPopup(popupPage: Page, username: string, password: string): Promise<{ success: boolean; needsOTP: boolean }> {
+  async loginToTikTokOnPopup(popupPage: Page, username: string, password: string): Promise<{ success: boolean; needsOTP: boolean; error?: string }> {
     try {
       this.logger.info(`Starting TikTok login on popup for ${username}`, this.workerId);
       
@@ -396,17 +455,11 @@ export class AuthModule {
       }
       await sleep(4000);
       
-      // 7. Check for rate limit or maximum attempts reached
-      const isRateLimited = await popupPage.evaluate(() => {
-        const bodyText = document.body.innerText;
-        return bodyText.includes('Maximum number of attempts') || 
-               bodyText.includes('Try again later') || 
-               bodyText.includes('Too many attempts');
-      });
-      
-      if (isRateLimited) {
-        this.logger.error(`Rate limit / maximum attempts reached for TikTok account: ${username}`, undefined, this.workerId);
-        return { success: false, needsOTP: false };
+      // 7. Check for specific error message on the popup page
+      const specificError = await this.getSpecificError(popupPage);
+      if (specificError) {
+        this.logger.error(`TikTok login failed on popup for ${username}: ${specificError}`, undefined, this.workerId);
+        return { success: false, needsOTP: false, error: specificError };
       }
       
       // 8. Check for OTP verification
@@ -422,7 +475,7 @@ export class AuthModule {
       
     } catch (error) {
       this.logger.error(`Failed to login to TikTok on popup as ${username}`, error as Error, this.workerId);
-      return { success: false, needsOTP: false };
+      return { success: false, needsOTP: false, error: (error as Error).message };
     }
   }
 
