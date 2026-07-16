@@ -105,6 +105,7 @@ async function main() {
         context = await browserLauncher.launchPersistentContext(
           path.join(config.paths.userDataDir, `worker-${workerId}`),
           {
+            channel: config.channel || undefined,
             headless: config.headless,
             viewport: { width: 1280, height: 800 },
             userAgent: USER_AGENTS[workerIndex % USER_AGENTS.length],

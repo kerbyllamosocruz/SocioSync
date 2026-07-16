@@ -13,6 +13,7 @@ async function main() {
   const browserLauncher = browserType === 'firefox' ? firefox : browserType === 'webkit' ? webkit : chromium;
   
   const browser = await browserLauncher.launch({
+    channel: config.channel || undefined,
     headless: false
   });
   

@@ -17,6 +17,7 @@ export interface Config {
   actionDelay: number;
   useProxy?: boolean;
   browserType?: 'chromium' | 'firefox' | 'webkit';
+  channel?: string;
   socialBee: {
     email: string;
     password: string;
