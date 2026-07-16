@@ -1,0 +1,47 @@
+{
+  "workers": 5,
+  "headless": false,
+  "timeout": 30000,
+  "retries": 3,
+  "retryDelay": 5000,
+  "emailPollInterval": 3000,
+  "emailPollTimeout": 120000,
+  "maxConcurrentWorkers": 4,
+  "actionDelay": 1000,
+
+  "socialBee": {
+    "email": "YOUR_SOCIALBEE_EMAIL_HERE",
+    "password": "YOUR_SOCIALBEE_PASSWORD_HERE"
+  },
+
+  "socialBeeTasks": {
+    "postCategories": ["Social Media", "Marketing"],
+    "imagesFolder": "./data/images/",
+    "caption": "Exciting news! Check out our latest post! 🚀 #socialmedia #marketing",
+    "enableComments": true,
+    "scheduleType": "now",
+    "variationTexts": ["Variation 1: Check out our latest update! 🎉", "Variation 2: We've got something special for you! ✨", "Variation 3: Don't miss out on this! 🔥", "Variation 4: Join us on this journey! 🌟", "Variation 5: Exciting things are happening! 💫", "Variation 6: Be part of our community! 🤝"]
+  },
+
+  "captcha": {
+    "enabled": true,
+    "apiEndpoint": "https://tiktok.eulerstream.com",
+    "apiKey": "YOUR_EULERSTREAM_API_KEY_HERE",
+    "timeout": 30000,
+    "retries": 3
+  },
+
+  "email": {
+    "provider": "m.kuku.lu",
+    "pollInterval": 3000,
+    "timeout": 120000
+  },
+
+  "paths": {
+    "userDataDir": "./user_data_dir",
+    "logs": "./logs",
+    "screenshots": "./screenshots",
+    "traces": "./traces",
+    "reports": "./reports"
+  }
+}
