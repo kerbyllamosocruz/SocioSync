@@ -10,6 +10,9 @@
   "actionDelay": 1000,
   "useProxy": false,
   "browserType": "firefox",
+  "_browserType_comment": "Options: chromium | firefox | webkit",
+  "channel": "",
+  "_channel_comment": "Options: chrome | msedge | chrome-beta | msedge-beta | empty to use default",
 
   "socialBee": {
     "email": "YOUR_SOCIALBEE_EMAIL_HERE",
