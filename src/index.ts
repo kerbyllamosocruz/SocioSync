@@ -6,7 +6,7 @@ import { EmailMonitor } from './modules/emailMonitor';
 import { AuthModule } from './modules/auth';
 import { SocialBeeTasks } from './modules/socialBeeTasks';
 import { readAccountsFromCSV } from './utils/csvReader';
-import { generateRunId, safeCloseBrowser, safeCloseContext, sleep, registerEulerStreamLogger } from './utils/helpers';
+import { generateRunId, safeCloseBrowser, safeCloseContext, sleep, registerEulerStreamLogger, ProxyConfig, parseProxy } from './utils/helpers';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -32,6 +32,25 @@ async function main() {
   if (accounts.length === 0) {
     logger.warn('No accounts to process in accounts.csv');
     process.exit(0);
+  }
+
+  // Load proxies
+  const proxiesPath = path.join(__dirname, '../data/proxies.txt');
+  let proxies: ProxyConfig[] = [];
+  try {
+    if (fs.existsSync(proxiesPath)) {
+      const content = fs.readFileSync(proxiesPath, 'utf8');
+      const lines = content.split(/\r?\n/);
+      for (const line of lines) {
+        const p = parseProxy(line);
+        if (p) proxies.push(p);
+      }
+      logger.info(`Loaded ${proxies.length} proxies from proxies.txt`);
+    } else {
+      logger.warn('No data/proxies.txt file found. Running without proxies.');
+    }
+  } catch (error) {
+    logger.error('Failed to read proxies list', error as Error);
   }
   
   // 3. Initialize selectors
@@ -70,6 +89,12 @@ async function main() {
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
         ];
 
+        // Select proxy for this worker index
+        const proxy = proxies.length > 0 ? proxies[workerIndex % proxies.length] : undefined;
+        if (proxy) {
+          logger.info(`Using proxy: ${proxy.server}`, workerId);
+        }
+
         // Launch browser context
         context = await chromium.launchPersistentContext(
           path.join(config.paths.userDataDir, `worker-${workerId}`),
@@ -77,6 +102,7 @@ async function main() {
             headless: config.headless,
             viewport: { width: 1280, height: 800 },
             userAgent: USER_AGENTS[workerIndex % USER_AGENTS.length],
+            proxy: proxy || undefined,
             args: ['--no-sandbox', '--disable-setuid-sandbox']
           }
         );

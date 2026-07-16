@@ -15,4 +15,5 @@ traces/
 user_data_dir/
 config/socialbee_storage.json
 data/accounts.csv
+data/proxies.txt
 

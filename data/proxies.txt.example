@@ -1,0 +1,10 @@
+# Add your proxies here, one per line.
+# Supported formats:
+# 1) ip:port
+# 2) ip:port:username:password
+# 3) http://username:password@ip:port
+# 4) socks5://username:password@ip:port
+
+192.168.1.1:8080
+192.168.1.2:8080:user123:pass123
+http://user456:pass456@192.168.1.3:3128

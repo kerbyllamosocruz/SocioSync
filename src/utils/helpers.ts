@@ -158,3 +158,54 @@ export function registerEulerStreamLogger(page: Page, logger: any, workerId: str
     }
   });
 }
+
+export interface ProxyConfig {
+  server: string;
+  username?: string;
+  password?: string;
+}
+
+export function parseProxy(proxyStr: string): ProxyConfig | null {
+  proxyStr = proxyStr.trim();
+  if (!proxyStr || proxyStr.startsWith('#')) return null;
+  
+  // Format 1: protocol://username:password@ip:port
+  if (proxyStr.startsWith('http://') || proxyStr.startsWith('https://') || proxyStr.startsWith('socks5://')) {
+    try {
+      const url = new URL(proxyStr);
+      const config: ProxyConfig = {
+        server: `${url.protocol}//${url.hostname}:${url.port}`
+      };
+      if (url.username) {
+        config.username = decodeURIComponent(url.username);
+      }
+      if (url.password) {
+        config.password = decodeURIComponent(url.password);
+      }
+      return config;
+    } catch (e) {
+      // Fallback
+    }
+  }
+  
+  // Format 2: ip:port:username:password
+  // Format 3: ip:port
+  const parts = proxyStr.split(':');
+  if (parts.length === 4) {
+    const [ip, port, user, pass] = parts;
+    return {
+      server: `http://${ip}:${port}`,
+      username: user,
+      password: pass
+    };
+  } else if (parts.length === 2) {
+    const [ip, port] = parts;
+    return {
+      server: `http://${ip}:${port}`
+    };
+  }
+  
+  return {
+    server: proxyStr.startsWith('http') ? proxyStr : `http://${proxyStr}`
+  };
+}
