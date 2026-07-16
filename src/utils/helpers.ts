@@ -209,3 +209,32 @@ export function parseProxy(proxyStr: string): ProxyConfig | null {
     server: proxyStr.startsWith('http') ? proxyStr : `http://${proxyStr}`
   };
 }
+
+export async function startDolphinProfile(profileId: string, apiHost = 'http://localhost:3001'): Promise<string> {
+  const axios = require('axios');
+  try {
+    const url = `${apiHost.replace(/\/$/, '')}/v1.0/browser_profiles/${profileId}/start?automation=1`;
+    const response = await axios.get(url, { timeout: 25000 });
+    
+    if (response.data && response.data.success && response.data.automation && response.data.automation.wsUrl) {
+      return response.data.automation.wsUrl;
+    }
+    
+    throw new Error(`Dolphin API returned failure: ${JSON.stringify(response.data)}`);
+  } catch (error) {
+    throw new Error(`Failed to start Dolphin profile ${profileId}: ${(error as Error).message}`);
+  }
+}
+
+export async function stopDolphinProfile(profileId: string, apiHost = 'http://localhost:3001'): Promise<void> {
+  const axios = require('axios');
+  try {
+    const url = `${apiHost.replace(/\/$/, '')}/v1.0/browser_profiles/${profileId}/stop`;
+    const response = await axios.get(url, { timeout: 15000 });
+    if (!response.data || !response.data.success) {
+      console.warn(`[Dolphin] Warning: stop response returned non-success:`, response.data);
+    }
+  } catch (error) {
+    console.warn(`[Dolphin] Failed to stop Dolphin profile ${profileId}: ${(error as Error).message}`);
+  }
+}

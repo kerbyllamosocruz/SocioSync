@@ -9,10 +9,14 @@
   "maxConcurrentWorkers": 4,
   "actionDelay": 1000,
   "useProxy": false,
-  "browserType": "firefox",
+  "browserType": "chromium",
   "_browserType_comment": "Options: chromium | firefox | webkit",
   "channel": "",
   "_channel_comment": "Options: chrome | msedge | chrome-beta | msedge-beta | empty to use default",
+  "dolphin": {
+    "enabled": false,
+    "apiHost": "http://localhost:3001"
+  },
 
   "socialBee": {
     "email": "YOUR_SOCIALBEE_EMAIL_HERE",

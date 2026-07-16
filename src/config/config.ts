@@ -18,6 +18,10 @@ export interface Config {
   useProxy?: boolean;
   browserType?: 'chromium' | 'firefox' | 'webkit';
   channel?: string;
+  dolphin?: {
+    enabled: boolean;
+    apiHost?: string;
+  };
   socialBee: {
     email: string;
     password: string;
@@ -66,6 +70,15 @@ export function loadConfig(): Config {
     // Set default browserType if not defined
     if (config.browserType === undefined) {
       config.browserType = 'chromium';
+    }
+    
+    // Set default dolphin options if not defined
+    if (config.dolphin) {
+      if (config.dolphin.enabled && !config.dolphin.apiHost) {
+        config.dolphin.apiHost = 'http://localhost:3001';
+      }
+    } else {
+      config.dolphin = { enabled: false, apiHost: 'http://localhost:3001' };
     }
     
     // Override settings from environment variables if they are set

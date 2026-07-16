@@ -5,7 +5,7 @@ import { Logger } from './logging/logger';
 import { EmailMonitor } from './modules/emailMonitor';
 import { AuthModule } from './modules/auth';
 import { readAccountsFromCSV } from './utils/csvReader';
-import { generateRunId, safeCloseBrowser, safeCloseContext, sleep, registerEulerStreamLogger, ProxyConfig, parseProxy } from './utils/helpers';
+import { generateRunId, safeCloseBrowser, safeCloseContext, sleep, registerEulerStreamLogger, ProxyConfig, parseProxy, startDolphinProfile, stopDolphinProfile } from './utils/helpers';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -73,41 +73,58 @@ async function main() {
       
       let context = null;
       let page = null;
+      let dolphinBrowser = null;
       
       try {
-        const USER_AGENTS = [
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
-        ];
-
-        // Select proxy for this worker index
-        const proxy = proxies.length > 0 ? proxies[workerIndex % proxies.length] : undefined;
-        if (proxy) {
-          logger.info(`Using proxy: ${proxy.server}`, workerId);
-        }
-
-        // Launch browser context using configured browser type
-        const browserType = config.browserType || 'chromium';
-        const browserLauncher = browserType === 'firefox' ? firefox : browserType === 'webkit' ? webkit : chromium;
-        logger.info(`Launching ${browserType} browser...`, workerId);
-        
-        context = await browserLauncher.launchPersistentContext(
-          path.join(config.paths.userDataDir, `worker-tiktok-${workerId}`),
-          {
-            channel: config.channel || undefined,
-            headless: config.headless,
-            viewport: { width: 1280, height: 800 },
-            userAgent: USER_AGENTS[workerIndex % USER_AGENTS.length],
-            proxy: proxy || undefined,
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        if (config.dolphin?.enabled) {
+          if (!account.profileId) {
+            throw new Error(`Dolphin{Anty} is enabled but no profileId is defined in CSV for: ${account.email}`);
           }
-        );
+          logger.info(`Starting Dolphin{Anty} profile ${account.profileId}...`, workerId);
+          const wsUrl = await startDolphinProfile(account.profileId, config.dolphin.apiHost);
+          logger.info(`Connecting Playwright to Dolphin profile via CDP...`, workerId);
+          dolphinBrowser = await chromium.connectOverCDP(wsUrl);
+          context = dolphinBrowser.contexts()[0];
+          if (!context) {
+            throw new Error('No browser context found in Dolphin profile');
+          }
+          page = context.pages()[0] || await context.newPage();
+        } else {
+          const USER_AGENTS = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+          ];
+
+          // Select proxy for this worker index
+          const proxy = proxies.length > 0 ? proxies[workerIndex % proxies.length] : undefined;
+          if (proxy) {
+            logger.info(`Using proxy: ${proxy.server}`, workerId);
+          }
+
+          // Launch browser context using configured browser type
+          const browserType = config.browserType || 'chromium';
+          const browserLauncher = browserType === 'firefox' ? firefox : browserType === 'webkit' ? webkit : chromium;
+          logger.info(`Launching ${browserType} browser...`, workerId);
+          
+          context = await browserLauncher.launchPersistentContext(
+            path.join(config.paths.userDataDir, `worker-tiktok-${workerId}`),
+            {
+              channel: config.channel || undefined,
+              headless: config.headless,
+              viewport: { width: 1280, height: 800 },
+              userAgent: USER_AGENTS[workerIndex % USER_AGENTS.length],
+              proxy: proxy || undefined,
+              args: ['--no-sandbox', '--disable-setuid-sandbox']
+            }
+          );
+          
+          page = await context.newPage();
+        }
         
-        page = await context.newPage();
         registerEulerStreamLogger(page, logger, workerId);
         const auth = new AuthModule(logger, selectors, workerId);
         
@@ -160,7 +177,14 @@ async function main() {
         logger.error(`Error processing account ${account.email}`, error as Error, workerId);
         await logger.writeFailure(account, (error as Error).message);
       } finally {
-        if (context) {
+        if (config.dolphin?.enabled) {
+          if (dolphinBrowser) {
+            try { await dolphinBrowser.close(); } catch(e) {}
+          }
+          if (account.profileId) {
+            try { await stopDolphinProfile(account.profileId, config.dolphin.apiHost); } catch(e) {}
+          }
+        } else if (context) {
           await safeCloseContext(context);
         }
       }
