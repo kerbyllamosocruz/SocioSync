@@ -1,5 +1,5 @@
 {
-  "workers": 10,
+  "workers": 1,
   "headless": false,
   "timeout": 30000,
   "retries": 3,
