@@ -125,35 +125,75 @@ export class AuthModule {
       this.logger.info(`Logging into SocialBee as ${email}`, this.workerId);
       
       // Try visiting dashboard first to check if we are already logged in via storageState
+      this.logger.info('Navigating to dashboard to check session...', this.workerId);
       await page.goto('https://app.socialbee.com/dashboard');
-      await sleep(3000);
       
-      const currentUrl = page.url();
-      if (currentUrl.includes('dashboard') || currentUrl.includes('home') || await page.$('.dashboard, .home, [class*="dashboard"]')) {
+      const isLoggedIn = await Promise.race([
+        page.waitForSelector('.user-avatar, a[href*="logout"], .workspace-name, [data-testid*="sidebar"]', { timeout: 8000 }).then(() => true),
+        page.waitForSelector('input[name="email"], input[type="email"], input[placeholder*="Email"]', { timeout: 8000 }).then(() => false)
+      ]).catch(() => false);
+      
+      if (isLoggedIn) {
         this.logger.success('Already logged into SocialBee (session active)', this.workerId);
         return true;
       }
       
       this.logger.info('Session not active, logging in to SocialBee...', this.workerId);
       await page.goto('https://app.socialbee.com/login');
-      await sleep(2000);
+      await sleep(3000);
       
-      await waitForSelectorOrFail(page, 'input[name="email"]', 10000);
-      
-      await humanType(page, 'input[name="email"]', email);
-      await humanType(page, 'input[name="password"]', password);
-      
-      await page.click('button[type="submit"]');
-      
-      try {
-        await page.waitForSelector('.dashboard, .home, [class*="dashboard"]', { timeout: 15000 });
-      } catch (e) {
-        if (await page.$('[class*="dashboard"]')) {
-          this.logger.info('Already logged into SocialBee', this.workerId);
-          return true;
-        }
-        throw e;
+      // Step 1: Fill email address
+      this.logger.info('Filling email address...', this.workerId);
+      const emailInput = await page.waitForSelector('input[name="email"], input[type="email"], input[placeholder*="Email"]', { timeout: 15000 });
+      if (!emailInput) {
+        throw new Error('Email input field not found');
       }
+      await humanType(page, emailInput, email);
+      await sleep(1000);
+      
+      const continueBtn = await page.$('button:has-text("Continue"), button[type="submit"], button.btn-primary-sb');
+      if (continueBtn) {
+        this.logger.info('Clicking Continue...', this.workerId);
+        await continueBtn.click();
+        await sleep(3000);
+      } else {
+        this.logger.info('No Continue button found, submitting with Enter key', this.workerId);
+        await page.keyboard.press('Enter');
+        await sleep(3000);
+      }
+      
+      // Step 2: Fill password
+      this.logger.info('Waiting for password field or dashboard...', this.workerId);
+      const result = await Promise.race([
+        page.waitForSelector('input[name="password"], input[type="password"]', { timeout: 15000 }).then(() => 'password'),
+        page.waitForSelector('.dashboard, .home, [class*="dashboard"]', { timeout: 15000 }).then(() => 'dashboard')
+      ]);
+      
+      if (result === 'dashboard') {
+        this.logger.success('Successfully logged into SocialBee (auto-authenticated)', this.workerId);
+        return true;
+      }
+      
+      this.logger.info('Filling password...', this.workerId);
+      const passwordInput = await page.$('input[name="password"], input[type="password"]');
+      if (!passwordInput) {
+        throw new Error('Password input field not found');
+      }
+      await humanType(page, passwordInput, password);
+      await sleep(1000);
+      
+      const loginBtn = await page.$('button[type="submit"], button:has-text("Log in"), button:has-text("Continue")');
+      if (loginBtn) {
+        this.logger.info('Clicking Log in button...', this.workerId);
+        await loginBtn.click();
+      } else {
+        this.logger.info('No Log in button found, submitting with Enter key', this.workerId);
+        await page.keyboard.press('Enter');
+      }
+      
+      // Step 3: Wait for dashboard redirection
+      this.logger.info('Waiting for dashboard redirection...', this.workerId);
+      await page.waitForSelector('.user-avatar, a[href*="logout"], .workspace-name, [data-testid*="sidebar"]', { timeout: 25000 });
       
       this.logger.success(`Successfully logged into SocialBee as ${email}`, this.workerId);
       return true;

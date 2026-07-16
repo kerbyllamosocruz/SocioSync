@@ -115,18 +115,21 @@ async function main() {
             }
             if (state.origins) {
               for (const originState of state.origins) {
-                const tempPage = await context.newPage();
-                await tempPage.goto(originState.origin);
-                await tempPage.evaluate((items) => {
-                  localStorage.clear();
-                  for (const item of items) {
-                    localStorage.setItem(item.name, item.value);
+                const localStorageData = originState.localStorage.reduce((acc: any, item: any) => {
+                  acc[item.name] = item.value;
+                  return acc;
+                }, {});
+                
+                await context.addInitScript((args: any) => {
+                  if (window.location.origin === args.origin) {
+                    for (const [key, value] of Object.entries(args.localStorageData)) {
+                      window.localStorage.setItem(key, value as string);
+                    }
                   }
-                }, originState.localStorage);
-                await tempPage.close();
+                }, { origin: originState.origin, localStorageData });
               }
             }
-            logger.info('Successfully injected SocialBee storage state', workerId);
+            logger.info('Successfully injected SocialBee storage state via init scripts', workerId);
           } catch (e) {
             logger.warn(`Failed to inject storageState: ${(e as Error).message}`, workerId);
           }
@@ -143,14 +146,12 @@ async function main() {
           throw new Error('SocialBee login failed');
         }
         
-        // Auto-save the storage state if it doesn't exist yet, so we reuse it next time
-        if (!fs.existsSync(storageStatePath)) {
-          try {
-            await context.storageState({ path: storageStatePath });
-            logger.info('Saved SocialBee session state to storage for future runs', workerId);
-          } catch (e) {
-            logger.warn(`Failed to auto-save storageState: ${(e as Error).message}`, workerId);
-          }
+        // Save/update the storage state so we reuse it next time
+        try {
+          await context.storageState({ path: storageStatePath });
+          logger.info('Saved updated SocialBee session state to storage', workerId);
+        } catch (e) {
+          logger.warn(`Failed to save storageState: ${(e as Error).message}`, workerId);
         }
         
         // Step 4.2: Initiate TikTok Connection from SocialBee (this opens a popup page or redirects the main tab)
