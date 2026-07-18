@@ -392,7 +392,7 @@
           nativeSetter.call(usernameInput, email);
           usernameInput.dispatchEvent(new Event("input", { bubbles: true }));
           usernameInput.dispatchEvent(new Event("change", { bubbles: true }));
-        } catch (err) {}
+        } catch (err) { }
       }
 
       if (passwordInput) {
@@ -409,7 +409,7 @@
           nativeSetter.call(passwordInput, password);
           passwordInput.dispatchEvent(new Event("input", { bubbles: true }));
           passwordInput.dispatchEvent(new Event("change", { bubbles: true }));
-        } catch (err) {}
+        } catch (err) { }
       }
 
       console.log(`[OTP Link] Autofilled credentials for: ${email}`);
@@ -519,6 +519,15 @@
     createFloatingPanel("Login Tab");
     setStatus("Listening for OTP fields...", "idle");
 
+    GM_addValueChangeListener("otp_invalidated", function (key, oldValue, newValue, remote) {
+      if (window.otp_requested_state) {
+        console.log("[OTP Link] OTP invalidated by main script. Resetting state.");
+        window.otp_requested_state = false;
+        window.last_invalid_otp = newValue && newValue.otp ? newValue.otp : null;
+        setStatus("OTP Invalid. Waiting for new one...", "running");
+      }
+    });
+
     // Find the target email address shown on the login page (including masked ones)
     function cleanExtractedEmail(email) {
       if (!email) return null;
@@ -587,7 +596,7 @@
       const candidates = Array.from(document.querySelectorAll(
         'input[data-testid="tux-web-input"], input.tux-input__element-zY3KBY, input[name="otp"], input[placeholder*="6-digit"], input[placeholder*="code"], input[placeholder*="Code"], input[placeholder*="digit"], input[placeholder*="Digit"], input[id*="otp"], input[class*="otp"], input[class*="code"], input[class*="tux-"]'
       ));
-      
+
       // Prioritize visible inputs, but fall back to the first matching candidate
       const singleInput = candidates.find(el => el.offsetWidth > 0) || candidates[0];
 
@@ -629,13 +638,13 @@
           digitInputs[i].dispatchEvent(new Event("input", { bubbles: true }));
           digitInputs[i].dispatchEvent(new Event("change", { bubbles: true }));
           digitInputs[i].dispatchEvent(new Event("keyup", { bubbles: true }));
-          
+
           try {
             const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
             nativeInputValueSetter.call(digitInputs[i], otpCode[i]);
             digitInputs[i].dispatchEvent(new Event("input", { bubbles: true }));
             digitInputs[i].dispatchEvent(new Event("change", { bubbles: true }));
-          } catch (e) {}
+          } catch (e) { }
         }
         return true;
       }
@@ -706,13 +715,14 @@
         email: targetEmail,
         status: "pending",
         timestamp: Date.now(),
+        invalid_otp: window.last_invalid_otp || null
       });
     }
 
     // Check if we need to select the Email verification method
     function checkForVerificationOption() {
       const items = Array.from(document.querySelectorAll('.pc-home-item-IxNc0F, [class*="pc-home-item-"], [class*="verification-option"]')).filter(el => el.offsetWidth > 0);
-      
+
       // Reset the click guard flag if the verification option is no longer present/visible on screen
       if (items.length === 0) {
         window.hasClickedVerificationOption = false;
@@ -722,22 +732,22 @@
       for (const el of items) {
         const text = el.textContent || "";
         const hasEmail = text.includes("Email") && (text.includes("@") || /[a-zA-Z0-9.*_%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(text));
-        
+
         if (hasEmail) {
           const clickTarget = el.closest('.pc-home-item-IxNc0F, [class*="pc-home-item-"]') || el;
-          
+
           if (!window.hasClickedVerificationOption) {
             window.hasClickedVerificationOption = true;
             console.log("[OTP Link] Found email verification option. Clicking:", clickTarget);
             setStatus("Selecting Email option...", "running");
-            
+
             // Dispatch click on the target
             clickTarget.click();
-            
+
             // Fallback: Click inner elements
             const subElements = clickTarget.querySelectorAll('div, svg, path, span');
             subElements.forEach(child => {
-              try { child.click(); } catch(e) {}
+              try { child.click(); } catch (e) { }
             });
             break;
           }
@@ -750,7 +760,7 @@
 
     async function solveTikTokCaptchaClientSide() {
       if (isSolvingCaptcha) return;
-      
+
       const captchaContainer = document.querySelector('#captcha-verify-container-main-page, [id*="captcha-verify-container"], [class*="captcha-verify-container"]');
       if (!captchaContainer) return;
 
@@ -945,25 +955,25 @@
 
     function isRecentEmail(text) {
       if (!text) return true;
-      
-      // Look for relative time patterns: (Xsec), (1min), (2min), etc.
-      const secMatch = text.match(/\((\d+)sec\)/i);
+
+      // Look for relative time patterns like (40min), 40 minutes, etc.
+      const secMatch = text.match(/(\d+)\s*sec/i) || text.match(/(\d+)\s*秒/);
       if (secMatch) {
         const secs = parseInt(secMatch[1], 10);
-        return secs <= 120; // Accept if less than 120 seconds old
+        return secs <= 60;
       }
-      
-      const minMatch = text.match(/\((\d+)min\)/i);
+
+      const minMatch = text.match(/(\d+)\s*min/i) || text.match(/(\d+)\s*分/);
       if (minMatch) {
         const mins = parseInt(minMatch[1], 10);
-        return mins <= 2; // Accept if less than 2 minutes old
+        return mins <= 1; // Accept if up to 1 minute old
       }
 
       // Reject if it mentions hours, days or months (clearly old emails)
-      if (text.includes("hour") || text.includes("day") || text.includes("month")) {
+      if (text.match(/hour|day|month|時間|日|月/i)) {
         return false;
       }
-      
+
       return true; // Default to true if no time indicator is in the text
     }
 
@@ -1014,6 +1024,11 @@
       const inlineOtpMatch = rowText.match(/\b\d{6}\b/) || rowText.match(/\b\d{4}\b/);
       if (inlineOtpMatch) {
         const otpCode = inlineOtpMatch[0];
+        const currentReq = GM_getValue("otp_request");
+        if (currentReq && currentReq.invalid_otp === otpCode) {
+          console.log(`[OTP Link] Found OTP ${otpCode} inline but it was marked invalid. Waiting for new email...`);
+          return;
+        }
         console.log(`[OTP Link] Found OTP Code directly in inbox item: ${otpCode}. Sending response.`);
         setStatus(`Found OTP ${otpCode}! Sending to Login tab...`, "success");
 
@@ -1049,7 +1064,7 @@
             if (el.tagName === "IFRAME") {
               try {
                 bodyText += " " + el.contentWindow.document.body.innerText;
-              } catch (e) {}
+              } catch (e) { }
             } else {
               bodyText += " " + el.innerText;
             }
@@ -1064,6 +1079,11 @@
         const otpMatch = bodyText.match(/\b\d{6}\b/) || bodyText.match(/\b\d{4}\b/);
         if (otpMatch) {
           const otpCode = otpMatch[0];
+          const currentReq = GM_getValue("otp_request");
+          if (currentReq && currentReq.invalid_otp === otpCode) {
+            console.log(`[OTP Link] Found OTP ${otpCode} inside email but it was marked invalid. Closing and waiting...`);
+            return;
+          }
           console.log(`[OTP Link] Found OTP Code: ${otpCode}. Sending response.`);
           setStatus(`Found OTP ${otpCode}! Sending to Login tab...`, "success");
 
