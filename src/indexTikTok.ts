@@ -5,7 +5,7 @@ import { Logger } from './logging/logger';
 import { EmailMonitor } from './modules/emailMonitor';
 import { AuthModule } from './modules/auth';
 import { readAccountsFromCSV } from './utils/csvReader';
-import { generateRunId, safeCloseBrowser, safeCloseContext, sleep, registerEulerStreamLogger, ProxyConfig, parseProxy, startDolphinProfile, stopDolphinProfile, isMaximumAttemptsError } from './utils/helpers';
+import { generateRunId, safeCloseBrowser, safeCloseContext, sleep, registerEulerStreamLogger, ProxyConfig, parseProxy, startDolphinProfile, stopDolphinProfile, isMaximumAttemptsError, findDolphinProfileIdByName } from './utils/helpers';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -74,14 +74,21 @@ async function main() {
       let context = null;
       let page = null;
       let dolphinBrowser = null;
+      let activeProfileId = account.profileId;
       
       try {
         if (config.dolphin?.enabled) {
-          if (!account.profileId) {
-            throw new Error(`Dolphin{Anty} is enabled but no profileId is defined in CSV for: ${account.email}`);
+          if (!activeProfileId) {
+            logger.info(`Searching Dolphin{Anty} profile for: ${account.email}...`, workerId);
+            activeProfileId = await findDolphinProfileIdByName(account.email, config.dolphin.apiHost, config.dolphin.apiToken) || 
+                              await findDolphinProfileIdByName(account.email.split('@')[0], config.dolphin.apiHost, config.dolphin.apiToken) || 
+                              undefined;
           }
-          logger.info(`Starting Dolphin{Anty} profile ${account.profileId}...`, workerId);
-          const wsUrl = await startDolphinProfile(account.profileId, config.dolphin.apiHost);
+          if (!activeProfileId) {
+            throw new Error(`Dolphin{Anty} is enabled but no profileId was defined or found for: ${account.email}`);
+          }
+          logger.info(`Starting Dolphin{Anty} profile ${activeProfileId}...`, workerId);
+          const wsUrl = await startDolphinProfile(activeProfileId, config.dolphin.apiHost, config.dolphin.apiToken);
           logger.info(`Connecting Playwright to Dolphin profile via CDP...`, workerId);
           dolphinBrowser = await chromium.connectOverCDP(wsUrl);
           context = dolphinBrowser.contexts()[0];
@@ -193,8 +200,8 @@ async function main() {
           if (dolphinBrowser) {
             try { await dolphinBrowser.close(); } catch(e) {}
           }
-          if (account.profileId) {
-            try { await stopDolphinProfile(account.profileId, config.dolphin.apiHost); } catch(e) {}
+          if (activeProfileId) {
+            try { await stopDolphinProfile(activeProfileId, config.dolphin.apiHost, config.dolphin.apiToken); } catch(e) {}
           }
         } else if (context) {
           await safeCloseContext(context);

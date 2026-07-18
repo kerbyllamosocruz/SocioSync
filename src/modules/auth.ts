@@ -94,6 +94,21 @@ export class AuthModule {
       await page.click('button[type="submit"]');
       await sleep(3000);
       
+      // Handle potential slider captchas
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const hasCaptcha = await page.$('#captcha-verify-container-main-page, [id*="captcha-verify-container"], [class*="captcha-verify-container"]');
+        if (hasCaptcha) {
+          this.logger.info(`CAPTCHA detected (Attempt ${attempt}/3). Solving...`, this.workerId);
+          const solved = await this.solveTikTokCaptchaPlaywright(page);
+          if (!solved) {
+            this.logger.warn('Failed to solve CAPTCHA on this attempt.', this.workerId);
+          }
+          await sleep(2000);
+        } else {
+          break;
+        }
+      }
+      
       // Check for specific error message on the page (including rate limits, invalid password, etc.)
       const specificError = await this.getSpecificError(page);
       if (specificError) {
@@ -454,6 +469,21 @@ export class AuthModule {
         await popupPage.keyboard.press('Enter');
       }
       await sleep(4000);
+
+      // Handle potential slider captchas on popup
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const hasCaptcha = await popupPage.$('#captcha-verify-container-main-page, [id*="captcha-verify-container"], [class*="captcha-verify-container"]');
+        if (hasCaptcha) {
+          this.logger.info(`CAPTCHA detected on popup (Attempt ${attempt}/3). Solving...`, this.workerId);
+          const solved = await this.solveTikTokCaptchaPlaywright(popupPage);
+          if (!solved) {
+            this.logger.warn('Failed to solve CAPTCHA on popup on this attempt.', this.workerId);
+          }
+          await sleep(2000);
+        } else {
+          break;
+        }
+      }
       
       // 7. Check for specific error message on the popup page
       const specificError = await this.getSpecificError(popupPage);
@@ -498,6 +528,130 @@ export class AuthModule {
       return false;
     } catch (error) {
       this.logger.error('Failed to authorize TikTok application', error as Error, this.workerId);
+      return false;
+    }
+  }
+
+  private async solveTikTokCaptchaPlaywright(page: Page): Promise<boolean> {
+    try {
+      const captchaContainer = await page.$('#captcha-verify-container-main-page, [id*="captcha-verify-container"], [class*="captcha-verify-container"]');
+      if (!captchaContainer) {
+        return false;
+      }
+
+      this.logger.info('TikTok CAPTCHA slider detected. Attempting to solve...', this.workerId);
+
+      const images = await page.$$('[id*="captcha-verify-container"] img, #captcha-verify-container-main-page img, [class*="captcha-verify-container"] img');
+      if (images.length < 2) {
+        this.logger.warn('Could not find CAPTCHA images', this.workerId);
+        return false;
+      }
+
+      let slideImg = null;
+      let bgImg = null;
+
+      for (const img of images) {
+        const isAbsolute = await img.evaluate((el: any) => {
+          const style = window.getComputedStyle(el);
+          return el.classList.contains('cap-absolute') || style.position === 'absolute' || el.className.includes('slide');
+        });
+        if (isAbsolute) {
+          slideImg = img;
+        } else {
+          bgImg = img;
+        }
+      }
+
+      if (!slideImg || !bgImg) {
+        this.logger.warn('Could not distinguish slide piece and background images', this.workerId);
+        return false;
+      }
+
+      const bgSrc = await bgImg.getAttribute('src');
+      const slideSrc = await slideImg.getAttribute('src');
+
+      if (!bgSrc || !slideSrc || !bgSrc.startsWith('data:') || !slideSrc.startsWith('data:')) {
+        this.logger.warn('CAPTCHA image sources are invalid or not base64', this.workerId);
+        return false;
+      }
+
+      const dragHandle = await page.$('.secsdk-captcha-drag-icon, [class*="secsdk-captcha-drag-icon"], [class*="captcha_verify_slide--slide"], [class*="captcha_slider"], .cap-absolute.cap-w-\\[56px\\] button, .secsdk_captcha_slider_button, #captcha_slider');
+      if (!dragHandle) {
+        this.logger.warn('Could not find slider drag handle', this.workerId);
+        return false;
+      }
+
+      const cleanBg = bgSrc.replace(/^data:image\/[a-z]+;base64,/, "");
+      const cleanSlide = slideSrc.replace(/^data:image\/[a-z]+;base64,/, "");
+
+      // Load config to get API key
+      const config = require('../config/config').loadConfig();
+      const apiKey = config.captcha?.apiKey;
+      if (!apiKey || apiKey.includes('YOUR_EULERSTREAM_API_KEY_HERE')) {
+        this.logger.error('EulerStream CAPTCHA API Key is not configured in config.json or .env', undefined, this.workerId);
+        return false;
+      }
+
+      this.logger.info('Sending CAPTCHA images to EulerStream API...', this.workerId);
+      const axios = require('axios');
+      const response = await axios.post('https://tiktok.eulerstream.com/api/v1/captcha/slide', {
+        api_key: apiKey,
+        puzzle_image_base64: cleanBg,
+        piece_image_base64: cleanSlide
+      }, { timeout: 15000 });
+
+      const slideX = response.data?.slide_x || response.data?.x;
+      if (slideX === undefined) {
+        this.logger.error(`Failed to solve CAPTCHA: ${JSON.stringify(response.data)}`, undefined, this.workerId);
+        return false;
+      }
+
+      this.logger.success(`EulerStream solved CAPTCHA. Target x: ${slideX}`, this.workerId);
+
+      // Calculate scaled drag distance
+      const sizes = await bgImg.evaluate((el: HTMLImageElement) => {
+        return {
+          naturalWidth: el.naturalWidth || 340,
+          clientWidth: el.clientWidth || 340
+        };
+      });
+
+      const scale = sizes.clientWidth / sizes.naturalWidth;
+      const dragDistance = Math.round(slideX * scale);
+
+      // Drag slider using Playwright's mouse events
+      const boundingBox = await dragHandle.boundingBox();
+      if (!boundingBox) {
+        this.logger.warn('Could not get bounding box for drag handle', this.workerId);
+        return false;
+      }
+
+      const startX = boundingBox.x + boundingBox.width / 2;
+      const startY = boundingBox.y + boundingBox.height / 2;
+
+      this.logger.info(`Simulating human drag from ${startX} to ${startX + dragDistance}`, this.workerId);
+
+      await page.mouse.move(startX, startY);
+      await page.mouse.down();
+      
+      const steps = 15;
+      for (let i = 1; i <= steps; i++) {
+        const progress = i / steps;
+        const easeProgress = progress * (2 - progress); // easeOutQuad
+        const currentX = startX + dragDistance * easeProgress;
+        const currentY = startY + (Math.random() * 2 - 1);
+        await page.mouse.move(currentX, currentY);
+        await sleep(15 + Math.random() * 10);
+      }
+
+      await sleep(100);
+      await page.mouse.up();
+      this.logger.success('CAPTCHA drag completed. Waiting for verification state...', this.workerId);
+      await sleep(3000);
+      return true;
+
+    } catch (e) {
+      this.logger.error('Error solving CAPTCHA', e as Error, this.workerId);
       return false;
     }
   }

@@ -9,6 +9,7 @@
     "dev": "ts-node src/index.ts",
     "dev:tiktok": "ts-node src/indexTikTok.ts",
     "login:socialbee": "ts-node src/loginSocialBee.ts",
+    "csv-server": "ts-node src/server.ts",
     "install:browsers": "npx playwright install"
   },
   "dependencies": {

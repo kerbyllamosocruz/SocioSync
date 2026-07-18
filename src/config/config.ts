@@ -21,6 +21,7 @@ export interface Config {
   dolphin?: {
     enabled: boolean;
     apiHost?: string;
+    apiToken?: string;
   };
   socialBee: {
     email: string;
@@ -79,6 +80,11 @@ export function loadConfig(): Config {
       }
     } else {
       config.dolphin = { enabled: false, apiHost: 'http://localhost:3001' };
+    }
+    
+    // Override Dolphin API token from environment variable
+    if (process.env.DOLPHIN_API_TOKEN && config.dolphin) {
+      config.dolphin.apiToken = process.env.DOLPHIN_API_TOKEN;
     }
     
     // Override settings from environment variables if they are set

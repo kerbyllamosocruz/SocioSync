@@ -210,32 +210,34 @@ export function parseProxy(proxyStr: string): ProxyConfig | null {
   };
 }
 
-export async function startDolphinProfile(profileId: string, apiHost = 'http://localhost:3001'): Promise<string> {
+// --- AdsPower Anti-Detect Browser Helpers ---
+
+export async function startAntiDetectProfile(profileId: string, apiHost = 'http://local.adspower.net:50325'): Promise<string> {
   const axios = require('axios');
   try {
-    const url = `${apiHost.replace(/\/$/, '')}/v1.0/browser_profiles/${profileId}/start?automation=1`;
-    const response = await axios.get(url, { timeout: 25000 });
+    const url = `${apiHost.replace(/\/$/, '')}/api/v1/browser/start?user_id=${profileId}`;
+    const response = await axios.get(url, { timeout: 30000 });
     
-    if (response.data && response.data.success && response.data.automation && response.data.automation.wsUrl) {
-      return response.data.automation.wsUrl;
+    if (response.data && response.data.code === 0 && response.data.data?.ws?.puppeteer) {
+      return response.data.data.ws.puppeteer;
     }
     
-    throw new Error(`Dolphin API returned failure: ${JSON.stringify(response.data)}`);
+    throw new Error(`AdsPower API returned failure: ${JSON.stringify(response.data)}`);
   } catch (error) {
-    throw new Error(`Failed to start Dolphin profile ${profileId}: ${(error as Error).message}`);
+    throw new Error(`Failed to start AdsPower profile ${profileId}: ${(error as Error).message}`);
   }
 }
 
-export async function stopDolphinProfile(profileId: string, apiHost = 'http://localhost:3001'): Promise<void> {
+export async function stopAntiDetectProfile(profileId: string, apiHost = 'http://local.adspower.net:50325'): Promise<void> {
   const axios = require('axios');
   try {
-    const url = `${apiHost.replace(/\/$/, '')}/v1.0/browser_profiles/${profileId}/stop`;
+    const url = `${apiHost.replace(/\/$/, '')}/api/v1/browser/stop?user_id=${profileId}`;
     const response = await axios.get(url, { timeout: 15000 });
-    if (!response.data || !response.data.success) {
-      console.warn(`[Dolphin] Warning: stop response returned non-success:`, response.data);
+    if (!response.data || response.data.code !== 0) {
+      console.warn(`[AdsPower] Warning: stop response returned non-success:`, response.data);
     }
   } catch (error) {
-    console.warn(`[Dolphin] Failed to stop Dolphin profile ${profileId}: ${(error as Error).message}`);
+    console.warn(`[AdsPower] Failed to stop profile ${profileId}: ${(error as Error).message}`);
   }
 }
 
@@ -245,4 +247,145 @@ export function isMaximumAttemptsError(errorMsg: string): boolean {
          lower.includes('try again later') ||
          lower.includes('too many attempts') ||
          lower.includes('rate limit');
+}
+
+export async function findAntiDetectProfileId(name: string, apiHost = 'http://local.adspower.net:50325'): Promise<string | null> {
+  const axios = require('axios');
+  try {
+    const url = `${apiHost.replace(/\/$/, '')}/api/v1/user/list`;
+    const response = await axios.get(url, { timeout: 10000, params: { page_size: 100 } });
+    if (response.data && response.data.code === 0 && response.data.data?.list) {
+      const profiles = response.data.data.list;
+      
+      // 1. Try exact name match
+      let profile = profiles.find((p: any) => (p.name || p.serial_number || '').toLowerCase() === name.toLowerCase());
+      
+      // 2. Try substring match
+      if (!profile) {
+        profile = profiles.find((p: any) => {
+          const pName = (p.name || p.serial_number || '').toLowerCase();
+          const target = name.toLowerCase();
+          return pName.includes(target) || target.includes(pName);
+        });
+      }
+      
+      // 3. Fallback: use the first available profile
+      if (!profile && profiles.length > 0) {
+        profile = profiles[0];
+        console.log(`[AdsPower] No profile matched "${name}", using fallback profile: ${profile.name || profile.serial_number} (${profile.user_id})`);
+      }
+      
+      if (profile) {
+        return String(profile.user_id);
+      }
+    }
+    return null;
+  } catch (error) {
+    console.warn(`[AdsPower] Failed to list profiles from API: ${(error as Error).message}`);
+    return null;
+  }
+}
+
+// --- Dolphin{Anty} Anti-Detect Browser Helpers ---
+
+export async function startDolphinProfile(profileId: string, apiHost = 'http://localhost:3001', apiToken?: string): Promise<string> {
+  const axios = require('axios');
+  let host = apiHost;
+  if (host.includes('adspower') || host.includes('50325')) {
+    host = 'http://localhost:3001';
+  }
+  
+  try {
+    const url = `${host.replace(/\/$/, '')}/v1.0/browser_profiles/${profileId}/start?automation=1`;
+    console.log(`[Dolphin] Sending start request to: ${url}`);
+    const response = await axios.get(url, { timeout: 30000 });
+    
+    if (response.data && response.data.success && response.data.automation) {
+      const { port, wsEndpoint } = response.data.automation;
+      if (!port) {
+        throw new Error('No port returned in automation object');
+      }
+      const wsUrl = wsEndpoint 
+        ? `ws://127.0.0.1:${port}${wsEndpoint.startsWith('/') ? wsEndpoint : '/' + wsEndpoint}`
+        : `ws://127.0.0.1:${port}`;
+      return wsUrl;
+    }
+    
+    throw new Error(`Dolphin API returned failure: ${JSON.stringify(response.data)}`);
+  } catch (error) {
+    throw new Error(`Failed to start Dolphin profile ${profileId}: ${(error as Error).message}`);
+  }
+}
+
+export async function stopDolphinProfile(profileId: string, apiHost = 'http://localhost:3001', apiToken?: string): Promise<void> {
+  const axios = require('axios');
+  let host = apiHost;
+  if (host.includes('adspower') || host.includes('50325')) {
+    host = 'http://localhost:3001';
+  }
+  try {
+    const url = `${host.replace(/\/$/, '')}/v1.0/browser_profiles/${profileId}/stop`;
+    console.log(`[Dolphin] Sending stop request to: ${url}`);
+    const response = await axios.get(url, { timeout: 15000 });
+    if (!response.data || !response.data.success) {
+      console.warn(`[Dolphin] Warning: stop response returned non-success:`, response.data);
+    }
+  } catch (error) {
+    console.warn(`[Dolphin] Failed to stop profile ${profileId}: ${(error as Error).message}`);
+  }
+}
+
+export async function findDolphinProfileIdByName(name: string, apiHost = 'http://localhost:3001', apiToken?: string): Promise<string | null> {
+  if (!apiToken) {
+    console.warn('[Dolphin] Warning: DOLPHIN_API_TOKEN is not defined. Cannot search profile by name via cloud API.');
+    return null;
+  }
+  
+  const axios = require('axios');
+  try {
+    const url = `https://dolphin-anty-api.com/browser_profiles`;
+    console.log(`[Dolphin] Searching for profile "${name}" via Cloud API...`);
+    const response = await axios.get(url, {
+      timeout: 15000,
+      headers: {
+        'Authorization': `Bearer ${apiToken.trim()}`
+      },
+      params: {
+        query: name
+      }
+    });
+    
+    if (response.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
+      const profiles = response.data.data;
+      
+      // 1. Try exact name match
+      let profile = profiles.find((p: any) => (p.name || '').toLowerCase() === name.toLowerCase());
+      
+      // 2. Try substring match
+      if (!profile) {
+        profile = profiles.find((p: any) => {
+          const pName = (p.name || '').toLowerCase();
+          const target = name.toLowerCase();
+          return pName.includes(target) || target.includes(pName);
+        });
+      }
+      
+      // 3. Fallback: use first returned
+      if (!profile) {
+        profile = profiles[0];
+      }
+      
+      if (profile && profile.id) {
+        const foundId = String(profile.id);
+        console.log(`[Dolphin] Found profile "${profile.name}" (ID: ${foundId}) for query "${name}"`);
+        return foundId;
+      }
+    }
+    
+    console.log(`[Dolphin] No profile found matching name "${name}"`);
+    return null;
+  } catch (error) {
+    console.warn(`[Dolphin] Failed to search profile via Cloud API: ${(error as Error).message}`);
+    return null;
+  }
 }
