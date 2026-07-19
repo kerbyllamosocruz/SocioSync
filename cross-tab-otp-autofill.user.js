@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cross-Tab OTP Auto-Filler
 // @namespace    http://tampermonkey.net/
-// @version      2.0
+// @version      3.2
 // @description  Communicate between Login Tab and Email Tab to fetch and fill OTP codes, plus client-side TikTok Captcha Solving
 // @author       Kerby (Discord: buchinyan)
 // @match        https://*.tiktok.com/*
@@ -21,6 +21,50 @@
 
   const currentUrl = window.location.href;
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  // Map to keep track of elements we've clicked and the timestamp of the click
+  const clickedElements = new WeakMap();
+
+  function clickElement(el, logMessage, retryDelay = 3000) {
+    if (!el) return;
+
+    const now = Date.now();
+    const lastClickTime = clickedElements.get(el) || 0;
+
+    if (now - lastClickTime > retryDelay) {
+      console.log(`${logMessage} (Attempt: ${lastClickTime ? 'Retry' : 'First'})`);
+      clickedElements.set(el, now);
+
+      // Try standard click
+      el.click();
+
+      // Dispatch click event as fallback
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    }
+  }
+
+  // 0. Check for auto-logout request
+  if (currentUrl.includes("tiktok.com/logout") || window.location.hash.includes("auto_logout") || window.location.search.includes("auto_logout") || window.location.hash.includes("auto_close") || window.location.search.includes("auto_close")) {
+    performTikTokLogout();
+    return;
+  }
+
+  // Check for successful callback redirect
+  if (currentUrl.includes("socialbee.com") && (currentUrl.includes("signin/tiktok/callback") || currentUrl.includes("success") || (currentUrl.includes("profiles") && currentUrl.includes("code=")))) {
+    console.log("[OTP Link] Detected TikTok OAuth callback. Setting authorization flag.");
+    GM_setValue("tiktok_authorized_flag", true);
+
+    const lastUser = GM_getValue('lastAttemptedUsername');
+    if (lastUser) {
+      console.log(`[OTP Link] Calling mark-done for ${lastUser} from callback handler`);
+      GM_xmlhttpRequest({
+        method: 'POST',
+        url: 'http://localhost:4782/mark-done',
+        data: JSON.stringify({ username: lastUser }),
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
 
   let statusText = null;
   let statusDot = null;
@@ -207,10 +251,14 @@
                 <div style="font-size: 8px; text-transform: uppercase; color: #9ca3af; font-weight: 600; margin-bottom: 4px; letter-spacing: 0.05em; text-align: left;">Autofill from CSV</div>
                 <div style="display: flex; gap: 6px; align-items: center;">
                     <input type="file" id="otp-csv-file" accept=".csv" style="display: none;" />
-                    <button id="otp-csv-upload-btn" style="background: rgba(255, 255, 255, 0.06); border: 1px dashed rgba(255, 255, 255, 0.2); color: #e5e7eb; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1;">📂 Load CSV</button>
+                    <button id="otp-csv-upload-btn" style="background: rgba(255, 255, 255, 0.06); border: 1px dashed rgba(255, 255, 255, 0.2); color: #e5e7eb; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1;">📂 Load</button>
                     <select id="otp-csv-select" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 10px; padding: 4px 6px; border-radius: 4px; flex: 2; display: none; width: 100%;">
                         <option value="">-- Choose Account --</option>
                     </select>
+                </div>
+                <div id="otp-csv-nav-container" style="display: none; gap: 6px; margin-top: 6px;">
+                    <button id="otp-csv-btn-prev" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; text-align: center; border-style: solid;">◀ Prev</button>
+                    <button id="otp-csv-btn-next" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; text-align: center; border-style: solid;">Next ▶</button>
                 </div>
             </div>
             <div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
@@ -224,7 +272,7 @@
     panel.id = "otp-panel";
     panel.innerHTML = `
         <div id="otp-header">
-            <div id="otp-title">🔑 OTP Linker v1.9</div>
+            <div id="otp-title">🔑 OTP Linker v3.2</div>
             <button id="otp-toggle-btn" title="Minimize Panel">✕</button>
         </div>
         <div id="otp-content">
@@ -251,6 +299,9 @@
       const fileInput = shadow.getElementById("otp-csv-file");
       const uploadBtn = shadow.getElementById("otp-csv-upload-btn");
       const selectEl = shadow.getElementById("otp-csv-select");
+      const btnPrev = shadow.getElementById("otp-csv-btn-prev");
+      const btnNext = shadow.getElementById("otp-csv-btn-next");
+      const navContainer = shadow.getElementById("otp-csv-nav-container");
 
       function parseCSVText(text) {
         const rows = text.split(/\r?\n/);
@@ -258,13 +309,16 @@
 
         let emailIndex = 0;
         let passIndex = 1;
+        let statusIndex = -1;
 
         if (rows.length > 0) {
           const firstRow = rows[0].split(",");
-          const eIdx = firstRow.findIndex(h => h.trim().toLowerCase().includes("email") || h.trim().toLowerCase().includes("user"));
-          const pIdx = firstRow.findIndex(h => h.trim().toLowerCase().includes("pass"));
+          const eIdx = firstRow.findIndex((h) => h.trim().toLowerCase().includes("email") || h.trim().toLowerCase().includes("user"));
+          const pIdx = firstRow.findIndex((h) => h.trim().toLowerCase().includes("pass"));
+          const sIdx = firstRow.findIndex((h) => h.trim().toLowerCase().includes("status"));
           if (eIdx !== -1) emailIndex = eIdx;
           if (pIdx !== -1) passIndex = pIdx;
+          if (sIdx !== -1) statusIndex = sIdx;
         }
 
         for (let i = 1; i < rows.length; i++) {
@@ -272,6 +326,13 @@
           if (cols.length > Math.max(emailIndex, passIndex)) {
             const email = cols[emailIndex].trim();
             const pass = cols[passIndex].trim();
+            const status = statusIndex !== -1 && cols[statusIndex] ? cols[statusIndex].trim() : "";
+            
+            // Skip done accounts
+            if (status.toLowerCase() === "done") {
+              continue;
+            }
+
             if (email && pass) {
               accounts.push({ email, pass });
             }
@@ -291,6 +352,23 @@
         });
         selectEl.style.display = "block";
         uploadBtn.textContent = `📂 (${accounts.length})`;
+
+        if (accounts.length > 0) {
+          navContainer.style.display = "flex";
+        } else {
+          navContainer.style.display = "none";
+        }
+
+        // Restore active selection
+        const savedEmail = GM_getValue("otp_csv_selected_email", "");
+        if (savedEmail) {
+          const matchIdx = accounts.findIndex(acc => acc.email === savedEmail);
+          if (matchIdx !== -1) {
+            selectEl.value = matchIdx.toString();
+            console.log(`[OTP Link] Restored active selection index: ${matchIdx} (${savedEmail})`);
+            selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        }
       }
 
       uploadBtn.addEventListener("click", (e) => {
@@ -317,31 +395,65 @@
         reader.readAsText(file);
       });
 
-      selectEl.addEventListener("change", (e) => {
+      selectEl.addEventListener("change", async (e) => {
         const idx = parseInt(selectEl.value, 10);
         if (isNaN(idx) || !window.otpCsvAccounts || !window.otpCsvAccounts[idx]) return;
 
         const account = window.otpCsvAccounts[idx];
-        autofillCredentials(account.email, account.pass);
+        GM_setValue("otp_csv_selected_email", account.email);
+        await autofillCredentials(account.email, account.pass);
+      });
+
+      btnPrev.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!window.otpCsvAccounts || window.otpCsvAccounts.length === 0) return;
+
+        let currentIdx = parseInt(selectEl.value, 10);
+        if (isNaN(currentIdx)) {
+          currentIdx = window.otpCsvAccounts.length - 1;
+        } else {
+          currentIdx = (currentIdx - 1 + window.otpCsvAccounts.length) % window.otpCsvAccounts.length;
+        }
+
+        selectEl.value = currentIdx.toString();
+        selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+
+      btnNext.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!window.otpCsvAccounts || window.otpCsvAccounts.length === 0) return;
+
+        let currentIdx = parseInt(selectEl.value, 10);
+        if (isNaN(currentIdx)) {
+          currentIdx = 0;
+        } else {
+          currentIdx = (currentIdx + 1) % window.otpCsvAccounts.length;
+        }
+
+        selectEl.value = currentIdx.toString();
+        selectEl.dispatchEvent(new Event("change", { bubbles: true }));
       });
 
       // Auto-load from local CSV server if available
-      fetch("http://localhost:4782/accounts")
-        .then(res => {
-          if (!res.ok) throw new Error("Server response not ok");
-          return res.text();
-        })
-        .then(text => {
-          const accounts = parseCSVText(text);
-          if (accounts.length > 0) {
-            populateSelect(accounts);
-            setStatus(`Auto-loaded ${accounts.length} accounts`, "success");
-            console.log(`[OTP Link] Auto-loaded accounts from CSV server.`);
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: "http://localhost:4782/accounts",
+        onload: function (response) {
+          if (response.status === 200) {
+            const accounts = parseCSVText(response.responseText);
+            if (accounts.length > 0) {
+              populateSelect(accounts);
+              setStatus(`Auto-loaded ${accounts.length} accounts`, "success");
+              console.log(`[OTP Link] Auto-loaded accounts from CSV server.`);
+            }
+          } else {
+            console.log("[OTP Link] Local CSV server returned status: " + response.status);
           }
-        })
-        .catch(err => {
+        },
+        onerror: function (err) {
           console.log("[OTP Link] Local CSV server not running/accessible, waiting for manual upload.");
-        });
+        }
+      });
 
       // API Key saving and fetching logic
       const captchaKeyInput = shadow.getElementById("otp-captcha-key");
@@ -356,64 +468,108 @@
 
       // Auto-fetch API key from local config server if no saved key exists
       if (!savedKey) {
-        fetch("http://localhost:4782/config")
-          .then(res => {
-            if (!res.ok) throw new Error();
-            return res.json();
-          })
-          .then(config => {
-            if (config && config.apiKey) {
-              captchaKeyInput.value = config.apiKey;
-              GM_setValue("captcha_api_key", config.apiKey);
-              console.log("[OTP Link] Auto-fetched and saved CAPTCHA API Key from local server.");
+        GM_xmlhttpRequest({
+          method: "GET",
+          url: "http://localhost:4782/config",
+          onload: function (response) {
+            if (response.status === 200) {
+              try {
+                const config = JSON.parse(response.responseText);
+                if (config && config.apiKey) {
+                  captchaKeyInput.value = config.apiKey;
+                  GM_setValue("captcha_api_key", config.apiKey);
+                  console.log("[OTP Link] Auto-fetched and saved CAPTCHA API Key from local server.");
+                }
+              } catch (e) {
+                console.warn("[OTP Link] Error parsing config response:", e);
+              }
             }
-          })
-          .catch(() => {
+          },
+          onerror: function (err) {
             // Server not running or key not configured, ignore
-          });
+          }
+        });
       }
     }
 
-    function autofillCredentials(email, password) {
+    async function humanType(element, text, delayMs = 15) {
+      element.focus();
+
+      // Get native value setter
+      let nativeSetter;
+      try {
+        nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+      } catch (e) {}
+
+      // Clear value first
+      if (nativeSetter) {
+        nativeSetter.call(element, "");
+      } else {
+        element.value = "";
+      }
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+
+      let currentVal = "";
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        currentVal += char;
+
+        element.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: char }));
+
+        if (nativeSetter) {
+          nativeSetter.call(element, currentVal);
+        } else {
+          element.value = currentVal;
+        }
+
+        element.dispatchEvent(new Event("input", { bubbles: true }));
+        element.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: char }));
+
+        await sleep(delayMs);
+      }
+
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+      element.dispatchEvent(new Event("blur", { bubbles: true }));
+    }
+
+    async function autofillCredentials(email, password) {
       const usernameInput = document.querySelector('input[name="username"], input[placeholder*="Email"], input[placeholder*="username"], input[placeholder*="phone"]');
       const passwordInput = document.querySelector('input[type="password"], input[placeholder*="Password"]');
 
-      if (usernameInput) {
-        usernameInput.focus();
-        usernameInput.value = email;
-        usernameInput.dispatchEvent(new Event("input", { bubbles: true }));
-        usernameInput.dispatchEvent(new Event("change", { bubbles: true }));
-        usernameInput.dispatchEvent(new Event("keyup", { bubbles: true }));
-
-        try {
-          const tracker = usernameInput._valueTracker;
-          if (tracker) tracker.setValue("");
-          const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-          nativeSetter.call(usernameInput, email);
-          usernameInput.dispatchEvent(new Event("input", { bubbles: true }));
-          usernameInput.dispatchEvent(new Event("change", { bubbles: true }));
-        } catch (err) { }
+      if (!usernameInput || !passwordInput) {
+        console.warn("[OTP Link] Username or password input not found on page.");
+        setStatus("Input fields not found.", "error");
+        return;
       }
 
-      if (passwordInput) {
-        passwordInput.focus();
-        passwordInput.value = password;
-        passwordInput.dispatchEvent(new Event("input", { bubbles: true }));
-        passwordInput.dispatchEvent(new Event("change", { bubbles: true }));
-        passwordInput.dispatchEvent(new Event("keyup", { bubbles: true }));
+      GM_setValue('lastAttemptedUsername', email);
 
-        try {
-          const tracker = passwordInput._valueTracker;
-          if (tracker) tracker.setValue("");
-          const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-          nativeSetter.call(passwordInput, password);
-          passwordInput.dispatchEvent(new Event("input", { bubbles: true }));
-          passwordInput.dispatchEvent(new Event("change", { bubbles: true }));
-        } catch (err) { }
-      }
+      setStatus(`Typing email...`, "running");
+      await humanType(usernameInput, email, 15);
+      await sleep(200);
+
+      setStatus(`Typing password...`, "running");
+      await humanType(passwordInput, password, 15);
+      await sleep(300);
 
       console.log(`[OTP Link] Autofilled credentials for: ${email}`);
-      setStatus(`Autofilled: ${email}`, "success");
+      setStatus(`Clicking login...`, "running");
+
+      // Find and click the Log in button
+      const loginBtn =
+        Array.from(document.querySelectorAll('button[type="submit"], button[data-e2e="login-button"], button[class*="Button-StyledButton"]')).find((btn) => {
+          const text = (btn.textContent || "").trim().toLowerCase();
+          return text.includes("log in") || text.includes("login") || btn.getAttribute("data-e2e") === "login-button";
+        }) || document.querySelector('button[type="submit"], button[data-e2e="login-button"]');
+
+      if (loginBtn) {
+        console.log("[OTP Link] Clicking login button:", loginBtn);
+        loginBtn.click();
+        setStatus("Logged in!", "success");
+      } else {
+        console.warn("[OTP Link] Login button not found");
+        setStatus("Login button not found", "error");
+      }
     }
 
     const toggleBtn = shadow.getElementById("otp-toggle-btn");
@@ -442,13 +598,30 @@
 
   function setStatus(text, state = "idle") {
     if (statusText && statusDot) {
-      statusText.textContent = `Status: ${text}`;
-      statusDot.className = `status-dot ${state}`;
+      let displayStatus = text;
+      let displayState = state;
+
+      const lowerText = (text || "").toLowerCase();
+      if (
+        lowerText.includes("maximum number of attempts") ||
+        lowerText.includes("too many attempts") ||
+        lowerText.includes("try again later") ||
+        lowerText.includes("rate limit")
+      ) {
+        displayStatus = "Try";
+        displayState = "idle";
+      }
+
+      statusText.textContent = `Status: ${displayStatus}`;
+      statusDot.className = `status-dot ${displayState}`;
     }
   }
 
   function makeElementDraggable(element, dragHeader) {
-    let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+    let pos1 = 0,
+      pos2 = 0,
+      pos3 = 0,
+      pos4 = 0;
     dragHeader.onmousedown = dragMouseDown;
 
     function dragMouseDown(e) {
@@ -475,8 +648,8 @@
       pos3 = e.clientX;
       pos4 = e.clientY;
 
-      element.style.top = (element.offsetTop - pos2) + "px";
-      element.style.left = (element.offsetLeft - pos1) + "px";
+      element.style.top = element.offsetTop - pos2 + "px";
+      element.style.left = element.offsetLeft - pos1 + "px";
       element.style.bottom = "auto";
       element.style.right = "auto";
     }
@@ -498,17 +671,31 @@
     const matches = text.match(emailRegex);
     if (!matches) return false;
 
-    // Convert masked pattern to a regular expression with anchors
-    const escaped = targetPattern.replace(/[-\/\\^$+.()|[\]{}]/g, "\\$&");
-    const regexStr = "^" + escaped.replace(/\*+/g, ".*") + "$";
-    try {
-      const regex = new RegExp(regexStr);
-      // Check if any of the extracted email addresses match the regex pattern
-      return matches.some(email => regex.test(email));
-    } catch (e) {
-      console.error("[OTP Link] Regex build error for pattern:", targetPattern, e);
+    function matchEmails(candidate, target) {
+      if (candidate === target) return true;
+      if (candidate.includes('*')) {
+        const candidateParts = candidate.split('@');
+        const targetParts = target.split('@');
+        if (candidateParts.length !== 2 || targetParts.length !== 2) return false;
+
+        const [candLocal, candDomain] = candidateParts;
+        const [tgtLocal, tgtDomain] = targetParts;
+
+        if (candDomain !== tgtDomain) return false;
+
+        const escapedLocal = candLocal.replace(/[-\/\\^$+.()|[\]{}]/g, "\\$&");
+        const regexStr = "^" + escapedLocal.replace(/\*+/g, ".*") + "$";
+        try {
+          const regex = new RegExp(regexStr);
+          return regex.test(tgtLocal);
+        } catch (e) {
+          return false;
+        }
+      }
       return false;
     }
+
+    return matches.some((email) => matchEmails(email, targetPattern) || matchEmails(targetPattern, email));
   }
 
   // ==========================================
@@ -518,6 +705,74 @@
     console.log("[OTP Link] Login tab active.");
     createFloatingPanel("Login Tab");
     setStatus("Listening for OTP fields...", "idle");
+
+    // Listen and auto-click the Authorize/Continue button on TikTok authorization pages
+    if (currentUrl.includes("tiktok.com") && (currentUrl.includes("authorize") || currentUrl.includes("oauth") || currentUrl.includes("connect"))) {
+      console.log("[OTP Link] On TikTok authorization page. Setting up auto-click and listener...");
+      let hasClicked = false;
+      const authInterval = setInterval(() => {
+        // Find by ID, class, or textaft
+        let authBtn = document.getElementById("auth-btn") || document.querySelector("button#auth-btn");
+
+        if (!authBtn) {
+          authBtn = document.querySelector("button.css-y1m958");
+        }
+
+        if (!authBtn) {
+          authBtn = Array.from(document.querySelectorAll("button")).find((btn) => {
+            const text = (btn.textContent || "").trim().toLowerCase();
+            return text.includes("continue") || text.includes("authorize") || text.includes("agree");
+          });
+        }
+
+        if (authBtn) {
+          if (!authBtn.dataset.sbAuthListenerAdded) {
+            authBtn.dataset.sbAuthListenerAdded = "true";
+            authBtn.addEventListener("click", () => {
+              console.log("[OTP Link] Authorize/Continue clicked manually. Setting authorization flag.");
+              GM_setValue("tiktok_authorized_flag", true);
+
+              // Call mark-done on manual click
+              const lastUser = GM_getValue('lastAttemptedUsername');
+              if (lastUser) {
+                GM_xmlhttpRequest({
+                  method: 'POST',
+                  url: 'http://localhost:4782/mark-done',
+                  data: JSON.stringify({ username: lastUser }),
+                  headers: { 'Content-Type': 'application/json' }
+                });
+              }
+            });
+          }
+
+          if (!hasClicked && authBtn.offsetWidth > 0 && !authBtn.disabled) {
+            hasClicked = true;
+            console.log("[OTP Link] Auto-clicking Authorize/Continue button:", authBtn);
+            setStatus("Auto-clicking authorization button...", "success");
+            GM_setValue("tiktok_authorized_flag", true);
+
+            // Call mark-done on automated click
+            const lastUser = GM_getValue('lastAttemptedUsername');
+            if (lastUser) {
+              GM_xmlhttpRequest({
+                method: 'POST',
+                url: 'http://localhost:4782/mark-done',
+                data: JSON.stringify({ username: lastUser }),
+                headers: { 'Content-Type': 'application/json' }
+              });
+            }
+
+            authBtn.click();
+            clearInterval(authInterval);
+
+            // Open tiktok.com/logout and autoclose
+            setTimeout(() => {
+              GM_openInTab("https://www.tiktok.com/logout?auto_close=true", { active: false, insert: true });
+            }, 1000);
+          }
+        }
+      }, 1000);
+    }
 
     GM_addValueChangeListener("otp_invalidated", function (key, oldValue, newValue, remote) {
       if (window.otp_requested_state) {
@@ -593,12 +848,10 @@
     // Fill the OTP code in the input fields
     function fillOTP(otpCode) {
       // 1. Try finding a single input box first (e.g. TikTok Tux input, placeholder with code/digit)
-      const candidates = Array.from(document.querySelectorAll(
-        'input[data-testid="tux-web-input"], input.tux-input__element-zY3KBY, input[name="otp"], input[placeholder*="6-digit"], input[placeholder*="code"], input[placeholder*="Code"], input[placeholder*="digit"], input[placeholder*="Digit"], input[id*="otp"], input[class*="otp"], input[class*="code"], input[class*="tux-"]'
-      ));
+      const candidates = Array.from(document.querySelectorAll('input[data-testid="tux-web-input"], input.tux-input__element-zY3KBY, input[name="otp"], input[placeholder*="6-digit"], input[placeholder*="code"], input[placeholder*="Code"], input[placeholder*="digit"], input[placeholder*="Digit"], input[id*="otp"], input[class*="otp"], input[class*="code"], input[class*="tux-"]'));
 
       // Prioritize visible inputs, but fall back to the first matching candidate
-      const singleInput = candidates.find(el => el.offsetWidth > 0) || candidates[0];
+      const singleInput = candidates.find((el) => el.offsetWidth > 0) || candidates[0];
 
       if (singleInput) {
         console.log("[OTP Link] Found single OTP input field:", singleInput);
@@ -630,7 +883,7 @@
       }
 
       // 2. Try filling sequential inputs (e.g. 6 separate digit boxes)
-      const digitInputs = Array.from(document.querySelectorAll('input[type="tel"], input[maxlength="1"], .code-input, [class*="code-digit"]')).filter(el => el.offsetWidth > 0);
+      const digitInputs = Array.from(document.querySelectorAll('input[type="tel"], input[maxlength="1"], .code-input, [class*="code-digit"]')).filter((el) => el.offsetWidth > 0);
       if (digitInputs.length >= otpCode.length) {
         console.log(`[OTP Link] Found ${digitInputs.length} digit inputs. Filling sequentially.`);
         for (let i = 0; i < otpCode.length; i++) {
@@ -644,7 +897,7 @@
             nativeInputValueSetter.call(digitInputs[i], otpCode[i]);
             digitInputs[i].dispatchEvent(new Event("input", { bubbles: true }));
             digitInputs[i].dispatchEvent(new Event("change", { bubbles: true }));
-          } catch (e) { }
+          } catch (e) {}
         }
         return true;
       }
@@ -654,10 +907,8 @@
 
     // Monitor if we need an OTP
     function checkForOTPRequirement() {
-      const hasDigitInputs = Array.from(document.querySelectorAll('input[type="tel"], input[maxlength="1"]')).filter(el => el.offsetWidth > 0).length >= 4;
-      const singleInput = Array.from(document.querySelectorAll(
-        'input[data-testid="tux-web-input"], input[name="otp"], input[placeholder*="code"], input[placeholder*="Code"], input[placeholder*="digit"], input[placeholder*="Digit"], input[id*="otp"], input[class*="otp"], input[class*="code"], input[class*="tux-"]'
-      )).find(el => el.offsetWidth > 0);
+      const hasDigitInputs = Array.from(document.querySelectorAll('input[type="tel"], input[maxlength="1"]')).filter((el) => el.offsetWidth > 0).length >= 4;
+      const singleInput = Array.from(document.querySelectorAll('input[data-testid="tux-web-input"], input[name="otp"], input[placeholder*="code"], input[placeholder*="Code"], input[placeholder*="digit"], input[placeholder*="Digit"], input[id*="otp"], input[class*="otp"], input[class*="code"], input[class*="tux-"]')).find((el) => el.offsetWidth > 0);
 
       if (!hasDigitInputs && !singleInput) return;
 
@@ -679,7 +930,7 @@
 
           // Fill with retries to handle latency / late-mounting inputs
           let attempts = 0;
-          const maxAttempts = 15;
+          const maxAttempts = 30;
           const fillInterval = setInterval(() => {
             attempts++;
             const filled = fillOTP(newValue.otp);
@@ -687,24 +938,23 @@
               clearInterval(fillInterval);
               if (filled) {
                 setTimeout(() => {
-                  const submitBtn = Array.from(document.querySelectorAll(
-                    'button[type="submit"], button.login-btn, button[class*="submit"], button[class*="login"], button[data-testid="tux-web-button"], button.tux-button__element-ZBq38f'
-                  )).find(btn => {
-                    const text = (btn.textContent || "").trim().toLowerCase();
-                    return text === "next" || text === "submit" || text === "confirm" || text.includes("next");
-                  }) || document.querySelector('button[type="submit"], button.login-btn, button[class*="submit"], button[class*="login"]');
+                  const submitBtn =
+                    Array.from(document.querySelectorAll('button[type="submit"], button.login-btn, button[class*="submit"], button[class*="login"], button[data-testid="tux-web-button"], button.tux-button__element-ZBq38f')).find((btn) => {
+                      const text = (btn.textContent || "").trim().toLowerCase();
+                      return text === "next" || text === "submit" || text === "confirm" || text.includes("next");
+                    }) || document.querySelector('button[type="submit"], button.login-btn, button[class*="submit"], button[class*="login"]');
 
                   if (submitBtn) {
                     console.log("[OTP Link] Clicking submit/next button:", submitBtn);
                     submitBtn.click();
                   }
-                }, 500);
+                }, 200);
               } else {
                 console.warn("[OTP Link] Failed to fill OTP after multiple attempts.");
                 setStatus("Could not find OTP input field to fill.", "error");
               }
             }
-          }, 300);
+          }, 100);
 
           GM_removeValueChangeListener(responseListenerId);
         }
@@ -715,13 +965,13 @@
         email: targetEmail,
         status: "pending",
         timestamp: Date.now(),
-        invalid_otp: window.last_invalid_otp || null
+        invalid_otp: window.last_invalid_otp || null,
       });
     }
 
     // Check if we need to select the Email verification method
     function checkForVerificationOption() {
-      const items = Array.from(document.querySelectorAll('.pc-home-item-IxNc0F, [class*="pc-home-item-"], [class*="verification-option"]')).filter(el => el.offsetWidth > 0);
+      const items = Array.from(document.querySelectorAll('.pc-home-item-IxNc0F, [class*="pc-home-item-"], [class*="verification-option"]')).filter((el) => el.offsetWidth > 0);
 
       // Reset the click guard flag if the verification option is no longer present/visible on screen
       if (items.length === 0) {
@@ -745,9 +995,11 @@
             clickTarget.click();
 
             // Fallback: Click inner elements
-            const subElements = clickTarget.querySelectorAll('div, svg, path, span');
-            subElements.forEach(child => {
-              try { child.click(); } catch (e) { }
+            const subElements = clickTarget.querySelectorAll("div, svg, path, span");
+            subElements.forEach((child) => {
+              try {
+                child.click();
+              } catch (e) {}
             });
             break;
           }
@@ -769,7 +1021,7 @@
       console.log("[OTP Link] CAPTCHA detected. Finding images...");
 
       try {
-        const images = Array.from(captchaContainer.querySelectorAll('img'));
+        const images = Array.from(captchaContainer.querySelectorAll("img"));
         if (images.length < 2) {
           console.warn("[OTP Link] Could not find CAPTCHA images");
           isSolvingCaptcha = false;
@@ -781,7 +1033,7 @@
 
         for (const img of images) {
           const style = window.getComputedStyle(img);
-          const isAbsolute = img.classList.contains('cap-absolute') || style.position === 'absolute' || img.className.includes('slide');
+          const isAbsolute = img.classList.contains("cap-absolute") || style.position === "absolute" || img.className.includes("slide");
           if (isAbsolute) {
             slideImg = img;
           } else {
@@ -795,10 +1047,10 @@
           return;
         }
 
-        const bgSrc = bgImg.getAttribute('src');
-        const slideSrc = slideImg.getAttribute('src');
+        const bgSrc = bgImg.getAttribute("src");
+        const slideSrc = slideImg.getAttribute("src");
 
-        if (!bgSrc || !slideSrc || !bgSrc.startsWith('data:') || !slideSrc.startsWith('data:')) {
+        if (!bgSrc || !slideSrc || !bgSrc.startsWith("data:") || !slideSrc.startsWith("data:")) {
           console.warn("[OTP Link] Image sources are not valid base64 URI");
           isSolvingCaptcha = false;
           return;
@@ -829,11 +1081,11 @@
             data: JSON.stringify({
               api_key: apiKey,
               puzzle_image_base64: cleanBg,
-              piece_image_base64: cleanSlide
+              piece_image_base64: cleanSlide,
             }),
             responseType: "json",
             onload: (res) => resolve(res.response),
-            onerror: (err) => reject(err)
+            onerror: (err) => reject(err),
           });
         });
 
@@ -864,7 +1116,7 @@
             clientX: x,
             clientY: y,
             screenX: x,
-            screenY: y
+            screenY: y,
           });
           dragHandle.dispatchEvent(evt);
           document.dispatchEvent(evt);
@@ -893,7 +1145,6 @@
         console.log("[OTP Link] Drag simulated successfully.");
         setStatus("Drag complete. Checking CAPTCHA status...", "success");
         await sleep(3000);
-
       } catch (err) {
         console.error("[OTP Link] CAPTCHA solving failed:", err);
         setStatus("CAPTCHA solving failed: " + err.message, "error");
@@ -902,11 +1153,99 @@
       }
     }
 
-    setInterval(() => {
+    function autoClickNavFlows() {
+      const isTikTok = window.location.hostname.includes("tiktok.com");
+
+      if (isTikTok) {
+        // TikTok Login Method "Use phone / email / username"
+        const channelItems = Array.from(document.querySelectorAll('div[data-e2e="channel-item"], div[role="link"], p, span, div'));
+        channelItems.forEach((item) => {
+          const text = (item.textContent || "").trim().toLowerCase();
+          if (text === "use phone / email / username" || text === "phone / email / username") {
+            const clickable = item.closest('div[role="link"], [data-e2e="channel-item"], button') || item;
+            clickElement(clickable, '[AutoClick] Clicked "Use phone / email / username" menu option.');
+          }
+        });
+
+        // TikTok "Log in with email or username" link
+        let emailLoginLink = document.querySelector('a[href="/login/phone-or-email/email"]');
+        if (!emailLoginLink) {
+          // Find any element containing "Log in with email or username" or similar
+          const candidates = Array.from(document.querySelectorAll("a, span, p, div"));
+          emailLoginLink = candidates.find((el) => {
+            const text = (el.textContent || "").trim().toLowerCase();
+            return text.includes("log in with email") || text.includes("login with email") || text.includes("email or username") || text.includes("use email/username");
+          });
+        }
+        if (emailLoginLink) {
+          const clickableLink = emailLoginLink.closest("a, button") || emailLoginLink;
+          clickElement(clickableLink, '[AutoClick] Clicked "Log in with email or username" link.');
+        }
+      }
+    }
+
+    function runChecks() {
       checkForOTPRequirement();
       checkForVerificationOption();
       solveTikTokCaptchaClientSide();
-    }, 1000);
+
+      // Look for rate-limit / too many attempts errors on page
+      try {
+        const possibleErrorSelectors = [
+          '[class*="DivError"]',
+          '[class*="error-message"]',
+          '[class*="error"]',
+          '[class*="DivTip"]',
+          '[class*="Tip"]',
+          '[role="alert"]'
+        ];
+
+        let foundError = false;
+        for (const selector of possibleErrorSelectors) {
+          const elements = Array.from(document.querySelectorAll(selector));
+          for (const el of elements) {
+            const text = el.textContent?.trim();
+            if (text && text.length > 2 && text.length < 150) {
+              const lowerText = text.toLowerCase();
+              if (
+                lowerText.includes('maximum number of attempts') ||
+                lowerText.includes('too many attempts') ||
+                lowerText.includes('try again later') ||
+                lowerText.includes('rate limit')
+              ) {
+                setStatus("Try", "idle");
+                foundError = true;
+                break;
+              }
+            }
+          }
+          if (foundError) break;
+        }
+
+        if (!foundError) {
+          const bodyText = document.body.innerText || "";
+          if (
+            /maximum number of attempts/i.test(bodyText) ||
+            /too many attempts/i.test(bodyText) ||
+            /try again later/i.test(bodyText) ||
+            /rate limit/i.test(bodyText)
+          ) {
+            setStatus("Try", "idle");
+          }
+        }
+      } catch (e) {
+        console.error("[OTP Link] Error checking for page errors:", e);
+      }
+
+      try {
+        autoClickNavFlows();
+      } catch (e) {
+        console.error("[OTP Link] Error in autoClickNavFlows:", e);
+      }
+    }
+
+    runChecks();
+    setInterval(runChecks, 100);
   }
 
   // ==========================================
@@ -951,10 +1290,10 @@
         // Run the finder
         findAndSendOTP(request.email);
       }
-    }, 3000);
+    }, 1500);
 
     function isRecentEmail(text) {
-      if (!text) return true;
+      if (!text) return false;
 
       // Look for relative time patterns like (40min), 40 minutes, etc.
       const secMatch = text.match(/(\d+)\s*sec/i) || text.match(/(\d+)\s*秒/);
@@ -969,12 +1308,7 @@
         return mins <= 1; // Accept if up to 1 minute old
       }
 
-      // Reject if it mentions hours, days or months (clearly old emails)
-      if (text.match(/hour|day|month|時間|日|月/i)) {
-        return false;
-      }
-
-      return true; // Default to true if no time indicator is in the text
+      return false; // Reject by default if no recent relative time indicator is found
     }
 
     async function findAndSendOTP(targetEmail) {
@@ -1052,8 +1386,8 @@
       matchingElement.click();
 
       // Try to extract OTP over multiple attempts to account for loading delay
-      for (let attempt = 1; attempt <= 5; attempt++) {
-        await new Promise((r) => setTimeout(r, 1000));
+      for (let attempt = 1; attempt <= 15; attempt++) {
+        await new Promise((r) => setTimeout(r, 200));
 
         const selectors = ["#area_maildata", "#area_mailbody", "#area_mail_body", "#mail_body", "#mail_content", ".mail-body", ".email-body", "iframe"];
 
@@ -1064,7 +1398,7 @@
             if (el.tagName === "IFRAME") {
               try {
                 bodyText += " " + el.contentWindow.document.body.innerText;
-              } catch (e) { }
+              } catch (e) {}
             } else {
               bodyText += " " + el.innerText;
             }
@@ -1105,6 +1439,111 @@
 
       console.log("[OTP Link] Failed to find a valid code inside the opened email.");
       setStatus("Failed to extract OTP from email body.", "error");
+    }
+  }
+
+  async function performTikTokLogout() {
+    console.log("[OTP Link] Initiating auto-logout on TikTok...");
+
+    // Wait for the page to load
+    await sleep(2000);
+
+    // Case 1: Check if there is a direct "Log out" confirmation button visible on the page (e.g. if we are on a logout confirmation page)
+    let confirmBtn = Array.from(document.querySelectorAll("button, a, div")).find((btn) => {
+      const text = (btn.textContent || "").trim().toLowerCase();
+      return text === "log out" || text === "logout" || text === "confirm";
+    });
+
+    if (confirmBtn && confirmBtn.offsetWidth > 0) {
+      console.log("[OTP Link] Found direct logout button on page. Clicking...");
+      confirmBtn.click();
+      await sleep(3000);
+
+      const shouldClose = window.location.href.toLowerCase().includes("close") || window.location.hash.toLowerCase().includes("close") || window.location.search.toLowerCase().includes("close");
+      if (shouldClose) {
+        console.log("[OTP Link] Closing tab...");
+        window.close();
+      }
+      return;
+    }
+
+    // Case 2: Standard flow (hover profile avatar, click logout, then click confirm)
+    console.log("[OTP Link] Falling back to profile menu hover logout...");
+
+    let profileIcon = null;
+    for (let attempt = 0; attempt < 30; attempt++) {
+      profileIcon = document.querySelector('[data-e2e="profile-icon"], img[class*="Avatar"], [class*="avatar"], .tiktok-avatar');
+      if (profileIcon && profileIcon.offsetWidth > 0) {
+        break;
+      }
+      await sleep(500);
+    }
+
+    if (!profileIcon) {
+      console.warn("[OTP Link] Profile icon not found. Maybe already logged out?");
+      const shouldClose = window.location.href.toLowerCase().includes("close") || window.location.hash.toLowerCase().includes("close") || window.location.search.toLowerCase().includes("close");
+      if (shouldClose) {
+        window.close();
+      }
+      return;
+    }
+
+    console.log("[OTP Link] Hovering/clicking profile icon...");
+    profileIcon.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+    profileIcon.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    profileIcon.click();
+    await sleep(1500);
+
+    let logoutBtn = null;
+    for (let attempt = 0; attempt < 15; attempt++) {
+      logoutBtn = Array.from(document.querySelectorAll("a, button, div, span, li")).find((el) => {
+        const text = (el.textContent || "").trim().toLowerCase();
+        const e2e = el.getAttribute("data-e2e") || "";
+        return text === "log out" || text === "logout" || e2e.includes("logout") || e2e.includes("log-out");
+      });
+      if (logoutBtn && logoutBtn.offsetWidth > 0) {
+        break;
+      }
+      await sleep(250);
+    }
+
+    if (!logoutBtn) {
+      console.warn("[OTP Link] Logout button not found in menu.");
+      const shouldClose = window.location.href.toLowerCase().includes("close") || window.location.hash.toLowerCase().includes("close") || window.location.search.toLowerCase().includes("close");
+      if (shouldClose) {
+        window.close();
+      }
+      return;
+    }
+
+    console.log("[OTP Link] Clicking logout button...");
+    logoutBtn.click();
+    await sleep(1500);
+
+    // Confirm logout in modal
+    let modalConfirmBtn = null;
+    for (let attempt = 0; attempt < 15; attempt++) {
+      modalConfirmBtn = Array.from(document.querySelectorAll("button")).find((btn) => {
+        const text = (btn.textContent || "").trim().toLowerCase();
+        return text === "log out" || text === "logout" || text === "confirm";
+      });
+      if (modalConfirmBtn && modalConfirmBtn.offsetWidth > 0) {
+        break;
+      }
+      await sleep(250);
+    }
+
+    if (modalConfirmBtn) {
+      console.log("[OTP Link] Clicking confirm button in logout modal...");
+      modalConfirmBtn.click();
+      await sleep(3000);
+    }
+
+    console.log("[OTP Link] Logout completed.");
+    const shouldClose = window.location.href.toLowerCase().includes("close") || window.location.hash.toLowerCase().includes("close") || window.location.search.toLowerCase().includes("close");
+    if (shouldClose) {
+      console.log("[OTP Link] Closing tab...");
+      window.close();
     }
   }
 })();

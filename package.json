@@ -10,6 +10,8 @@
     "dev:tiktok": "ts-node src/indexTikTok.ts",
     "login:socialbee": "ts-node src/loginSocialBee.ts",
     "csv-server": "ts-node src/server.ts",
+    "run:tampermonkey": "ts-node src/runTampermonkeyFlow.ts",
+    "dev:bot": "ts-node src/playwright-bot/index.ts",
     "install:browsers": "npx playwright install"
   },
   "dependencies": {

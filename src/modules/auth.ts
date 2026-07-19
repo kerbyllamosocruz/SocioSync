@@ -291,11 +291,15 @@ export class AuthModule {
       
       // Step 1: Try to click the direct TikTok connect button/form (new UI grid)
       const directTikTokSelectors = [
-        'form[action*="/signin/"] button:has-text("TikTok")',
-        'form[action*="/signin/"] button:has(.connect-social-tiktok)',
+        'form[action*="/signin/tiktok"] button',
+        'form[action="/signin/tiktok"] button',
+        'a[href*="/signin/tiktok"]',
+        '.connect-social-tiktok button.button-connect',
+        '.connect-social-tiktok button',
         'button:has(.connect-social-tiktok)',
-        'form[action*="/signin/"] button',
-        '.connect-social-tiktok'
+        '.connect-social-tiktok',
+        'form[action*="/signin/"] button:has-text("TikTok")',
+        'form[action*="/signin/"] button:has(.connect-social-tiktok)'
       ];
       
       let directTikTokBtn = null;
@@ -311,43 +315,92 @@ export class AuthModule {
         }
       }
       
+      if (!directTikTokBtn) {
+        // Fallback: Find container containing "TikTok" and a "button-connect" or "Profile" button using page.evaluateHandle
+        this.logger.info('Direct selectors did not match. Trying container-based search...', this.workerId);
+        try {
+          const btnHandle = await page.evaluateHandle(() => {
+            const containers = Array.from(document.querySelectorAll('div, section, form, card')).filter(el => {
+              const text = el.textContent || "";
+              return (text.includes("TikTok") || text.includes("tiktok")) && 
+                     (el.querySelector('button.button-connect') || el.querySelector('button'));
+            });
+            containers.sort((a, b) => a.innerHTML.length - b.innerHTML.length);
+            for (const container of containers) {
+              const btn = container.querySelector('button.button-connect') || 
+                          Array.from(container.querySelectorAll('button')).find(b => (b.textContent || "").includes("Profile"));
+              if (btn) return btn;
+            }
+            return null;
+          });
+          
+          if (btnHandle) {
+            const element = btnHandle.asElement();
+            if (element) {
+              directTikTokBtn = element;
+              this.logger.info('Found TikTok connect button via container-based fallback search', this.workerId);
+            }
+          }
+        } catch (err) {
+          this.logger.warn(`Container-based search evaluation error: ${(err as Error).message}`, this.workerId);
+        }
+      }
+      
       let initiatorElement = directTikTokBtn;
       
       // Step 2: Fallback to "Connect social account" / "Add Account" modal if direct button not found
       if (!initiatorElement) {
         this.logger.info('Direct TikTok button not found. Checking for Connect social account / Add Account modal...', this.workerId);
-        const addBtnSelectors = [
-          'button:has-text("Connect social account")',
-          'button:has-text("Add Account")',
-          'text=Connect social account',
-          'text=Add Account'
-        ];
         
-        let addBtn = null;
-        for (const sel of addBtnSelectors) {
-          addBtn = await page.$(sel);
-          if (addBtn) {
-            this.logger.info(`Clicking connection initiator modal button: ${sel}`, this.workerId);
-            await addBtn.click();
-            await sleep(3000);
-            break;
+        // Wait for modal to be open or open it
+        const modalSelector = '.modal-content, .modal-dialog, [role="dialog"], #addAccountModal';
+        let modalContainer = await page.$(modalSelector);
+        
+        if (!modalContainer) {
+          const addBtnSelectors = [
+            'button:has-text("Connect social account")',
+            'button:has-text("Add Account")',
+            'text=Connect social account',
+            'text=Add Account'
+          ];
+          
+          let addBtn = null;
+          for (const sel of addBtnSelectors) {
+            addBtn = await page.$(sel);
+            if (addBtn) {
+              this.logger.info(`Clicking connection initiator modal button: ${sel}`, this.workerId);
+              await addBtn.click();
+              await sleep(3000);
+              modalContainer = await page.$(modalSelector);
+              break;
+            }
           }
         }
         
-        // Look for TikTok option inside the modal
-        const tiktokModalSelectors = [
-          'text=TikTok',
-          '[data-testid="tiktok-option"]',
-          '.social-option:has-text("TikTok")',
-          'div:has-text("TikTok")'
-        ];
-        
-        for (const sel of tiktokModalSelectors) {
-          initiatorElement = await page.$(sel);
-          if (initiatorElement) {
-            this.logger.info(`Found TikTok option inside modal: ${sel}`, this.workerId);
-            break;
+        if (modalContainer) {
+          this.logger.info('Modal container found/opened. Searching for TikTok option strictly inside the modal...', this.workerId);
+          // Look for TikTok option inside the modal strictly
+          const tiktokModalSelectors = [
+            'text=TikTok',
+            '[data-testid="tiktok-option"]',
+            '.social-option:has-text("TikTok")',
+            'div:has-text("TikTok")',
+            'a:has-text("TikTok")'
+          ];
+          
+          for (const sel of tiktokModalSelectors) {
+            try {
+              initiatorElement = await modalContainer.$(sel);
+              if (initiatorElement) {
+                this.logger.info(`Found TikTok option inside modal container: ${sel}`, this.workerId);
+                break;
+              }
+            } catch (e) {
+              // Ignore selector syntax issues
+            }
           }
+        } else {
+          this.logger.warn('Modal container was not found/opened. Cannot search for TikTok option in modal.', this.workerId);
         }
       }
       
@@ -594,27 +647,32 @@ export class AuthModule {
 
       this.logger.info('Sending CAPTCHA images to EulerStream API...', this.workerId);
       const axios = require('axios');
-      const response = await axios.post('https://tiktok.eulerstream.com/api/v1/captcha/slide', {
+      const apiEndpoint = config.captcha?.apiEndpoint || 'https://tiktok.eulerstream.com';
+      const response = await axios.post(`${apiEndpoint.replace(/\/$/, '')}/api/v1/puzzle?licenseKey=${apiKey}`, {
         api_key: apiKey,
         puzzle_image_base64: cleanBg,
         piece_image_base64: cleanSlide
       }, { timeout: 15000 });
 
-      const slideX = response.data?.slide_x || response.data?.x;
-      if (slideX === undefined) {
-        this.logger.error(`Failed to solve CAPTCHA: ${JSON.stringify(response.data)}`, undefined, this.workerId);
-        return false;
-      }
-
-      this.logger.success(`EulerStream solved CAPTCHA. Target x: ${slideX}`, this.workerId);
-
-      // Calculate scaled drag distance
+      // Get natural dimensions first to support slideXProportion
       const sizes = await bgImg.evaluate((el: HTMLImageElement) => {
         return {
           naturalWidth: el.naturalWidth || 340,
           clientWidth: el.clientWidth || 340
         };
       });
+
+      let slideX = response.data?.slide_x || response.data?.x;
+      if (slideX === undefined && response.data?.slideXProportion !== undefined) {
+        slideX = Math.round(response.data.slideXProportion * sizes.naturalWidth);
+      }
+
+      if (slideX === undefined) {
+        this.logger.error(`Failed to solve CAPTCHA: ${JSON.stringify(response.data)}`, undefined, this.workerId);
+        return false;
+      }
+
+      this.logger.success(`EulerStream solved CAPTCHA. Target x: ${slideX}`, this.workerId);
 
       const scale = sizes.clientWidth / sizes.naturalWidth;
       const dragDistance = Math.round(slideX * scale);

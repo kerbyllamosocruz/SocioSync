@@ -14,7 +14,7 @@
   "channel": "",
   "_channel_comment": "Options: chrome | msedge | chrome-beta | msedge-beta | empty to use default",
   "dolphin": {
-    "enabled": true,
+    "enabled": false,
     "apiHost": "http://localhost:3001"
   },
 

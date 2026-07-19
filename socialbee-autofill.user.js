@@ -1,17 +1,24 @@
 // ==UserScript==
 // @name         SocialBee Profile Caption Filler & Manager
 // @namespace    http://tampermonkey.net/
-// @version      2.0
+// @version      3.0
 // @description  Automate filling captions, uploading custom images, and managing accounts in SocialBee
 // @author       Kerby (Discord: buchinyan)
 // @match        https://app.socialbee.com/*
 // @match        https://app.socialbee.io/*
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @connect      localhost
 // @run-at       document-end
 // ==/UserScript==
 
 (function () {
   "use strict";
+
+  if (!window.location.hostname.includes("socialbee.com") && !window.location.hostname.includes("socialbee.io")) {
+    return;
+  }
 
   // 1. Create the shadow DOM container to avoid styling conflicts
   const container = document.createElement("div");
@@ -412,6 +419,48 @@
             cursor: not-allowed;
             box-shadow: none;
         }
+
+        .sb-autofill-checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 11px;
+            color: #9ca3af;
+            font-weight: 500;
+            user-select: none;
+        }
+
+        .sb-autofill-checkbox {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.25);
+            cursor: pointer;
+            position: relative;
+            outline: none;
+            transition: background-color 0.2s, border-color 0.2s;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sb-autofill-checkbox:checked {
+            background-color: #6366f1;
+            border-color: #6366f1;
+        }
+
+        .sb-autofill-checkbox:checked::after {
+            content: '✓';
+            color: #ffffff;
+            font-size: 10px;
+            font-weight: 700;
+            position: absolute;
+        }
     `;
   shadow.appendChild(style);
 
@@ -420,7 +469,7 @@
   panel.id = "sb-autofill-panel";
   panel.innerHTML = `
         <div id="sb-autofill-header">
-            <div id="sb-autofill-title">🐝 SocialBee Caption Filler v2.0</div>
+            <div id="sb-autofill-title">🐝 SocialBee Caption Filler v3.0</div>
             <button id="sb-autofill-toggle-btn" title="Toggle Panel">✕</button>
         </div>
         <div id="sb-autofill-content">
@@ -481,22 +530,29 @@
                 <div style="padding: 0 12px 12px 12px; display: flex; flex-direction: column; gap: 10px;">
                     <div class="sb-autofill-field">
                         <label class="sb-autofill-label">Step Delay (ms)</label>
-                        <input id="sb-delay" type="number" class="sb-autofill-input" value="1500" min="300" step="100">
+                        <input id="sb-delay" type="number" class="sb-autofill-input" value="10" min="0" step="100">
                     </div>
                     <div class="sb-autofill-field">
                         <label class="sb-autofill-label">Upload Delay (ms)</label>
-                        <input id="sb-upload-delay" type="number" class="sb-autofill-input" value="3000" min="500" step="100">
+                        <input id="sb-upload-delay" type="number" class="sb-autofill-input" value="10" min="0" step="100">
                     </div>
                     <div class="sb-autofill-field">
                         <label class="sb-autofill-label">Variation Action Delay (ms)</label>
-                        <input id="sb-var-delay" type="number" class="sb-autofill-input" value="1500" min="300" step="100">
+                        <input id="sb-var-delay" type="number" class="sb-autofill-input" value="10" min="0" step="100">
                     </div>
                     <div class="sb-autofill-field">
                         <label class="sb-autofill-label">UI/Modal Transition (ms)</label>
-                        <input id="sb-ui-delay" type="number" class="sb-autofill-input" value="500" min="100" step="100">
+                        <input id="sb-ui-delay" type="number" class="sb-autofill-input" value="10" min="0" step="100">
                     </div>
                 </div>
             </details>
+
+            <div class="sb-autofill-field" style="margin-top: 4px;">
+                <label class="sb-autofill-checkbox-container">
+                    <input type="checkbox" id="sb-disable-alerts" class="sb-autofill-checkbox">
+                    <span>Disable Toast Alerts</span>
+                </label>
+            </div>
 
             <div id="sb-autofill-status">
                 <div class="sb-status-info">
@@ -509,8 +565,13 @@
                 <button id="sb-btn-start" class="sb-btn sb-btn-primary">Start Fill</button>
                 <button id="sb-btn-stop" class="sb-btn sb-btn-secondary" disabled>Stop</button>
             </div>
-            <div class="sb-autofill-actions" style="margin-top: 8px;">
-                <button id="sb-btn-delete-all" class="sb-btn sb-btn-danger">🗑️ Delete All Accounts</button>
+            <div class="sb-autofill-actions" style="margin-top: 8px; display: flex; gap: 8px;">
+                <button id="sb-btn-share-vars" class="sb-btn sb-btn-primary" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border: none; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25); flex: 1.2;">🔄 Share Vars</button>
+                <button id="sb-btn-load-server" class="sb-btn sb-btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25); flex: 1.2;">📂 Server Images</button>
+            </div>
+            <div class="sb-autofill-actions" style="margin-top: 8px; display: flex; gap: 8px;">
+                <button id="sb-btn-logout-tiktok" class="sb-btn" style="background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%); border: none; box-shadow: 0 4px 12px rgba(244, 63, 94, 0.25); flex: 1.2; color: white;">🔑 Logout TikTok</button>
+                <button id="sb-btn-delete-all" class="sb-btn sb-btn-danger" style="flex: 1.2;">🗑️ Delete Accounts</button>
             </div>
             <div style="text-align: center; margin-top: 14px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.05); font-size: 9px; color: #6b7280; font-weight: 500; letter-spacing: 0.03em;">
                 Developed by <span style="background: linear-gradient(90deg, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700;">Kerby</span> (Discord: <span style="color: #9ca3af; font-weight: 600;">buchinyan</span>)
@@ -525,13 +586,85 @@
   let var4Files = [];
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  let alertsStyleEl = null;
+
+  function updateAlertsDisabledState(disabled) {
+    if (disabled) {
+      if (!alertsStyleEl) {
+        alertsStyleEl = document.createElement("style");
+        alertsStyleEl.id = "sb-disable-alerts-style";
+        alertsStyleEl.textContent = `
+          div[role="alert"].alerts.jhi-toast,
+          .alerts.jhi-toast {
+            display: none !important;
+          }
+        `;
+        document.documentElement.appendChild(alertsStyleEl);
+      }
+    } else {
+      if (alertsStyleEl) {
+        alertsStyleEl.remove();
+        alertsStyleEl = null;
+      }
+    }
+  }
+
   // Element references within Shadow DOM
   const toggleBtn = shadow.getElementById("sb-autofill-toggle-btn");
   const btnStart = shadow.getElementById("sb-btn-start");
   const btnStop = shadow.getElementById("sb-btn-stop");
   const btnDeleteAll = shadow.getElementById("sb-btn-delete-all");
+  const btnLogoutTiktok = shadow.getElementById("sb-btn-logout-tiktok");
+  const btnLoadServer = shadow.getElementById("sb-btn-load-server");
+  const btnShareVars = shadow.getElementById("sb-btn-share-vars");
   const statusText = shadow.getElementById("sb-status-text");
   const statusDot = shadow.getElementById("sb-status-dot");
+
+  // Retrieve saved configuration or fall back to defaults
+  const savedCaptionA = GM_getValue("sb_caption_a", "#gaymenoftiktok🏳️🌈 #gaydad #boyfriends #pridemonth #gay");
+  const savedCaptionB = GM_getValue("sb_caption_b", "#gayboy #gaydad #gay #boyfriends #twink");
+  const savedCaptionMode = GM_getValue("sb_caption_mode", "alternate");
+  const savedDelay = GM_getValue("sb_delay", "10");
+  const savedUploadDelay = GM_getValue("sb_upload_delay", "10");
+  const savedVarDelay = GM_getValue("sb_var_delay", "10");
+  const savedUIDelay = GM_getValue("sb_ui_delay", "10");
+  const savedDisableAlerts = GM_getValue("sb_disable_alerts", false);
+
+  const captionAInput = shadow.getElementById("sb-caption-a");
+  const captionBInput = shadow.getElementById("sb-caption-b");
+  const captionModeInput = shadow.getElementById("sb-caption-mode");
+  const delayInput = shadow.getElementById("sb-delay");
+  const uploadDelayInput = shadow.getElementById("sb-upload-delay");
+  const varDelayInput = shadow.getElementById("sb-var-delay");
+  const uiDelayInput = shadow.getElementById("sb-ui-delay");
+  const disableAlertsInput = shadow.getElementById("sb-disable-alerts");
+
+  // Populate inputs with saved values
+  if (captionAInput) captionAInput.value = savedCaptionA;
+  if (captionBInput) captionBInput.value = savedCaptionB;
+  if (captionModeInput) captionModeInput.value = savedCaptionMode;
+  if (delayInput) delayInput.value = savedDelay;
+  if (uploadDelayInput) uploadDelayInput.value = savedUploadDelay;
+  if (varDelayInput) varDelayInput.value = savedVarDelay;
+  if (uiDelayInput) uiDelayInput.value = savedUIDelay;
+  if (disableAlertsInput) disableAlertsInput.checked = savedDisableAlerts;
+
+  // Apply initial alerts disabled state
+  updateAlertsDisabledState(savedDisableAlerts);
+
+  // Add event listeners to automatically save changed settings
+  captionAInput?.addEventListener("input", () => GM_setValue("sb_caption_a", captionAInput.value));
+  captionBInput?.addEventListener("input", () => GM_setValue("sb_caption_b", captionBInput.value));
+  captionModeInput?.addEventListener("change", () => GM_setValue("sb_caption_mode", captionModeInput.value));
+  delayInput?.addEventListener("input", () => GM_setValue("sb_delay", delayInput.value));
+  uploadDelayInput?.addEventListener("input", () => GM_setValue("sb_upload_delay", uploadDelayInput.value));
+  varDelayInput?.addEventListener("input", () => GM_setValue("sb_var_delay", varDelayInput.value));
+  uiDelayInput?.addEventListener("input", () => GM_setValue("sb_ui_delay", uiDelayInput.value));
+  disableAlertsInput?.addEventListener("change", () => {
+    const isChecked = disableAlertsInput.checked;
+    GM_setValue("sb_disable_alerts", isChecked);
+    updateAlertsDisabledState(isChecked);
+  });
 
   // Base Image elements
   const dropzoneBase = shadow.getElementById("sb-dropzone-base");
@@ -559,11 +692,17 @@
     btnStart.disabled = isRunning;
     btnStop.disabled = !isRunning;
     if (btnDeleteAll) btnDeleteAll.disabled = isRunning;
+    if (btnLoadServer) btnLoadServer.disabled = isRunning;
+    if (btnShareVars) btnShareVars.disabled = isRunning;
 
     const inputs = shadow.querySelectorAll(".sb-autofill-input");
     inputs.forEach((input) => {
       input.disabled = isRunning;
     });
+
+    if (disableAlertsInput) {
+      disableAlertsInput.disabled = isRunning;
+    }
 
     if (isRunning) {
       dropzoneBase.style.pointerEvents = "none";
@@ -853,6 +992,12 @@
       return;
     }
 
+    // Auto-load images from server if none are currently loaded
+    if (baseFiles.length === 0 && var4Files.length === 0) {
+      setStatus("No images loaded. Attempting to fetch from server...", "running");
+      await loadImagesFromServer();
+    }
+
     isRunning = true;
     updateUIState();
 
@@ -1112,30 +1257,110 @@
 
   function getConnectedProfilesCount() {
     // Check circular progress text (e.g. 7/25)
-    const progressVal = document.querySelector('jhi-circular-progress .custom-progress-value b, .custom-progress-value b');
+    const progressVal = document.querySelector("jhi-circular-progress .custom-progress-value b, .custom-progress-value b");
     if (progressVal) {
       const match = progressVal.textContent.trim().match(/^(\d+)/);
       if (match) return parseInt(match[1], 10);
     }
-    
+
     // Check paragraphs with text "You have connected X profiles"
-    const paragraphs = Array.from(document.querySelectorAll('p'));
+    const paragraphs = Array.from(document.querySelectorAll("p"));
     for (const p of paragraphs) {
       const text = p.textContent || "";
       if (text.includes("You have connected")) {
-        const strongs = p.querySelectorAll('strong');
+        const strongs = p.querySelectorAll("strong");
         if (strongs.length > 0) {
           const match = strongs[0].textContent.trim().match(/^\d+/);
           if (match) return parseInt(match[0], 10);
         }
-        
+
         // Fallback: match number from the paragraph text directly
         const match = text.match(/connected\s+(\d+)\s+profiles/i);
         if (match) return parseInt(match[1], 10);
       }
     }
-    
+
     return null;
+  }
+
+  function findDeleteButtonDirect() {
+    const elements = Array.from(document.querySelectorAll("button, a, i, span, div[role='button']"));
+    const candidates = elements.filter((el) => {
+      if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
+      
+      // Ignore elements inside our control panel
+      if (el.closest("#sb-autofill-root")) return false;
+
+      // Ignore if already attempted in this run to avoid infinite loop
+      if (el.dataset.sbDeleteAttempted === "true" || el.closest("button, a")?.dataset.sbDeleteAttempted === "true") {
+        return false;
+      }
+
+      // Ignore confirmation buttons inside modals (we find these specifically later)
+      if (el.closest(".modal, .modal-content, .modal-dialog, .modal-container, ngb-modal-window")) {
+        return false;
+      }
+
+      const text = (el.textContent || "").trim().toLowerCase();
+      const title = (el.getAttribute("title") || el.getAttribute("data-original-title") || el.getAttribute("aria-label") || "").toLowerCase();
+      const className = (el.className || "").toLowerCase();
+      const id = (el.id || "").toLowerCase();
+
+      // Exclude confirmation/modal action buttons
+      if (
+        text.includes("yes") ||
+        text.includes("confirm") ||
+        text.includes("cancel") ||
+        text.includes("no") ||
+        text.includes("close") ||
+        text.includes("keep") ||
+        className.includes("btn-primary-sb")
+      ) {
+        return false;
+      }
+
+      const isTrashIcon = className.includes("trash") || className.includes("delete") || className.includes("remove") || className.includes("disconnect");
+      const isDeleteWord = text === "delete" || text === "remove" || text === "disconnect" || text.includes("remove account") || text.includes("delete account") || text.includes("disconnect profile") || text.includes("remove profile");
+      const isDeleteTitle = title.includes("delete") || title.includes("remove") || title.includes("disconnect") || title.includes("unlink") || title.includes("trash");
+      const isDeleteId = id.includes("delete") || id.includes("remove") || id.includes("disconnect");
+
+      return isTrashIcon || isDeleteWord || isDeleteTitle || isDeleteId;
+    });
+
+    return candidates.length > 0 ? candidates[0] : null;
+  }
+
+  function findProfileSelector() {
+    // Find all potential profile items/cards on the profiles page
+    const elements = Array.from(document.querySelectorAll("a, button, div, li, tr, [role='tab']"));
+    const items = elements.filter((el) => {
+      if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
+      
+      // Ignore control panel and modals
+      if (el.closest("#sb-autofill-root") || el.closest(".modal, .modal-content, ngb-modal-window")) {
+        return false;
+      }
+      
+      if (el.dataset.sbProfileSelectAttempted === "true" || el.closest("a, button")?.dataset.sbProfileSelectAttempted === "true") {
+        return false;
+      }
+
+      const className = (el.className || "").toLowerCase();
+      const id = (el.id || "").toLowerCase();
+      const text = (el.textContent || "").trim().toLowerCase();
+
+      // Look for profile list items, cards, or buttons representing connected profiles
+      const isProfileClass = className.includes("profile-card") || className.includes("account-card") || className.includes("profile-item") || className.includes("account-item") || className.includes("connected-account") || className.includes("sidebar-profile");
+      const isProfileId = id.includes("profile") || id.includes("account");
+
+      // Often, profile selection tabs/items are nested inside sidebar list containers
+      const hasProfileParent = el.closest('[class*="profile-list"], [class*="connected-accounts"], [class*="social-accounts"], [class*="profiles-list"]');
+      const isClickableChild = el.tagName === "A" || el.tagName === "BUTTON" || className.includes("active") || className.includes("item") || className.includes("card") || el.getAttribute("role") === "tab";
+
+      return isProfileClass || isProfileId || (hasProfileParent && isClickableChild);
+    });
+
+    return items.length > 0 ? items[0] : null;
   }
 
   async function deleteAllAccounts() {
@@ -1152,55 +1377,63 @@
 
     try {
       const stepDelay = Math.max(300, parseInt(shadow.getElementById("sb-delay").value, 10) || 1500);
-
       let deletedCount = 0;
+
+      // Clear previous attempt markers
+      document.querySelectorAll("[data-sb-delete-attempted], [data-sb-profile-select-attempted]").forEach((el) => {
+        delete el.dataset.sbDeleteAttempted;
+        delete el.dataset.sbProfileSelectAttempted;
+      });
+
       while (isRunning) {
         // Dynamic exit condition: if we can read the profile count and it reaches 0, we are done!
         const currentCount = getConnectedProfilesCount();
+        console.log("[SocialBee Autofill] Current connected profiles count:", currentCount);
         if (currentCount === 0) {
           console.log("[SocialBee Autofill] Dynamic profile count reached 0. Deletion complete!");
           break;
         }
 
-        // Find all potential delete/trash elements
-        const candidates = Array.from(document.querySelectorAll('button, a, i, span')).filter(el => {
-          // Ignore if already attempted in this run to avoid infinite loop
-          if (el.dataset.sbDeleteAttempted === "true" || el.closest('button, a')?.dataset.sbDeleteAttempted === "true") {
-            return false;
+        // 1. Try to find a direct delete button
+        let deleteBtn = findDeleteButtonDirect();
+
+        // 2. Fallback: if no delete button is visible, select the next profile first
+        if (!deleteBtn) {
+          const profileItem = findProfileSelector();
+          if (profileItem) {
+            console.log("[SocialBee Autofill] Selecting profile item to reveal delete button:", profileItem);
+            profileItem.dataset.sbProfileSelectAttempted = "true";
+            
+            profileItem.scrollIntoView({ block: "center", behavior: "smooth" });
+            await sleep(500);
+            profileItem.click();
+            
+            // Wait for profile settings / details view to mount and load
+            await sleep(stepDelay + 1000);
+
+            // Re-check for delete button
+            deleteBtn = findDeleteButtonDirect();
           }
+        }
 
-          const text = (el.textContent || "").trim().toLowerCase();
-          const title = (el.getAttribute('title') || el.getAttribute('data-original-title') || "").toLowerCase();
-          const className = (el.className || "").toLowerCase();
-          
-          const isTrashIcon = className.includes('trash');
-          const isDeleteWord = text === 'delete' || text === 'remove' || text === 'disconnect' || text.includes('remove account') || text.includes('delete account');
-          const isDeleteTitle = title.includes('delete') || title.includes('remove') || title.includes('disconnect') || title.includes('unlink');
-          
-          return (isTrashIcon || isDeleteWord || isDeleteTitle) && el.offsetWidth > 0;
-        });
-
-        if (candidates.length === 0) {
-          console.log("[SocialBee Autofill] No more delete buttons found.");
+        if (!deleteBtn) {
+          console.log("[SocialBee Autofill] No delete buttons found and no remaining profiles can be selected.");
           break;
         }
 
-        // Get the first candidate
-        const btn = candidates[0];
-        let clickTarget = btn;
-        
-        // If it's an icon, find the closest clickable parent (button or a)
-        if (btn.tagName === 'I' || btn.tagName === 'SPAN') {
-          clickTarget = btn.closest('button, a') || btn;
+        // Determine click target
+        let clickTarget = deleteBtn;
+        if (deleteBtn.tagName === "I" || deleteBtn.tagName === "SPAN") {
+          clickTarget = deleteBtn.closest("button, a") || deleteBtn;
         }
 
         // Mark as attempted before clicking
         clickTarget.dataset.sbDeleteAttempted = "true";
 
         console.log("[SocialBee Autofill] Clicking delete target:", clickTarget);
-        
+
         // Update status with remaining count if possible
-        const remaining = currentCount !== null ? currentCount : (initialCount !== null ? Math.max(0, initialCount - deletedCount) : null);
+        const remaining = currentCount !== null ? currentCount : initialCount !== null ? Math.max(0, initialCount - deletedCount) : null;
         const remMessage = remaining !== null ? ` (${remaining} remaining)` : "";
         setStatus(`Deleting account...${remMessage}`, "running");
 
@@ -1214,13 +1447,16 @@
         // Wait for the confirmation modal button to appear
         let clickedConfirm = false;
         for (let attempt = 0; attempt < 15; attempt++) {
-          const confirmBtn = Array.from(document.querySelectorAll('button')).find(button => {
+          const confirmBtn = Array.from(document.querySelectorAll("button")).find((button) => {
             const txt = (button.textContent || "").trim().toLowerCase();
             const className = (button.className || "").toLowerCase();
-            return txt.includes("yes, remove social account") || 
-                   txt.includes("yes, remove") || 
-                   txt === "remove" || 
-                   className.includes("btn-primary-sb") && txt.includes("remove");
+            return (
+              txt.includes("yes, remove social account") ||
+              txt.includes("yes, remove") ||
+              txt === "remove" ||
+              txt.includes("disconnect") ||
+              (className.includes("btn-primary-sb") && (txt.includes("remove") || txt.includes("disconnect")))
+            );
           });
 
           if (confirmBtn && confirmBtn.offsetWidth > 0) {
@@ -1240,10 +1476,10 @@
         }
 
         // Wait for the modal to fade out and account to be deleted completely (stepDelay + 1000ms buffer)
-        await sleep(stepDelay + 1000);
+        await sleep(stepDelay + 1500);
       }
 
-      setStatus(`Successfully removed ${deletedCount} account${deletedCount !== 1 ? 's' : ''}!`, "success");
+      setStatus(`Successfully removed ${deletedCount} account${deletedCount !== 1 ? "s" : ""}!`, "success");
     } catch (e) {
       console.error("[SocialBee Autofill] Error deleting accounts:", e);
       setStatus("Error during account deletion.", "error");
@@ -1257,6 +1493,247 @@
   btnStart.addEventListener("click", startAutomation);
   btnStop.addEventListener("click", stopAutomation);
   if (btnDeleteAll) btnDeleteAll.addEventListener("click", deleteAllAccounts);
+  if (btnLogoutTiktok) {
+    btnLogoutTiktok.addEventListener("click", () => {
+      console.log("[SocialBee Autofill] Manually triggered TikTok logout.");
+      window.open("https://www.tiktok.com/logout?auto_close=true", "_blank", "width=500,height=600");
+    });
+  }
+  if (btnLoadServer) btnLoadServer.addEventListener("click", loadImagesFromServer);
+  if (btnShareVars) btnShareVars.addEventListener("click", shareVariationsAutomation);
+
+  function fetchBlobFromUrl(url) {
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: url,
+        responseType: "blob",
+        onload: (res) => {
+          if (res.status >= 200 && res.status < 300) {
+            resolve({
+              blob: res.response,
+              filename: res.responseHeaders.match(/x-filename:\s*(.+)/i)?.[1]?.trim() || "image.png",
+            });
+          } else {
+            reject(new Error(`Failed to load image: ${res.statusText}`));
+          }
+        },
+        onerror: (err) => reject(err),
+      });
+    });
+  }
+
+  function fetchJsonFromUrl(url) {
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: url,
+        responseType: "json",
+        onload: (res) => {
+          if (res.status >= 200 && res.status < 300) {
+            resolve(res.response);
+          } else {
+            reject(new Error(`Failed to load list: ${res.statusText}`));
+          }
+        },
+        onerror: (err) => reject(err),
+      });
+    });
+  }
+
+  async function loadImagesFromServer() {
+    try {
+      setStatus("Loading server images...", "running");
+      const list = await fetchJsonFromUrl("http://localhost:4782/images/list");
+
+      baseFiles = [];
+      var4Files = [];
+
+      if (list.var_1_3 && list.var_1_3.length > 0) {
+        for (const filename of list.var_1_3) {
+          const fileUrl = `http://localhost:4782/images/file?folder=var_1_3&name=${encodeURIComponent(filename)}`;
+          const { blob, filename: serverName } = await fetchBlobFromUrl(fileUrl);
+          const file = new File([blob], serverName, { type: blob.type });
+          baseFiles.push(file);
+        }
+      }
+
+      if (list.var_4_6 && list.var_4_6.length > 0) {
+        for (const filename of list.var_4_6) {
+          const fileUrl = `http://localhost:4782/images/file?folder=var_4_6&name=${encodeURIComponent(filename)}`;
+          const { blob, filename: serverName } = await fetchBlobFromUrl(fileUrl);
+          const file = new File([blob], serverName, { type: blob.type });
+          var4Files.push(file);
+        }
+      }
+
+      renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+      renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+
+      setStatus(`Loaded ${baseFiles.length} base & ${var4Files.length} var4-6 images from server.`, "success");
+    } catch (err) {
+      console.error("Failed to load server images:", err);
+      setStatus("Failed to load server images: " + err.message, "error");
+    }
+  }
+
+  // Auto-load on init
+  loadImagesFromServer();
+
+  async function shareVariationsAutomation() {
+    isRunning = true;
+    updateUIState();
+    setStatus("Starting variation share automation...", "running");
+
+    try {
+      const stepDelay = Math.max(300, parseInt(shadow.getElementById("sb-delay").value, 10) || 1500);
+
+      // Find the first "Share now" button on page
+      let shareNowBtn = Array.from(document.querySelectorAll("button")).find((btn) => {
+        return (btn.textContent || "").includes("Share now") && btn.offsetWidth > 0;
+      });
+
+      // If modal is not open, open it
+      let modal = document.querySelector(".modal-content");
+      if (!modal) {
+        if (!shareNowBtn) {
+          throw new Error("No 'Share now' button found on the page.");
+        }
+        console.log("[SocialBee] Clicking 'Share now' button to open modal");
+        shareNowBtn.click();
+
+        // Wait for modal to open
+        let opened = false;
+        for (let attempt = 0; attempt < 20; attempt++) {
+          await sleep(200);
+          modal = document.querySelector(".modal-content");
+          if (modal) {
+            opened = true;
+            break;
+          }
+        }
+        if (!opened) {
+          throw new Error("Modal failed to open after clicking 'Share now'.");
+        }
+      }
+
+      // Now modal is open. Get the chosenVariation select to discover options.
+      const selectEl = document.querySelector("#chosenVariation");
+      if (!selectEl) {
+        throw new Error("Variation dropdown (#chosenVariation) not found inside modal.");
+      }
+
+      // Parse available variation option values
+      const optionValues = Array.from(selectEl.options)
+        .map((opt) => opt.value)
+        .filter((val) => /^\d+$/.test(val)); // only digit values e.g. "0", "1", "2"
+
+      if (optionValues.length === 0) {
+        throw new Error("No variations found in the dropdown.");
+      }
+
+      console.log("[SocialBee] Found variation values to share:", optionValues);
+
+      for (let idx = 0; idx < optionValues.length; idx++) {
+        if (!isRunning) break;
+
+        const varVal = optionValues[idx];
+        setStatus(`Sharing Variation ${idx + 1}/${optionValues.length}...`, "running");
+
+        // Re-open modal if closed
+        modal = document.querySelector(".modal-content");
+        if (!modal) {
+          // Re-find the share button in case DOM changed
+          shareNowBtn = Array.from(document.querySelectorAll("button")).find((btn) => {
+            return (btn.textContent || "").includes("Share now") && btn.offsetWidth > 0;
+          });
+
+          if (!shareNowBtn) {
+            throw new Error("Could not find 'Share now' button to share next variation.");
+          }
+
+          console.log("[SocialBee] Opening modal for variation:", varVal);
+          shareNowBtn.click();
+
+          let opened = false;
+          for (let attempt = 0; attempt < 20; attempt++) {
+            await sleep(200);
+            modal = document.querySelector(".modal-content");
+            if (modal) {
+              opened = true;
+              break;
+            }
+          }
+          if (!opened) {
+            throw new Error("Modal failed to re-open.");
+          }
+        }
+
+        // Wait a small moment for angular to settle
+        await sleep(500);
+
+        // 1. Select all profiles that are not active/selected (i.e. have class 'inactive')
+        const profileBtns = Array.from(document.querySelectorAll(".edit-social-accounts button.inactive")).filter((btn) => btn.disabled === false && btn.offsetWidth > 0);
+
+        console.log(`[SocialBee] Selecting ${profileBtns.length} inactive profiles`);
+        for (const btn of profileBtns) {
+          btn.click();
+          await sleep(150); // small delay to emulate organic clicks
+        }
+
+        // 2. Select the current variation value
+        const currentSelectEl = document.querySelector("#chosenVariation");
+        if (!currentSelectEl) {
+          throw new Error("Dropdown not found during loop execution.");
+        }
+
+        console.log("[SocialBee] Selecting variation value:", varVal);
+        currentSelectEl.value = varVal;
+        currentSelectEl.dispatchEvent(new Event("change", { bubbles: true }));
+        currentSelectEl.dispatchEvent(new Event("input", { bubbles: true }));
+
+        await sleep(500);
+
+        // 3. Click the Share button
+        const shareSubmitBtn = document.querySelector("button.btn-primary-sb");
+        if (!shareSubmitBtn) {
+          throw new Error("Share/Submit button not found.");
+        }
+
+        console.log("[SocialBee] Clicking Share submit button");
+        shareSubmitBtn.click();
+
+        // 4. Wait for modal to close
+        let closed = false;
+        for (let attempt = 0; attempt < 25; attempt++) {
+          await sleep(200);
+          if (!document.querySelector(".modal-content")) {
+            closed = true;
+            break;
+          }
+        }
+
+        if (!closed) {
+          console.warn("[SocialBee] Warning: Modal did not close automatically. Waiting extra time...");
+        }
+
+        // Safety buffer before next iteration
+        await sleep(stepDelay + 1000);
+      }
+
+      if (isRunning) {
+        setStatus("Successfully shared all variations!", "success");
+      } else {
+        setStatus("Share automation stopped.", "idle");
+      }
+    } catch (e) {
+      console.error("[SocialBee] Error in Share Variations:", e);
+      setStatus("Error: " + e.message, "error");
+    } finally {
+      isRunning = false;
+      updateUIState();
+    }
+  }
 
   // Minimize / Maximize toggle
   toggleBtn.addEventListener("click", (e) => {
@@ -1276,6 +1753,8 @@
       panel.classList.remove("minimized");
       toggleBtn.innerHTML = "✕";
       toggleBtn.title = "Minimize Panel";
+      // Auto-refresh images from server when panel is maximized
+      loadImagesFromServer();
     }
   });
 
@@ -1370,4 +1849,13 @@
 
   // Run every 300ms to handle dynamic content loading and state resets
   setInterval(ensureChecked, 300);
+
+  // Auto-logout checker for TikTok (opens a logout tab if auth is completed)
+  setInterval(() => {
+    if (GM_getValue("tiktok_authorized_flag") === true) {
+      console.log("[SocialBee Autofill] Detected completed TikTok authorization. Triggering logout...");
+      GM_setValue("tiktok_authorized_flag", false); // reset flag
+      window.open("https://www.tiktok.com/logout?auto_close=true", "_blank", "width=500,height=600");
+    }
+  }, 1500);
 })();
