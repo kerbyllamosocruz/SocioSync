@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cross-Tab OTP Auto-Filler
 // @namespace    http://tampermonkey.net/
-// @version      3.2
+// @version      3.4
 // @description  Communicate between Login Tab and Email Tab to fetch and fill OTP codes, plus client-side TikTok Captcha Solving
 // @author       Kerby (Discord: buchinyan)
 // @match        https://*.tiktok.com/*
@@ -32,14 +32,14 @@
     const lastClickTime = clickedElements.get(el) || 0;
 
     if (now - lastClickTime > retryDelay) {
-      console.log(`${logMessage} (Attempt: ${lastClickTime ? 'Retry' : 'First'})`);
+      console.log(`${logMessage} (Attempt: ${lastClickTime ? "Retry" : "First"})`);
       clickedElements.set(el, now);
 
       // Try standard click
       el.click();
 
       // Dispatch click event as fallback
-      el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+      el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
     }
   }
 
@@ -54,14 +54,14 @@
     console.log("[OTP Link] Detected TikTok OAuth callback. Setting authorization flag.");
     GM_setValue("tiktok_authorized_flag", true);
 
-    const lastUser = GM_getValue('lastAttemptedUsername');
+    const lastUser = GM_getValue("lastAttemptedUsername");
     if (lastUser) {
       console.log(`[OTP Link] Calling mark-done for ${lastUser} from callback handler`);
       GM_xmlhttpRequest({
-        method: 'POST',
-        url: 'http://localhost:4782/mark-done',
+        method: "POST",
+        url: "http://localhost:4782/mark-done",
         data: JSON.stringify({ username: lastUser }),
-        headers: { 'Content-Type': 'application/json' }
+        headers: { "Content-Type": "application/json" },
       });
     }
   }
@@ -272,7 +272,7 @@
     panel.id = "otp-panel";
     panel.innerHTML = `
         <div id="otp-header">
-            <div id="otp-title">🔑 OTP Linker v3.2</div>
+            <div id="otp-title">🔑 OTP Linker v3.4</div>
             <button id="otp-toggle-btn" title="Minimize Panel">✕</button>
         </div>
         <div id="otp-content">
@@ -327,7 +327,7 @@
             const email = cols[emailIndex].trim();
             const pass = cols[passIndex].trim();
             const status = statusIndex !== -1 && cols[statusIndex] ? cols[statusIndex].trim() : "";
-            
+
             // Skip done accounts
             if (status.toLowerCase() === "done") {
               continue;
@@ -362,7 +362,7 @@
         // Restore active selection
         const savedEmail = GM_getValue("otp_csv_selected_email", "");
         if (savedEmail) {
-          const matchIdx = accounts.findIndex(acc => acc.email === savedEmail);
+          const matchIdx = accounts.findIndex((acc) => acc.email === savedEmail);
           if (matchIdx !== -1) {
             selectEl.value = matchIdx.toString();
             console.log(`[OTP Link] Restored active selection index: ${matchIdx} (${savedEmail})`);
@@ -401,6 +401,8 @@
 
         const account = window.otpCsvAccounts[idx];
         GM_setValue("otp_csv_selected_email", account.email);
+        GM_setValue("otp_request", null);
+        GM_setValue("otp_response", null);
         await autofillCredentials(account.email, account.pass);
       });
 
@@ -452,7 +454,7 @@
         },
         onerror: function (err) {
           console.log("[OTP Link] Local CSV server not running/accessible, waiting for manual upload.");
-        }
+        },
       });
 
       // API Key saving and fetching logic
@@ -487,7 +489,7 @@
           },
           onerror: function (err) {
             // Server not running or key not configured, ignore
-          }
+          },
         });
       }
     }
@@ -532,43 +534,107 @@
       element.dispatchEvent(new Event("blur", { bubbles: true }));
     }
 
-    async function autofillCredentials(email, password) {
-      const usernameInput = document.querySelector('input[name="username"], input[placeholder*="Email"], input[placeholder*="username"], input[placeholder*="phone"]');
-      const passwordInput = document.querySelector('input[type="password"], input[placeholder*="Password"]');
+    let isAutofilling = false;
 
-      if (!usernameInput || !passwordInput) {
-        console.warn("[OTP Link] Username or password input not found on page.");
-        setStatus("Input fields not found.", "error");
+    async function autofillCredentials(email, password) {
+      if (isAutofilling) {
+        console.log("[OTP Link] Autofill already in progress. Skipping.");
         return;
       }
+      isAutofilling = true;
 
-      GM_setValue('lastAttemptedUsername', email);
+      // Cleared OTP state before autofill
+      GM_setValue("otp_request", null);
+      GM_setValue("otp_response", null);
+      window.otp_requested_email = null;
 
-      setStatus(`Typing email...`, "running");
-      await humanType(usernameInput, email, 15);
-      await sleep(200);
+      try {
+        const usernameInput = document.querySelector('input[name="username"], input[placeholder*="Email"], input[placeholder*="username"], input[placeholder*="phone"]');
+        const passwordInput = document.querySelector('input[type="password"], input[placeholder*="Password"]');
 
-      setStatus(`Typing password...`, "running");
-      await humanType(passwordInput, password, 15);
-      await sleep(300);
+        if (!usernameInput || !passwordInput) {
+          console.warn("[OTP Link] Username or password input not found on page.");
+          setStatus("Input fields not found.", "error");
+          return;
+        }
 
-      console.log(`[OTP Link] Autofilled credentials for: ${email}`);
-      setStatus(`Clicking login...`, "running");
+        GM_setValue("lastAttemptedUsername", email);
 
-      // Find and click the Log in button
-      const loginBtn =
-        Array.from(document.querySelectorAll('button[type="submit"], button[data-e2e="login-button"], button[class*="Button-StyledButton"]')).find((btn) => {
-          const text = (btn.textContent || "").trim().toLowerCase();
-          return text.includes("log in") || text.includes("login") || btn.getAttribute("data-e2e") === "login-button";
-        }) || document.querySelector('button[type="submit"], button[data-e2e="login-button"]');
+        setStatus(`Typing email (${email})...`, "running");
+        await humanType(usernameInput, email, 15);
+        await sleep(200);
 
-      if (loginBtn) {
-        console.log("[OTP Link] Clicking login button:", loginBtn);
-        loginBtn.click();
-        setStatus("Logged in!", "success");
-      } else {
-        console.warn("[OTP Link] Login button not found");
-        setStatus("Login button not found", "error");
+        setStatus(`Typing password...`, "running");
+        await humanType(passwordInput, password, 15);
+        await sleep(300);
+
+        console.log(`[OTP Link] Autofilled credentials for: ${email}`);
+        setStatus(`Clicking login button...`, "running");
+
+        // Find and click the Log in button
+        const loginBtn =
+          Array.from(document.querySelectorAll('button[type="submit"], button[data-e2e="login-button"], button[class*="Button-StyledButton"]')).find((btn) => {
+            const text = (btn.textContent || "").trim().toLowerCase();
+            return text.includes("log in") || text.includes("login") || btn.getAttribute("data-e2e") === "login-button";
+          }) || document.querySelector('button[type="submit"], button[data-e2e="login-button"]');
+
+        if (loginBtn) {
+          console.log("[OTP Link] Clicking login button:", loginBtn);
+          loginBtn.click();
+          setStatus("Login clicked! Awaiting OTP or Callback...", "running");
+
+          // Added OTP/callback detection after login
+          const startTime = Date.now();
+          const timeoutMs = 30000;
+          let loginOutcomeDetected = false;
+
+          while (Date.now() - startTime < timeoutMs) {
+            // Check for callback redirect or authorization flag
+            const isAuthorized = GM_getValue("tiktok_authorized_flag", false);
+            const currentHref = window.location.href;
+            const isCallback = currentHref.includes("callback") || currentHref.includes("profiles") || currentHref.includes("success");
+
+            if (isAuthorized || isCallback) {
+              console.log("[OTP Link] Callback redirect or authorization detected!");
+              setStatus("Login & Callback successful!", "success");
+              loginOutcomeDetected = true;
+              break;
+            }
+
+            // Check for OTP response or request state
+            const otpResp = GM_getValue("otp_response", null);
+            if ((otpResp && isEmailMatch(otpResp.email, email) && otpResp.otp) || window.otp_requested_email) {
+              console.log("[OTP Link] OTP flow triggered after login click.");
+              setStatus("OTP required - processing verification...", "running");
+              loginOutcomeDetected = true;
+              break;
+            }
+
+            // Check for visible OTP input field on page
+            const otpInput = document.querySelector('input[data-testid="tux-web-input"], input[type="tel"], input[name="otp"], input[placeholder*="code"], input[placeholder*="Code"], input[placeholder*="6-digit"]');
+            if (otpInput && otpInput.offsetWidth > 0) {
+              console.log("[OTP Link] OTP input field detected on page.");
+              setStatus("OTP field detected. Waiting for OTP code...", "running");
+              loginOutcomeDetected = true;
+              break;
+            }
+
+            await sleep(500);
+          }
+
+          if (!loginOutcomeDetected) {
+            console.log("[OTP Link] Login click wait completed without explicit OTP/Callback detection.");
+            setStatus("Login click complete", "idle");
+          }
+        } else {
+          console.warn("[OTP Link] Login button not found");
+          setStatus("Login button not found", "error");
+        }
+      } catch (err) {
+        console.error("[OTP Link] Error during autofillCredentials:", err);
+        setStatus("Autofill error: " + (err.message || err), "error");
+      } finally {
+        isAutofilling = false;
       }
     }
 
@@ -602,12 +668,7 @@
       let displayState = state;
 
       const lowerText = (text || "").toLowerCase();
-      if (
-        lowerText.includes("maximum number of attempts") ||
-        lowerText.includes("too many attempts") ||
-        lowerText.includes("try again later") ||
-        lowerText.includes("rate limit")
-      ) {
+      if (lowerText.includes("maximum number of attempts") || lowerText.includes("too many attempts") || lowerText.includes("try again later") || lowerText.includes("rate limit")) {
         displayStatus = "Try";
         displayState = "idle";
       }
@@ -673,9 +734,9 @@
 
     function matchEmails(candidate, target) {
       if (candidate === target) return true;
-      if (candidate.includes('*')) {
-        const candidateParts = candidate.split('@');
-        const targetParts = target.split('@');
+      if (candidate.includes("*")) {
+        const candidateParts = candidate.split("@");
+        const targetParts = target.split("@");
         if (candidateParts.length !== 2 || targetParts.length !== 2) return false;
 
         const [candLocal, candDomain] = candidateParts;
@@ -733,13 +794,13 @@
               GM_setValue("tiktok_authorized_flag", true);
 
               // Call mark-done on manual click
-              const lastUser = GM_getValue('lastAttemptedUsername');
+              const lastUser = GM_getValue("lastAttemptedUsername");
               if (lastUser) {
                 GM_xmlhttpRequest({
-                  method: 'POST',
-                  url: 'http://localhost:4782/mark-done',
+                  method: "POST",
+                  url: "http://localhost:4782/mark-done",
                   data: JSON.stringify({ username: lastUser }),
-                  headers: { 'Content-Type': 'application/json' }
+                  headers: { "Content-Type": "application/json" },
                 });
               }
             });
@@ -752,13 +813,13 @@
             GM_setValue("tiktok_authorized_flag", true);
 
             // Call mark-done on automated click
-            const lastUser = GM_getValue('lastAttemptedUsername');
+            const lastUser = GM_getValue("lastAttemptedUsername");
             if (lastUser) {
               GM_xmlhttpRequest({
-                method: 'POST',
-                url: 'http://localhost:4782/mark-done',
+                method: "POST",
+                url: "http://localhost:4782/mark-done",
                 data: JSON.stringify({ username: lastUser }),
-                headers: { 'Content-Type': 'application/json' }
+                headers: { "Content-Type": "application/json" },
               });
             }
 
@@ -775,9 +836,9 @@
     }
 
     GM_addValueChangeListener("otp_invalidated", function (key, oldValue, newValue, remote) {
-      if (window.otp_requested_state) {
+      if (window.otp_requested_email) {
         console.log("[OTP Link] OTP invalidated by main script. Resetting state.");
-        window.otp_requested_state = false;
+        window.otp_requested_email = null;
         window.last_invalid_otp = newValue && newValue.otp ? newValue.otp : null;
         setStatus("OTP Invalid. Waiting for new one...", "running");
       }
@@ -912,15 +973,20 @@
 
       if (!hasDigitInputs && !singleInput) return;
 
-      const requestKey = "otp_requested_state";
-      if (window[requestKey]) return;
-
       const targetEmail = getTargetEmail();
       if (!targetEmail) return;
 
-      window[requestKey] = true;
+      // If we've already requested OTP for this specific email, skip
+      if (window.otp_requested_email === targetEmail) return;
+
+      window.otp_requested_email = targetEmail;
       console.log(`[OTP Link] OTP requested for email: ${targetEmail}`);
       setStatus(`Requesting OTP for ${targetEmail}...`, "running");
+
+      // Remove any existing response listener to prevent duplicate/leaked handlers
+      if (window.otp_response_listener_id) {
+        GM_removeValueChangeListener(window.otp_response_listener_id);
+      }
 
       // Listen for the response from the email tab
       const responseListenerId = GM_addValueChangeListener("otp_response", function (key, oldValue, newValue, remote) {
@@ -957,8 +1023,12 @@
           }, 100);
 
           GM_removeValueChangeListener(responseListenerId);
+          if (window.otp_response_listener_id === responseListenerId) {
+            window.otp_response_listener_id = null;
+          }
         }
       });
+      window.otp_response_listener_id = responseListenerId;
 
       // Send request to the email tab
       GM_setValue("otp_request", {
@@ -1191,14 +1261,7 @@
 
       // Look for rate-limit / too many attempts errors on page
       try {
-        const possibleErrorSelectors = [
-          '[class*="DivError"]',
-          '[class*="error-message"]',
-          '[class*="error"]',
-          '[class*="DivTip"]',
-          '[class*="Tip"]',
-          '[role="alert"]'
-        ];
+        const possibleErrorSelectors = ['[class*="DivError"]', '[class*="error-message"]', '[class*="error"]', '[class*="DivTip"]', '[class*="Tip"]', '[role="alert"]'];
 
         let foundError = false;
         for (const selector of possibleErrorSelectors) {
@@ -1207,12 +1270,7 @@
             const text = el.textContent?.trim();
             if (text && text.length > 2 && text.length < 150) {
               const lowerText = text.toLowerCase();
-              if (
-                lowerText.includes('maximum number of attempts') ||
-                lowerText.includes('too many attempts') ||
-                lowerText.includes('try again later') ||
-                lowerText.includes('rate limit')
-              ) {
+              if (lowerText.includes("maximum number of attempts") || lowerText.includes("too many attempts") || lowerText.includes("try again later") || lowerText.includes("rate limit")) {
                 setStatus("Try", "idle");
                 foundError = true;
                 break;
@@ -1224,12 +1282,7 @@
 
         if (!foundError) {
           const bodyText = document.body.innerText || "";
-          if (
-            /maximum number of attempts/i.test(bodyText) ||
-            /too many attempts/i.test(bodyText) ||
-            /try again later/i.test(bodyText) ||
-            /rate limit/i.test(bodyText)
-          ) {
+          if (/maximum number of attempts/i.test(bodyText) || /too many attempts/i.test(bodyText) || /try again later/i.test(bodyText) || /rate limit/i.test(bodyText)) {
             setStatus("Try", "idle");
           }
         }

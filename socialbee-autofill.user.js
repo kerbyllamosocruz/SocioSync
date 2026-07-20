@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SocialBee Profile Caption Filler & Manager
 // @namespace    http://tampermonkey.net/
-// @version      3.0
+// @version      3.2
 // @description  Automate filling captions, uploading custom images, and managing accounts in SocialBee
 // @author       Kerby (Discord: buchinyan)
 // @match        https://app.socialbee.com/*
@@ -10,11 +10,29 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @connect      localhost
+// @connect      127.0.0.1
+// @connect      10.0.2.2
+// @connect      *
 // @run-at       document-end
 // ==/UserScript==
 
 (function () {
   "use strict";
+
+  function getServerHost() {
+    const saved = GM_getValue("server_host", "");
+    if (saved) return saved;
+    if (typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.toLowerCase().includes("android")) {
+      return "10.0.2.2";
+    }
+    return "localhost";
+  }
+
+  function getServerUrl(endpoint) {
+    const host = getServerHost();
+    const path = endpoint.startsWith("/") ? endpoint : "/" + endpoint;
+    return `http://${host}:4782${path}`;
+  }
 
   if (!window.location.hostname.includes("socialbee.com") && !window.location.hostname.includes("socialbee.io")) {
     return;
@@ -469,7 +487,7 @@
   panel.id = "sb-autofill-panel";
   panel.innerHTML = `
         <div id="sb-autofill-header">
-            <div id="sb-autofill-title">🐝 SocialBee Caption Filler v3.0</div>
+            <div id="sb-autofill-title">🐝 SocialBee Caption Filler v3.1</div>
             <button id="sb-autofill-toggle-btn" title="Toggle Panel">✕</button>
         </div>
         <div id="sb-autofill-content">
@@ -490,6 +508,7 @@
                     <option value="random">Randomize (Choose A or B randomly)</option>
                     <option value="a-only">Option 1 (A) Only</option>
                     <option value="b-only">Option 2 (B) Only</option>
+                    <option value="distribute-v4-b">All profiles A (Var 1-3) & B (Var 4-6)</option>
                 </select>
             </div>
 
@@ -1080,6 +1099,9 @@
         } else if (captionMode === "b-only") {
           caption = captionB;
           chosenOption = "B";
+        } else if (captionMode === "distribute-v4-b") {
+          caption = captionA;
+          chosenOption = "A";
         }
 
         profileCaptions[i] = chosenOption;
@@ -1182,10 +1204,15 @@
         // Swap Caption for Variation 4 (A to B, B to A)
         const editor = Array.from(document.querySelectorAll(".ql-editor")).find((el) => el.offsetWidth > 0 && el.offsetHeight > 0) || document.querySelector(".ql-editor");
         if (editor) {
-          const originalOption = profileCaptions[i] || "A";
-          const oppositeCaption = originalOption === "A" ? captionB : captionA;
-          console.log(`Phase 2: Swapping caption for profile ${i + 1} to opposite option:`, originalOption === "A" ? "B" : "A");
-          setContentEditableText(editor, oppositeCaption);
+          let targetCaption = "";
+          if (captionMode === "distribute-v4-b") {
+            targetCaption = captionB;
+          } else {
+            const originalOption = profileCaptions[i] || "A";
+            targetCaption = originalOption === "A" ? captionB : captionA;
+          }
+          console.log(`Phase 2: Setting caption for profile ${i + 1} to Var 4 value`);
+          setContentEditableText(editor, targetCaption);
           await sleep(uiDelay);
         }
 
@@ -1287,7 +1314,7 @@
     const elements = Array.from(document.querySelectorAll("button, a, i, span, div[role='button']"));
     const candidates = elements.filter((el) => {
       if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
-      
+
       // Ignore elements inside our control panel
       if (el.closest("#sb-autofill-root")) return false;
 
@@ -1307,15 +1334,7 @@
       const id = (el.id || "").toLowerCase();
 
       // Exclude confirmation/modal action buttons
-      if (
-        text.includes("yes") ||
-        text.includes("confirm") ||
-        text.includes("cancel") ||
-        text.includes("no") ||
-        text.includes("close") ||
-        text.includes("keep") ||
-        className.includes("btn-primary-sb")
-      ) {
+      if (text.includes("yes") || text.includes("confirm") || text.includes("cancel") || text.includes("no") || text.includes("close") || text.includes("keep") || className.includes("btn-primary-sb")) {
         return false;
       }
 
@@ -1335,12 +1354,12 @@
     const elements = Array.from(document.querySelectorAll("a, button, div, li, tr, [role='tab']"));
     const items = elements.filter((el) => {
       if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
-      
+
       // Ignore control panel and modals
       if (el.closest("#sb-autofill-root") || el.closest(".modal, .modal-content, ngb-modal-window")) {
         return false;
       }
-      
+
       if (el.dataset.sbProfileSelectAttempted === "true" || el.closest("a, button")?.dataset.sbProfileSelectAttempted === "true") {
         return false;
       }
@@ -1403,11 +1422,11 @@
           if (profileItem) {
             console.log("[SocialBee Autofill] Selecting profile item to reveal delete button:", profileItem);
             profileItem.dataset.sbProfileSelectAttempted = "true";
-            
+
             profileItem.scrollIntoView({ block: "center", behavior: "smooth" });
             await sleep(500);
             profileItem.click();
-            
+
             // Wait for profile settings / details view to mount and load
             await sleep(stepDelay + 1000);
 
@@ -1450,13 +1469,7 @@
           const confirmBtn = Array.from(document.querySelectorAll("button")).find((button) => {
             const txt = (button.textContent || "").trim().toLowerCase();
             const className = (button.className || "").toLowerCase();
-            return (
-              txt.includes("yes, remove social account") ||
-              txt.includes("yes, remove") ||
-              txt === "remove" ||
-              txt.includes("disconnect") ||
-              (className.includes("btn-primary-sb") && (txt.includes("remove") || txt.includes("disconnect")))
-            );
+            return txt.includes("yes, remove social account") || txt.includes("yes, remove") || txt === "remove" || txt.includes("disconnect") || (className.includes("btn-primary-sb") && (txt.includes("remove") || txt.includes("disconnect")));
           });
 
           if (confirmBtn && confirmBtn.offsetWidth > 0) {
@@ -1544,14 +1557,14 @@
   async function loadImagesFromServer() {
     try {
       setStatus("Loading server images...", "running");
-      const list = await fetchJsonFromUrl("http://localhost:4782/images/list");
+      const list = await fetchJsonFromUrl(getServerUrl("/images/list"));
 
       baseFiles = [];
       var4Files = [];
 
       if (list.var_1_3 && list.var_1_3.length > 0) {
         for (const filename of list.var_1_3) {
-          const fileUrl = `http://localhost:4782/images/file?folder=var_1_3&name=${encodeURIComponent(filename)}`;
+          const fileUrl = getServerUrl(`/images/file?folder=var_1_3&name=${encodeURIComponent(filename)}`);
           const { blob, filename: serverName } = await fetchBlobFromUrl(fileUrl);
           const file = new File([blob], serverName, { type: blob.type });
           baseFiles.push(file);
@@ -1560,7 +1573,7 @@
 
       if (list.var_4_6 && list.var_4_6.length > 0) {
         for (const filename of list.var_4_6) {
-          const fileUrl = `http://localhost:4782/images/file?folder=var_4_6&name=${encodeURIComponent(filename)}`;
+          const fileUrl = getServerUrl(`/images/file?folder=var_4_6&name=${encodeURIComponent(filename)}`);
           const { blob, filename: serverName } = await fetchBlobFromUrl(fileUrl);
           const file = new File([blob], serverName, { type: blob.type });
           var4Files.push(file);
