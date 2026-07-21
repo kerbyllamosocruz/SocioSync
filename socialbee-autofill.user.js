@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SocialBee Profile Caption Filler & Manager
 // @namespace    http://tampermonkey.net/
-// @version      3.2
+// @version      3.3
 // @description  Automate filling captions, uploading custom images, and managing accounts in SocialBee
 // @author       Kerby (Discord: buchinyan)
 // @match        https://app.socialbee.com/*

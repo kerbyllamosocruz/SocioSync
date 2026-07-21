@@ -826,9 +826,14 @@
             authBtn.click();
             clearInterval(authInterval);
 
-            // Open tiktok.com/logout and autoclose
+            // Open tiktok.com/logout window and autoclose after logout completes
             setTimeout(() => {
-              GM_openInTab("https://www.tiktok.com/logout?auto_close=true", { active: false, insert: true });
+              const logoutTab = GM_openInTab("https://www.tiktok.com/logout?auto_close=true", { active: false, insert: true });
+              setTimeout(() => {
+                if (logoutTab && typeof logoutTab.close === "function") {
+                  try { logoutTab.close(); } catch (e) {}
+                }
+              }, 4000);
             }, 1000);
           }
         }
@@ -983,6 +988,13 @@
       console.log(`[OTP Link] OTP requested for email: ${targetEmail}`);
       setStatus(`Requesting OTP for ${targetEmail}...`, "running");
 
+      // Clear any stale OTP response for a different email
+      const staleResp = GM_getValue("otp_response");
+      if (staleResp && (!staleResp.email || !isEmailMatch(staleResp.email, targetEmail))) {
+        console.log(`[OTP Link] Clearing old/mismatched OTP response for ${staleResp?.email}`);
+        GM_setValue("otp_response", null);
+      }
+
       // Remove any existing response listener to prevent duplicate/leaked handlers
       if (window.otp_response_listener_id) {
         GM_removeValueChangeListener(window.otp_response_listener_id);
@@ -990,8 +1002,8 @@
 
       // Listen for the response from the email tab
       const responseListenerId = GM_addValueChangeListener("otp_response", function (key, oldValue, newValue, remote) {
-        if (newValue && isEmailMatch(newValue.email, targetEmail) && newValue.otp) {
-          console.log(`[OTP Link] Received OTP from mail tab: ${newValue.otp}`);
+        if (newValue && newValue.email && isEmailMatch(newValue.email, targetEmail) && newValue.otp) {
+          console.log(`[OTP Link] Received matching OTP for ${newValue.email}: ${newValue.otp}`);
           setStatus(`Received OTP ${newValue.otp}! Filling...`, "success");
 
           // Fill with retries to handle latency / late-mounting inputs
@@ -1029,6 +1041,14 @@
         }
       });
       window.otp_response_listener_id = responseListenerId;
+
+      // Also check if valid response is already available in GM storage right now
+      const currentResp = GM_getValue("otp_response");
+      if (currentResp && currentResp.email && isEmailMatch(currentResp.email, targetEmail) && currentResp.otp) {
+        console.log(`[OTP Link] Found existing matching OTP response for ${currentResp.email}: ${currentResp.otp}`);
+        fillOTP(currentResp.otp);
+        return;
+      }
 
       // Send request to the email tab
       GM_setValue("otp_request", {
@@ -1365,7 +1385,16 @@
     }
 
     async function findAndSendOTP(targetEmail) {
-      // Find all elements that might contain the recipient email or match the masked pattern
+      if (!targetEmail) return;
+
+      // Verify active request matches targetEmail
+      const activeReq = GM_getValue("otp_request");
+      if (!activeReq || activeReq.status !== "pending" || !isEmailMatch(activeReq.email, targetEmail)) {
+        console.log(`[OTP Link] Active request (${activeReq?.email}) does not match target (${targetEmail}). Skipping findAndSendOTP.`);
+        return;
+      }
+
+      // Find all elements that might contain the recipient email or match the target email pattern
       const allElements = Array.from(document.querySelectorAll("a, tr, td, div, span, li"));
       let matchingElement = null;
 
@@ -1382,32 +1411,21 @@
         }
       }
 
-      // Fallback: look for the domain part of the target email
-      if (!matchingElement) {
-        const domainPart = targetEmail.split("@")[1];
-        if (domainPart) {
-          for (const el of allElements) {
-            const txt = el.innerText || el.textContent || "";
-            if (txt.includes(domainPart)) {
-              const rowCandidate = el.closest("a, tr, li, [onclick]") || el;
-              const rowText = rowCandidate.innerText || rowCandidate.textContent || "";
-              if (isRecentEmail(rowText)) {
-                matchingElement = rowCandidate;
-                break;
-              }
-            }
-          }
-        }
-      }
-
       if (!matchingElement) {
         console.log(`[OTP Link] No matching email row found for ${targetEmail} yet.`);
-        setStatus(`Waiting for email to arrive...`, "running");
+        setStatus(`Waiting for email to arrive for ${targetEmail}...`, "running");
         return;
       }
 
       // Check if the OTP is already visible in the inbox list item text (e.g. subject or preview)
       const rowText = matchingElement.innerText || matchingElement.textContent || "";
+
+      // Ensure rowText actually matches targetEmail
+      if (!rowText.includes(targetEmail) && !isEmailMatch(rowText, targetEmail)) {
+        console.log(`[OTP Link] Inbox row text does not match ${targetEmail}. Skipping.`);
+        return;
+      }
+
       const inlineOtpMatch = rowText.match(/\b\d{6}\b/) || rowText.match(/\b\d{4}\b/);
       if (inlineOtpMatch) {
         const otpCode = inlineOtpMatch[0];
@@ -1416,7 +1434,7 @@
           console.log(`[OTP Link] Found OTP ${otpCode} inline but it was marked invalid. Waiting for new email...`);
           return;
         }
-        console.log(`[OTP Link] Found OTP Code directly in inbox item: ${otpCode}. Sending response.`);
+        console.log(`[OTP Link] Found OTP Code directly in inbox item for ${targetEmail}: ${otpCode}. Sending response.`);
         setStatus(`Found OTP ${otpCode}! Sending to Login tab...`, "success");
 
         GM_setValue("otp_response", {
@@ -1434,7 +1452,7 @@
         return;
       }
 
-      console.log("[OTP Link] Found matching email element. Clicking to open...");
+      console.log(`[OTP Link] Found matching email element for ${targetEmail}. Clicking to open...`);
       setStatus("Email matched! Opening...", "running");
       matchingElement.click();
 
@@ -1462,6 +1480,12 @@
           bodyText = document.body.innerText;
         }
 
+        // Strictly verify that bodyText matches targetEmail!
+        if (!bodyText.includes(targetEmail) && !isEmailMatch(bodyText, targetEmail)) {
+          console.log(`[OTP Link] Opened email body does not match target email (${targetEmail}). Skipping extraction.`);
+          continue;
+        }
+
         // Match 6-digit or 4-digit codes
         const otpMatch = bodyText.match(/\b\d{6}\b/) || bodyText.match(/\b\d{4}\b/);
         if (otpMatch) {
@@ -1471,7 +1495,7 @@
             console.log(`[OTP Link] Found OTP ${otpCode} inside email but it was marked invalid. Closing and waiting...`);
             return;
           }
-          console.log(`[OTP Link] Found OTP Code: ${otpCode}. Sending response.`);
+          console.log(`[OTP Link] Found OTP Code for ${targetEmail}: ${otpCode}. Sending response.`);
           setStatus(`Found OTP ${otpCode}! Sending to Login tab...`, "success");
 
           GM_setValue("otp_response", {
@@ -1498,10 +1522,24 @@
   async function performTikTokLogout() {
     console.log("[OTP Link] Initiating auto-logout on TikTok...");
 
-    // Wait for the page to load
-    await sleep(2000);
+    const shouldClose =
+      window.location.href.toLowerCase().includes("close") ||
+      window.location.hash.toLowerCase().includes("close") ||
+      window.location.search.toLowerCase().includes("close") ||
+      window.location.href.toLowerCase().includes("logout");
 
-    // Case 1: Check if there is a direct "Log out" confirmation button visible on the page (e.g. if we are on a logout confirmation page)
+    // Guarantee window close after 5 seconds if requested
+    if (shouldClose) {
+      setTimeout(() => {
+        console.log("[OTP Link] Auto-close safety timer reached (5s). Closing popup window...");
+        try { window.close(); } catch (e) {}
+      }, 5000);
+    }
+
+    // Wait for the page to load
+    await sleep(1500);
+
+    // Case 1: Check if there is a direct "Log out" confirmation button visible on the page
     let confirmBtn = Array.from(document.querySelectorAll("button, a, div")).find((btn) => {
       const text = (btn.textContent || "").trim().toLowerCase();
       return text === "log out" || text === "logout" || text === "confirm";
@@ -1510,12 +1548,11 @@
     if (confirmBtn && confirmBtn.offsetWidth > 0) {
       console.log("[OTP Link] Found direct logout button on page. Clicking...");
       confirmBtn.click();
-      await sleep(3000);
+      await sleep(1500);
 
-      const shouldClose = window.location.href.toLowerCase().includes("close") || window.location.hash.toLowerCase().includes("close") || window.location.search.toLowerCase().includes("close");
       if (shouldClose) {
         console.log("[OTP Link] Closing tab...");
-        window.close();
+        try { window.close(); } catch (e) {}
       }
       return;
     }
@@ -1524,19 +1561,18 @@
     console.log("[OTP Link] Falling back to profile menu hover logout...");
 
     let profileIcon = null;
-    for (let attempt = 0; attempt < 30; attempt++) {
+    for (let attempt = 0; attempt < 15; attempt++) {
       profileIcon = document.querySelector('[data-e2e="profile-icon"], img[class*="Avatar"], [class*="avatar"], .tiktok-avatar');
       if (profileIcon && profileIcon.offsetWidth > 0) {
         break;
       }
-      await sleep(500);
+      await sleep(250);
     }
 
     if (!profileIcon) {
-      console.warn("[OTP Link] Profile icon not found. Maybe already logged out?");
-      const shouldClose = window.location.href.toLowerCase().includes("close") || window.location.hash.toLowerCase().includes("close") || window.location.search.toLowerCase().includes("close");
+      console.warn("[OTP Link] Profile icon not found. Likely already logged out.");
       if (shouldClose) {
-        window.close();
+        try { window.close(); } catch (e) {}
       }
       return;
     }
@@ -1545,10 +1581,10 @@
     profileIcon.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
     profileIcon.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
     profileIcon.click();
-    await sleep(1500);
+    await sleep(800);
 
     let logoutBtn = null;
-    for (let attempt = 0; attempt < 15; attempt++) {
+    for (let attempt = 0; attempt < 10; attempt++) {
       logoutBtn = Array.from(document.querySelectorAll("a, button, div, span, li")).find((el) => {
         const text = (el.textContent || "").trim().toLowerCase();
         const e2e = el.getAttribute("data-e2e") || "";
@@ -1557,25 +1593,24 @@
       if (logoutBtn && logoutBtn.offsetWidth > 0) {
         break;
       }
-      await sleep(250);
+      await sleep(200);
     }
 
     if (!logoutBtn) {
       console.warn("[OTP Link] Logout button not found in menu.");
-      const shouldClose = window.location.href.toLowerCase().includes("close") || window.location.hash.toLowerCase().includes("close") || window.location.search.toLowerCase().includes("close");
       if (shouldClose) {
-        window.close();
+        try { window.close(); } catch (e) {}
       }
       return;
     }
 
     console.log("[OTP Link] Clicking logout button...");
     logoutBtn.click();
-    await sleep(1500);
+    await sleep(800);
 
     // Confirm logout in modal
     let modalConfirmBtn = null;
-    for (let attempt = 0; attempt < 15; attempt++) {
+    for (let attempt = 0; attempt < 10; attempt++) {
       modalConfirmBtn = Array.from(document.querySelectorAll("button")).find((btn) => {
         const text = (btn.textContent || "").trim().toLowerCase();
         return text === "log out" || text === "logout" || text === "confirm";
@@ -1583,20 +1618,19 @@
       if (modalConfirmBtn && modalConfirmBtn.offsetWidth > 0) {
         break;
       }
-      await sleep(250);
+      await sleep(200);
     }
 
     if (modalConfirmBtn) {
       console.log("[OTP Link] Clicking confirm button in logout modal...");
       modalConfirmBtn.click();
-      await sleep(3000);
+      await sleep(1000);
     }
 
     console.log("[OTP Link] Logout completed.");
-    const shouldClose = window.location.href.toLowerCase().includes("close") || window.location.hash.toLowerCase().includes("close") || window.location.search.toLowerCase().includes("close");
     if (shouldClose) {
       console.log("[OTP Link] Closing tab...");
-      window.close();
+      try { window.close(); } catch (e) {}
     }
   }
 })();
