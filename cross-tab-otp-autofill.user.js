@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cross-Tab OTP Auto-Filler
 // @namespace    http://tampermonkey.net/
-// @version      3.4
+// @version      3.5
 // @description  Communicate between Login Tab and Email Tab to fetch and fill OTP codes, plus client-side TikTok Captcha Solving
 // @author       Kerby (Discord: buchinyan)
 // @match        https://*.tiktok.com/*
@@ -21,6 +21,114 @@
 
   const currentUrl = window.location.href;
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  // Handle case where we got stuck on raw TikTok JSON response
+  try {
+    const bodyText = (document.body.innerText || "").trim();
+    if (bodyText.startsWith('{"data":') && bodyText.includes('"error_code":')) {
+      console.warn("[OTP Link] Detected raw JSON response page. Redirecting back to login...");
+      window.location.href = "https://www.tiktok.com/login/phone-or-email/email";
+      return;
+    }
+  } catch (e) {}
+
+  // Helper to mark an account as done locally (update GM storage CSV text)
+  function markAccountAsDoneLocal(username) {
+    if (!username) return;
+    username = username.trim();
+    const rawText = GM_getValue("otp_csv_raw_text", "");
+    if (!rawText) return;
+
+    const lines = rawText.split(/\r?\n/);
+    let updated = false;
+
+    let emailIndex = 0;
+    let passIndex = 1;
+    let statusIndex = -1;
+    let hasStatusHeader = false;
+
+    if (lines.length > 0) {
+      const firstRow = lines[0].split(",");
+      const eIdx = firstRow.findIndex((h) => h.trim().toLowerCase().includes("email") || h.trim().toLowerCase().includes("user"));
+      const pIdx = firstRow.findIndex((h) => h.trim().toLowerCase().includes("pass"));
+      const sIdx = firstRow.findIndex((h) => h.trim().toLowerCase().includes("status"));
+
+      if (eIdx !== -1) emailIndex = eIdx;
+      if (pIdx !== -1) passIndex = pIdx;
+      if (sIdx !== -1) {
+        statusIndex = sIdx;
+        hasStatusHeader = true;
+      }
+    }
+
+    if (!hasStatusHeader && lines.length > 0) {
+      const firstRowParts = lines[0].split(",");
+      firstRowParts.push("status");
+      lines[0] = firstRowParts.join(",");
+      statusIndex = firstRowParts.length - 1;
+    } else if (statusIndex === -1 && lines.length > 0) {
+      statusIndex = 2; // Default fallback
+    }
+
+    const updatedLines = lines.map((line, idx) => {
+      if (idx === 0) return line;
+      if (!line.trim()) return line;
+
+      const parts = line.split(",");
+      const email = parts[emailIndex] ? parts[emailIndex].trim() : "";
+
+      // Ensure parts array has enough elements
+      while (parts.length <= Math.max(emailIndex, passIndex, statusIndex)) {
+        parts.push("");
+      }
+
+      // Clean legacy " - Done" from password if present
+      let pass = parts[passIndex] ? parts[passIndex].trim() : "";
+      if (pass.endsWith(" - Done")) {
+        pass = pass.replace(" - Done", "").trim();
+        parts[passIndex] = pass;
+        parts[statusIndex] = "Done";
+      }
+
+      if (email.toLowerCase() === username.toLowerCase()) {
+        if (parts[statusIndex].toLowerCase() !== "done") {
+          updated = true;
+          parts[statusIndex] = "Done";
+        }
+      }
+
+      return parts.join(",");
+    });
+
+    if (updated) {
+      const newText = updatedLines.join("\n");
+      GM_setValue("otp_csv_raw_text", newText);
+      console.log(`[OTP Link] Marked ${username} as done in local GM storage CSV`);
+    }
+  }
+
+  // Wrapper function to mark done locally and optionally send to server
+  function markAccountDone(username) {
+    if (!username) return;
+    console.log(`[OTP Link] Marking account done: ${username}`);
+
+    // 1. Mark done locally in GM storage CSV
+    markAccountAsDoneLocal(username);
+
+    // 2. Try to mark done on local server (optional)
+    GM_xmlhttpRequest({
+      method: "POST",
+      url: "http://localhost:4782/mark-done",
+      data: JSON.stringify({ username: username }),
+      headers: { "Content-Type": "application/json" },
+      onload: function (res) {
+        console.log(`[OTP Link] Server mark-done response status: ${res.status}`);
+      },
+      onerror: function (err) {
+        console.log("[OTP Link] Local server offline, mark-done not updated on server.");
+      },
+    });
+  }
 
   // Map to keep track of elements we've clicked and the timestamp of the click
   const clickedElements = new WeakMap();
@@ -54,15 +162,13 @@
     console.log("[OTP Link] Detected TikTok OAuth callback. Setting authorization flag.");
     GM_setValue("tiktok_authorized_flag", true);
 
+    // Clear active selection to prevent loop on redirect back to social-accounts page
+    GM_setValue("otp_csv_selected_email", "");
+
     const lastUser = GM_getValue("lastAttemptedUsername");
     if (lastUser) {
       console.log(`[OTP Link] Calling mark-done for ${lastUser} from callback handler`);
-      GM_xmlhttpRequest({
-        method: "POST",
-        url: "http://localhost:4782/mark-done",
-        data: JSON.stringify({ username: lastUser }),
-        headers: { "Content-Type": "application/json" },
-      });
+      markAccountDone(lastUser);
     }
   }
 
@@ -248,7 +354,10 @@
     if (role === "Login Tab") {
       csvHtml = `
             <div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-                <div style="font-size: 8px; text-transform: uppercase; color: #9ca3af; font-weight: 600; margin-bottom: 4px; letter-spacing: 0.05em; text-align: left;">Autofill from CSV</div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <div style="font-size: 8px; text-transform: uppercase; color: #9ca3af; font-weight: 600; letter-spacing: 0.05em; text-align: left;">Autofill from CSV</div>
+                    <button id="otp-csv-toggle-btn" style="background: none; border: none; color: #818cf8; font-size: 8px; cursor: pointer; padding: 2px 4px; border-radius: 3px; font-weight: 600; transition: background 0.2s;">📝 Edit CSV</button>
+                </div>
                 <div style="display: flex; gap: 6px; align-items: center;">
                     <input type="file" id="otp-csv-file" accept=".csv" style="display: none;" />
                     <button id="otp-csv-upload-btn" style="background: rgba(255, 255, 255, 0.06); border: 1px dashed rgba(255, 255, 255, 0.2); color: #e5e7eb; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1;">📂 Load</button>
@@ -259,6 +368,10 @@
                 <div id="otp-csv-nav-container" style="display: none; gap: 6px; margin-top: 6px;">
                     <button id="otp-csv-btn-prev" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; text-align: center; border-style: solid;">◀ Prev</button>
                     <button id="otp-csv-btn-next" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; text-align: center; border-style: solid;">Next ▶</button>
+                </div>
+                <div id="otp-csv-editor-container" style="display: none; margin-top: 6px; flex-direction: column; gap: 6px;">
+                    <textarea id="otp-csv-textarea" placeholder="username,password,status&#10;user1,pass1,&#10;user2,pass2,Done" style="background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 9px; font-family: monospace; width: 100%; height: 90px; box-sizing: border-box; resize: vertical; padding: 6px; border-radius: 4px;"></textarea>
+                    <button id="otp-csv-save-btn" style="background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); border: none; color: #fff; font-size: 10px; padding: 5px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: 600;">Save & Apply</button>
                 </div>
             </div>
             <div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
@@ -272,7 +385,7 @@
     panel.id = "otp-panel";
     panel.innerHTML = `
         <div id="otp-header">
-            <div id="otp-title">🔑 OTP Linker v3.4</div>
+            <div id="otp-title">🔑 OTP Linker v3.5/div>
             <button id="otp-toggle-btn" title="Minimize Panel">✕</button>
         </div>
         <div id="otp-content">
@@ -302,6 +415,11 @@
       const btnPrev = shadow.getElementById("otp-csv-btn-prev");
       const btnNext = shadow.getElementById("otp-csv-btn-next");
       const navContainer = shadow.getElementById("otp-csv-nav-container");
+
+      const csvToggleBtn = shadow.getElementById("otp-csv-toggle-btn");
+      const editorContainer = shadow.getElementById("otp-csv-editor-container");
+      const csvTextarea = shadow.getElementById("otp-csv-textarea");
+      const csvSaveBtn = shadow.getElementById("otp-csv-save-btn");
 
       function parseCSVText(text) {
         const rows = text.split(/\r?\n/);
@@ -371,6 +489,52 @@
         }
       }
 
+      // Load initial CSV text if saved in GM
+      const initialCsvText = GM_getValue("otp_csv_raw_text", "");
+      if (initialCsvText) {
+        csvTextarea.value = initialCsvText;
+        const accounts = parseCSVText(initialCsvText);
+        populateSelect(accounts);
+      }
+
+      csvToggleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (editorContainer.style.display === "none" || !editorContainer.style.display) {
+          editorContainer.style.display = "flex";
+          csvToggleBtn.textContent = "✕ Close Editor";
+          csvToggleBtn.style.color = "#ef4444";
+        } else {
+          editorContainer.style.display = "none";
+          csvToggleBtn.textContent = "📝 Edit CSV";
+          csvToggleBtn.style.color = "#818cf8";
+        }
+      });
+
+      csvSaveBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const text = csvTextarea.value.trim();
+        GM_setValue("otp_csv_raw_text", text);
+        const accounts = parseCSVText(text);
+        if (accounts.length > 0) {
+          populateSelect(accounts);
+          setStatus(`Parsed ${accounts.length} accounts`, "success");
+        } else {
+          setStatus("Parsed 0 accounts. Check format.", "error");
+        }
+        editorContainer.style.display = "none";
+        csvToggleBtn.textContent = "📝 Edit CSV";
+        csvToggleBtn.style.color = "#818cf8";
+      });
+
+      // Synchronize CSV text changes across tabs
+      GM_addValueChangeListener("otp_csv_raw_text", function (key, oldValue, newValue, remote) {
+        if (csvTextarea && csvTextarea.value !== newValue) {
+          csvTextarea.value = newValue || "";
+        }
+        const accounts = parseCSVText(newValue || "");
+        populateSelect(accounts);
+      });
+
       uploadBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         fileInput.click();
@@ -383,6 +547,8 @@
         const reader = new FileReader();
         reader.onload = (evt) => {
           const text = evt.target.result;
+          csvTextarea.value = text;
+          GM_setValue("otp_csv_raw_text", text);
           const accounts = parseCSVText(text);
           if (accounts.length > 0) {
             populateSelect(accounts);
@@ -403,6 +569,7 @@
         GM_setValue("otp_csv_selected_email", account.email);
         GM_setValue("otp_request", null);
         GM_setValue("otp_response", null);
+        window.hasClickedSocialBeeReconnect = false; // Reset click guard on selection change
         await autofillCredentials(account.email, account.pass);
       });
 
@@ -442,7 +609,10 @@
         url: "http://localhost:4782/accounts",
         onload: function (response) {
           if (response.status === 200) {
-            const accounts = parseCSVText(response.responseText);
+            const text = response.responseText;
+            csvTextarea.value = text;
+            GM_setValue("otp_csv_raw_text", text);
+            const accounts = parseCSVText(text);
             if (accounts.length > 0) {
               populateSelect(accounts);
               setStatus(`Auto-loaded ${accounts.length} accounts`, "success");
@@ -569,7 +739,12 @@
         await sleep(300);
 
         console.log(`[OTP Link] Autofilled credentials for: ${email}`);
-        setStatus(`Clicking login button...`, "running");
+
+        // Wait for page hydration to prevent raw JSON response from native form submission
+        setStatus("Awaiting page hydration...", "running");
+        await sleep(2500);
+
+        setStatus("Clicking login button...", "running");
 
         // Find and click the Log in button
         const loginBtn =
@@ -759,6 +934,27 @@
     return matches.some((email) => matchEmails(email, targetPattern) || matchEmails(targetPattern, email));
   }
 
+  // Helper to find TikTok Connect/Reconnect button/form on SocialBee
+  function findTikTokReconnectButton() {
+    let btn = document.querySelector('form[action*="/signin/tiktok"] button, form[action="/signin/tiktok"] button, a[href*="/signin/tiktok"]');
+    if (btn) return btn;
+
+    btn = document.querySelector('.connect-social-tiktok button, [class*="connect-social-tiktok"] button');
+    if (btn) return btn;
+
+    const allButtons = Array.from(document.querySelectorAll("button, a"));
+    for (const element of allButtons) {
+      const text = (element.textContent || "").trim().toLowerCase();
+      const parentForm = element.closest("form");
+      const action = parentForm ? parentForm.getAttribute("action") || "" : "";
+
+      if ((text.includes("reconnect") || text.includes("connect")) && (text.includes("tiktok") || action.includes("tiktok") || element.getAttribute("href")?.includes("tiktok"))) {
+        return element;
+      }
+    }
+    return null;
+  }
+
   // ==========================================
   // TAB 1: LOGIN TAB CODE
   // ==========================================
@@ -796,12 +992,7 @@
               // Call mark-done on manual click
               const lastUser = GM_getValue("lastAttemptedUsername");
               if (lastUser) {
-                GM_xmlhttpRequest({
-                  method: "POST",
-                  url: "http://localhost:4782/mark-done",
-                  data: JSON.stringify({ username: lastUser }),
-                  headers: { "Content-Type": "application/json" },
-                });
+                markAccountDone(lastUser);
               }
             });
           }
@@ -815,12 +1006,7 @@
             // Call mark-done on automated click
             const lastUser = GM_getValue("lastAttemptedUsername");
             if (lastUser) {
-              GM_xmlhttpRequest({
-                method: "POST",
-                url: "http://localhost:4782/mark-done",
-                data: JSON.stringify({ username: lastUser }),
-                headers: { "Content-Type": "application/json" },
-              });
+              markAccountDone(lastUser);
             }
 
             authBtn.click();
@@ -831,7 +1017,9 @@
               const logoutTab = GM_openInTab("https://www.tiktok.com/logout?auto_close=true", { active: false, insert: true });
               setTimeout(() => {
                 if (logoutTab && typeof logoutTab.close === "function") {
-                  try { logoutTab.close(); } catch (e) {}
+                  try {
+                    logoutTab.close();
+                  } catch (e) {}
                 }
               }, 4000);
             }, 1000);
@@ -1248,20 +1436,27 @@
 
       if (isTikTok) {
         // TikTok Login Method "Use phone / email / username"
-        const channelItems = Array.from(document.querySelectorAll('div[data-e2e="channel-item"], div[role="link"], p, span, div'));
-        channelItems.forEach((item) => {
+        // Query only specific interactive elements and text elements (avoiding generic div query)
+        const channelItems = Array.from(document.querySelectorAll('div[data-e2e="channel-item"], div[role="link"], p, span, button'));
+        let clickedChannel = false;
+
+        for (const item of channelItems) {
           const text = (item.textContent || "").trim().toLowerCase();
           if (text === "use phone / email / username" || text === "phone / email / username") {
             const clickable = item.closest('div[role="link"], [data-e2e="channel-item"], button') || item;
             clickElement(clickable, '[AutoClick] Clicked "Use phone / email / username" menu option.');
+            clickedChannel = true;
+            break; // Stop scanning once we've triggered the click on the best candidate
           }
-        });
+        }
+
+        if (clickedChannel) return; // If we clicked this flow, skip other navigation checks in this tick
 
         // TikTok "Log in with email or username" link
         let emailLoginLink = document.querySelector('a[href="/login/phone-or-email/email"]');
         if (!emailLoginLink) {
-          // Find any element containing "Log in with email or username" or similar
-          const candidates = Array.from(document.querySelectorAll("a, span, p, div"));
+          // Find any element containing "Log in with email or username" or similar (avoiding generic div query)
+          const candidates = Array.from(document.querySelectorAll("a, button, p, span"));
           emailLoginLink = candidates.find((el) => {
             const text = (el.textContent || "").trim().toLowerCase();
             return text.includes("log in with email") || text.includes("login with email") || text.includes("email or username") || text.includes("use email/username");
@@ -1274,10 +1469,33 @@
       }
     }
 
+    function checkForSocialBeeReconnect() {
+      if (!window.location.hostname.includes("socialbee.com")) return;
+
+      const savedEmail = GM_getValue("otp_csv_selected_email", "");
+      if (!savedEmail) return;
+
+      const currentHref = window.location.href;
+      if (currentHref.includes("callback") || currentHref.includes("success") || currentHref.includes("code=")) {
+        return;
+      }
+
+      if (window.hasClickedSocialBeeReconnect) return;
+
+      const reconnectBtn = findTikTokReconnectButton();
+      if (reconnectBtn && reconnectBtn.offsetWidth > 0) {
+        window.hasClickedSocialBeeReconnect = true;
+        console.log(`[OTP Link] Found TikTok Reconnect button for ${savedEmail}. Clicking...`);
+        setStatus("Clicking TikTok Reconnect button...", "success");
+        clickElement(reconnectBtn, "[AutoClick] Clicked TikTok Reconnect button.");
+      }
+    }
+
     function runChecks() {
       checkForOTPRequirement();
       checkForVerificationOption();
       solveTikTokCaptchaClientSide();
+      checkForSocialBeeReconnect();
 
       // Look for rate-limit / too many attempts errors on page
       try {
@@ -1522,17 +1740,15 @@
   async function performTikTokLogout() {
     console.log("[OTP Link] Initiating auto-logout on TikTok...");
 
-    const shouldClose =
-      window.location.href.toLowerCase().includes("close") ||
-      window.location.hash.toLowerCase().includes("close") ||
-      window.location.search.toLowerCase().includes("close") ||
-      window.location.href.toLowerCase().includes("logout");
+    const shouldClose = window.location.href.toLowerCase().includes("close") || window.location.hash.toLowerCase().includes("close") || window.location.search.toLowerCase().includes("close") || window.location.href.toLowerCase().includes("logout");
 
     // Guarantee window close after 5 seconds if requested
     if (shouldClose) {
       setTimeout(() => {
         console.log("[OTP Link] Auto-close safety timer reached (5s). Closing popup window...");
-        try { window.close(); } catch (e) {}
+        try {
+          window.close();
+        } catch (e) {}
       }, 5000);
     }
 
@@ -1552,7 +1768,9 @@
 
       if (shouldClose) {
         console.log("[OTP Link] Closing tab...");
-        try { window.close(); } catch (e) {}
+        try {
+          window.close();
+        } catch (e) {}
       }
       return;
     }
@@ -1572,7 +1790,9 @@
     if (!profileIcon) {
       console.warn("[OTP Link] Profile icon not found. Likely already logged out.");
       if (shouldClose) {
-        try { window.close(); } catch (e) {}
+        try {
+          window.close();
+        } catch (e) {}
       }
       return;
     }
@@ -1599,7 +1819,9 @@
     if (!logoutBtn) {
       console.warn("[OTP Link] Logout button not found in menu.");
       if (shouldClose) {
-        try { window.close(); } catch (e) {}
+        try {
+          window.close();
+        } catch (e) {}
       }
       return;
     }
@@ -1630,7 +1852,9 @@
     console.log("[OTP Link] Logout completed.");
     if (shouldClose) {
       console.log("[OTP Link] Closing tab...");
-      try { window.close(); } catch (e) {}
+      try {
+        window.close();
+      } catch (e) {}
     }
   }
 })();

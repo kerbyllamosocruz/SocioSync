@@ -605,6 +605,52 @@
   let var4Files = [];
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  // Helper to save files to GM storage as base64
+  function saveFilesToGM(key, fileList) {
+    const promises = Array.from(fileList).map((file) => {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          resolve({
+            name: file.name,
+            type: file.type,
+            data: e.target.result // Base64 data URL
+          });
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    Promise.all(promises).then((dataArray) => {
+      GM_setValue(key, JSON.stringify(dataArray));
+      console.log(`[SocialBee] Saved ${fileList.length} files to GM storage under key "${key}"`);
+    });
+  }
+
+  // Helper to load files from GM storage and reconstruct File objects
+  function loadFilesFromGM(key) {
+    const saved = GM_getValue(key, "");
+    if (!saved) return [];
+    try {
+      const dataArray = JSON.parse(saved);
+      return dataArray.map((item) => {
+        // Reconstruct File object from base64 data URL
+        const arr = item.data.split(",");
+        const mime = arr[0].match(/:(.*?);/)[1];
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        return new File([u8arr], item.name, { type: mime });
+      });
+    } catch (e) {
+      console.error("[SocialBee] Error loading files from GM storage:", e);
+      return [];
+    }
+  }
+
   let alertsStyleEl = null;
 
   function updateAlertsDisabledState(disabled) {
@@ -800,23 +846,27 @@
   setupDropzone(dropzoneBase, inputBase, (files) => {
     baseFiles = Array.from(files).filter((file) => file.type.startsWith("image/"));
     renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+    saveFilesToGM("sb_base_files", baseFiles);
   });
 
   setupDropzone(dropzoneVar4, inputVar4, (files) => {
     var4Files = Array.from(files).filter((file) => file.type.startsWith("image/"));
     renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+    saveFilesToGM("sb_var4_files", var4Files);
   });
 
   btnClearBase.addEventListener("click", () => {
     baseFiles = [];
     inputBase.value = "";
     renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+    GM_setValue("sb_base_files", "");
   });
 
   btnClearVar4.addEventListener("click", () => {
     var4Files = [];
     inputVar4.value = "";
     renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+    GM_setValue("sb_var4_files", "");
   });
 
   // 6. Text Entry & File Upload Simulation
@@ -1569,6 +1619,7 @@
           const file = new File([blob], serverName, { type: blob.type });
           baseFiles.push(file);
         }
+        saveFilesToGM("sb_base_files", baseFiles);
       }
 
       if (list.var_4_6 && list.var_4_6.length > 0) {
@@ -1578,6 +1629,7 @@
           const file = new File([blob], serverName, { type: blob.type });
           var4Files.push(file);
         }
+        saveFilesToGM("sb_var4_files", var4Files);
       }
 
       renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
@@ -1590,8 +1642,19 @@
     }
   }
 
-  // Auto-load on init
-  loadImagesFromServer();
+  // Load saved files from GM storage on init
+  const storedBase = loadFilesFromGM("sb_base_files");
+  const storedVar4 = loadFilesFromGM("sb_var4_files");
+  if (storedBase.length > 0 || storedVar4.length > 0) {
+    baseFiles = storedBase;
+    var4Files = storedVar4;
+    renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+    renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+    setStatus("Restored saved images from local storage.", "success");
+  } else {
+    // If no images are stored locally, try loading from server as a fallback
+    loadImagesFromServer();
+  }
 
   async function shareVariationsAutomation() {
     isRunning = true;
@@ -1766,8 +1829,15 @@
       panel.classList.remove("minimized");
       toggleBtn.innerHTML = "✕";
       toggleBtn.title = "Minimize Panel";
-      // Auto-refresh images from server when panel is maximized
-      loadImagesFromServer();
+      // Restore saved images from local storage when panel is maximized
+      const storedBase = loadFilesFromGM("sb_base_files");
+      const storedVar4 = loadFilesFromGM("sb_var4_files");
+      if (storedBase.length > 0 || storedVar4.length > 0) {
+        baseFiles = storedBase;
+        var4Files = storedVar4;
+        renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+        renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+      }
     }
   });
 
