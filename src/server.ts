@@ -20,6 +20,15 @@ if (!fs.existsSync(VAR_4_6_DIR)) {
   fs.mkdirSync(VAR_4_6_DIR, { recursive: true });
 }
 
+interface OtpEntry {
+  email: string;
+  otp: string;
+  timestamp: number;
+}
+
+let latestOtpStore: Record<string, OtpEntry> = {};
+let latestOtpRequests: Record<string, { email: string; timestamp: number }> = {};
+
 const server = http.createServer((req, res) => {
   // CORS Headers to allow Tampermonkey access
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -35,7 +44,66 @@ const server = http.createServer((req, res) => {
 
   const reqUrl = req.url || '';
 
-  if (reqUrl === '/accounts') {
+  if (reqUrl.startsWith('/otp/store') && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const { email, otp } = JSON.parse(body);
+        if (email && otp) {
+          const key = email.toLowerCase().trim();
+          latestOtpStore[key] = { email, otp, timestamp: Date.now() };
+          console.log(`[CSV Server] OTP stored for ${email}: ${otp}`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, message: `OTP ${otp} stored for ${email}` }));
+        } else {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing email or otp' }));
+        }
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: (e as Error).message }));
+      }
+    });
+  } else if (reqUrl.startsWith('/otp/request') && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const { email } = JSON.parse(body);
+        if (email) {
+          const key = email.toLowerCase().trim();
+          latestOtpRequests[key] = { email, timestamp: Date.now() };
+          console.log(`[CSV Server] OTP request registered for ${email}`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        } else {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing email' }));
+        }
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: (e as Error).message }));
+      }
+    });
+  } else if (reqUrl.startsWith('/otp/get')) {
+    try {
+      const parsedUrl = new URL(reqUrl, `http://localhost:${PORT}`);
+      const emailParam = parsedUrl.searchParams.get('email');
+      if (emailParam) {
+        const key = emailParam.toLowerCase().trim();
+        const entry = latestOtpStore[key] || null;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ entry, store: latestOtpStore }));
+      } else {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ store: latestOtpStore, requests: latestOtpRequests }));
+      }
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: (e as Error).message }));
+    }
+  } else if (reqUrl === '/accounts') {
     try {
       if (fs.existsSync(CSV_PATH)) {
         const content = fs.readFileSync(CSV_PATH, 'utf8');
@@ -222,6 +290,6 @@ const server = http.createServer((req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`[CSV Server] Running at http://localhost:${PORT}/accounts and /config`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`[CSV Server] Running at http://0.0.0.0:${PORT} (Accessible via http://localhost:${PORT} or http://10.0.2.2:${PORT} for LDPlayer)`);
 });

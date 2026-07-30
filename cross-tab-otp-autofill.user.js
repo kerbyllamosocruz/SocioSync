@@ -11,6 +11,7 @@
 // @grant        GM_getValue
 // @grant        GM_addValueChangeListener
 // @grant        GM_xmlhttpRequest
+// @grant        GM_openInTab
 // @connect      localhost
 // @connect      tiktok.eulerstream.com
 // @run-at       document-end
@@ -385,7 +386,7 @@
     panel.id = "otp-panel";
     panel.innerHTML = `
         <div id="otp-header">
-            <div id="otp-title">🔑 OTP Linker v3.5/div>
+            <div id="otp-title">🔑 OTP Linker v3.5</div>
             <button id="otp-toggle-btn" title="Minimize Panel">✕</button>
         </div>
         <div id="otp-content">
@@ -1021,7 +1022,7 @@
                     logoutTab.close();
                   } catch (e) {}
                 }
-              }, 4000);
+              }, 10000);
             }, 1000);
           }
         }
@@ -1738,18 +1739,33 @@
   }
 
   async function performTikTokLogout() {
+    const startTime = Date.now();
     console.log("[OTP Link] Initiating auto-logout on TikTok...");
 
     const shouldClose = window.location.href.toLowerCase().includes("close") || window.location.hash.toLowerCase().includes("close") || window.location.search.toLowerCase().includes("close") || window.location.href.toLowerCase().includes("logout");
 
-    // Guarantee window close after 5 seconds if requested
+    async function safeClose() {
+      if (!shouldClose) return;
+      const elapsed = Date.now() - startTime;
+      const remaining = 10000 - elapsed;
+      if (remaining > 0) {
+        console.log(`[OTP Link] Waiting ${remaining}ms before closing to ensure it stays open for at least 10 seconds...`);
+        await sleep(remaining);
+      }
+      console.log("[OTP Link] Closing tab...");
+      try {
+        window.close();
+      } catch (e) {}
+    }
+
+    // Guarantee window close after 15 seconds if requested
     if (shouldClose) {
       setTimeout(() => {
-        console.log("[OTP Link] Auto-close safety timer reached (5s). Closing popup window...");
+        console.log("[OTP Link] Auto-close safety timer reached (15s). Closing popup window...");
         try {
           window.close();
         } catch (e) {}
-      }, 5000);
+      }, 15000);
     }
 
     // Wait for the page to load
@@ -1766,12 +1782,7 @@
       confirmBtn.click();
       await sleep(1500);
 
-      if (shouldClose) {
-        console.log("[OTP Link] Closing tab...");
-        try {
-          window.close();
-        } catch (e) {}
-      }
+      await safeClose();
       return;
     }
 
@@ -1789,11 +1800,7 @@
 
     if (!profileIcon) {
       console.warn("[OTP Link] Profile icon not found. Likely already logged out.");
-      if (shouldClose) {
-        try {
-          window.close();
-        } catch (e) {}
-      }
+      await safeClose();
       return;
     }
 
@@ -1818,11 +1825,7 @@
 
     if (!logoutBtn) {
       console.warn("[OTP Link] Logout button not found in menu.");
-      if (shouldClose) {
-        try {
-          window.close();
-        } catch (e) {}
-      }
+      await safeClose();
       return;
     }
 
@@ -1850,11 +1853,6 @@
     }
 
     console.log("[OTP Link] Logout completed.");
-    if (shouldClose) {
-      console.log("[OTP Link] Closing tab...");
-      try {
-        window.close();
-      } catch (e) {}
-    }
+    await safeClose();
   }
 })();

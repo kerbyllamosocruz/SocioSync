@@ -12,6 +12,7 @@
     "csv-server": "ts-node src/server.ts",
     "run:tampermonkey": "ts-node src/runTampermonkeyFlow.ts",
     "dev:bot": "ts-node src/playwright-bot/index.ts",
+    "account-checker": "ts-node src/checkAccountsCSV.ts",
     "install:browsers": "npx playwright install"
   },
   "dependencies": {

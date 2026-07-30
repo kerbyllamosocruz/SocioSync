@@ -85,8 +85,7 @@ async function main() {
           return key;
         };
         win.GM_openInTab = function(url: string) {
-          window.open(url, '_blank');
-          return {};
+          return window.open(url, '_blank');
         };
         win.GM_xmlhttpRequest = function(details: any) {
           fetch(details.url, {
