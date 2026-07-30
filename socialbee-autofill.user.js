@@ -1200,10 +1200,40 @@
         reader.readAsText(file);
       });
 
+      let activeAccountIdx = -1;
+
+      selectEl.addEventListener("focus", () => {
+        const val = parseInt(selectEl.value, 10);
+        if (!isNaN(val)) {
+          activeAccountIdx = val;
+          selectEl.value = "";
+        }
+      });
+
+      selectEl.addEventListener("mousedown", () => {
+        const val = parseInt(selectEl.value, 10);
+        if (!isNaN(val)) {
+          activeAccountIdx = val;
+          selectEl.value = "";
+        }
+      });
+
+      selectEl.addEventListener("blur", () => {
+        if (selectEl.value === "" && activeAccountIdx !== -1) {
+          selectEl.value = activeAccountIdx.toString();
+        }
+      });
+
       selectEl.addEventListener("change", async (e) => {
         const idx = parseInt(selectEl.value, 10);
-        if (isNaN(idx) || !window.otpCsvAccounts || !window.otpCsvAccounts[idx]) return;
+        if (isNaN(idx) || !window.otpCsvAccounts || !window.otpCsvAccounts[idx]) {
+          if (activeAccountIdx !== -1) {
+            selectEl.value = activeAccountIdx.toString();
+          }
+          return;
+        }
 
+        activeAccountIdx = idx;
         const account = window.otpCsvAccounts[idx];
         GM_setValue("otp_csv_selected_email", account.email);
         GM_setValue("otp_request", null);
@@ -1216,7 +1246,7 @@
         e.stopPropagation();
         if (!window.otpCsvAccounts || window.otpCsvAccounts.length === 0) return;
 
-        let currentIdx = parseInt(selectEl.value, 10);
+        let currentIdx = activeAccountIdx !== -1 ? activeAccountIdx : parseInt(selectEl.value, 10);
         if (isNaN(currentIdx)) {
           currentIdx = window.otpCsvAccounts.length - 1;
         } else {
@@ -1231,7 +1261,7 @@
         e.stopPropagation();
         if (!window.otpCsvAccounts || window.otpCsvAccounts.length === 0) return;
 
-        let currentIdx = parseInt(selectEl.value, 10);
+        let currentIdx = activeAccountIdx !== -1 ? activeAccountIdx : parseInt(selectEl.value, 10);
         if (isNaN(currentIdx)) {
           currentIdx = 0;
         } else {
@@ -1685,57 +1715,107 @@
         return null;
       }
 
-      function fillOTP(otpCode) {
-        const candidates = Array.from(document.querySelectorAll('input[data-testid="tux-web-input"], input.tux-input__element-zY3KBY, input[name="otp"], input[placeholder*="6-digit"], input[placeholder*="code"], input[placeholder*="Code"], input[placeholder*="digit"], input[placeholder*="Digit"], input[id*="otp"], input[class*="otp"], input[class*="code"], input[class*="tux-"]'));
+      let isFillingOTP = false;
 
-        const singleInput = candidates.find((el) => el.offsetWidth > 0) || candidates[0];
+      // Fill the OTP code in the input fields with human-like typing (12 46 56 rhythm, 30-70ms per char)
+      async function fillOTP(otpCode) {
+        if (isFillingOTP) return false;
+        isFillingOTP = true;
 
-        if (singleInput) {
-          console.log("[OTP Link] Found single OTP input field:", singleInput);
-          try {
-            singleInput.focus();
-            singleInput.value = otpCode;
-            singleInput.dispatchEvent(new Event("input", { bubbles: true }));
-            singleInput.dispatchEvent(new Event("change", { bubbles: true }));
-            singleInput.dispatchEvent(new Event("keyup", { bubbles: true }));
+        const getRandomDelay = (min = 30, max = 70) => Math.floor(Math.random() * (max - min + 1)) + min;
 
-            const tracker = singleInput._valueTracker;
-            if (tracker) {
-              tracker.setValue("");
-            }
+        try {
+          const candidates = Array.from(document.querySelectorAll('input[data-testid="tux-web-input"], input.tux-input__element-zY3KBY, input[name="otp"], input[placeholder*="6-digit"], input[placeholder*="code"], input[placeholder*="Code"], input[placeholder*="digit"], input[placeholder*="Digit"], input[id*="otp"], input[class*="otp"], input[class*="code"], input[class*="tux-"]'));
 
-            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-            nativeInputValueSetter.call(singleInput, otpCode);
+          const singleInput = candidates.find((el) => el.offsetWidth > 0) || candidates[0];
 
-            singleInput.dispatchEvent(new Event("input", { bubbles: true }));
-            singleInput.dispatchEvent(new Event("change", { bubbles: true }));
-            singleInput.dispatchEvent(new Event("blur", { bubbles: true }));
-          } catch (e) {
-            console.warn("[OTP Link] Native value setter error:", e);
-          }
-          return true;
-        }
-
-        const digitInputs = Array.from(document.querySelectorAll('input[type="tel"], input[maxlength="1"], .code-input, [class*="code-digit"]')).filter((el) => el.offsetWidth > 0);
-        if (digitInputs.length >= otpCode.length) {
-          console.log(`[OTP Link] Found ${digitInputs.length} digit inputs. Filling sequentially.`);
-          for (let i = 0; i < otpCode.length; i++) {
-            digitInputs[i].value = otpCode[i];
-            digitInputs[i].dispatchEvent(new Event("input", { bubbles: true }));
-            digitInputs[i].dispatchEvent(new Event("change", { bubbles: true }));
-            digitInputs[i].dispatchEvent(new Event("keyup", { bubbles: true }));
-
+          if (singleInput) {
+            console.log("[OTP Link] Found single OTP input field. Typing with 12 46 56 rhythm (30-70ms/char):", singleInput);
             try {
-              const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-              nativeInputValueSetter.call(digitInputs[i], otpCode[i]);
-              digitInputs[i].dispatchEvent(new Event("input", { bubbles: true }));
-              digitInputs[i].dispatchEvent(new Event("change", { bubbles: true }));
-            } catch (e) {}
-          }
-          return true;
-        }
+              singleInput.focus();
 
-        return false;
+              let nativeSetter;
+              try {
+                nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+              } catch (e) {}
+
+              if (nativeSetter) {
+                nativeSetter.call(singleInput, "");
+              } else {
+                singleInput.value = "";
+              }
+              singleInput.dispatchEvent(new Event("input", { bubbles: true }));
+
+              let currentVal = "";
+              for (let i = 0; i < otpCode.length; i++) {
+                const char = otpCode[i];
+                currentVal += char;
+
+                singleInput.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: char }));
+
+                if (nativeSetter) {
+                  nativeSetter.call(singleInput, currentVal);
+                } else {
+                  singleInput.value = currentVal;
+                }
+
+                const tracker = singleInput._valueTracker;
+                if (tracker) {
+                  tracker.setValue("");
+                }
+
+                singleInput.dispatchEvent(new Event("input", { bubbles: true }));
+                singleInput.dispatchEvent(new Event("change", { bubbles: true }));
+                singleInput.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: char }));
+
+                let delay = getRandomDelay(30, 70);
+                if ((i + 1) % 2 === 0 && (i + 1) < otpCode.length) {
+                  delay += getRandomDelay(150, 250);
+                }
+                await sleep(delay);
+              }
+
+              singleInput.dispatchEvent(new Event("blur", { bubbles: true }));
+            } catch (e) {
+              console.warn("[OTP Link] Native value setter error:", e);
+            }
+            return true;
+          }
+
+          const digitInputs = Array.from(document.querySelectorAll('input[type="tel"], input[maxlength="1"], .code-input, [class*="code-digit"]')).filter((el) => el.offsetWidth > 0);
+          if (digitInputs.length >= otpCode.length) {
+            console.log(`[OTP Link] Found ${digitInputs.length} digit inputs. Typing with 12 46 56 rhythm (30-70ms/char).`);
+            for (let i = 0; i < otpCode.length; i++) {
+              const char = otpCode[i];
+              const inputEl = digitInputs[i];
+              inputEl.focus();
+              inputEl.value = char;
+
+              inputEl.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: char }));
+              inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+              inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+              inputEl.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: char }));
+
+              try {
+                const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                nativeInputValueSetter.call(inputEl, char);
+                inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+                inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+              } catch (e) {}
+
+              let delay = getRandomDelay(30, 70);
+              if ((i + 1) % 2 === 0 && (i + 1) < otpCode.length) {
+                delay += getRandomDelay(150, 250);
+              }
+              await sleep(delay);
+            }
+            return true;
+          }
+
+          return false;
+        } finally {
+          isFillingOTP = false;
+        }
       }
 
       function checkForOTPRequirement() {
@@ -1770,30 +1850,37 @@
 
             let attempts = 0;
             const maxAttempts = 30;
-            const fillInterval = setInterval(() => {
+            let isAttempting = false;
+            const fillInterval = setInterval(async () => {
+              if (isAttempting) return;
+              isAttempting = true;
               attempts++;
-              const filled = fillOTP(newValue.otp);
-              if (filled || attempts >= maxAttempts) {
-                clearInterval(fillInterval);
-                if (filled) {
-                  setTimeout(() => {
-                    const submitBtn =
-                      Array.from(document.querySelectorAll('button[type="submit"], button.login-btn, button[class*="submit"], button[class*="login"], button[data-testid="tux-web-button"], button.tux-button__element-ZBq38f')).find((btn) => {
-                        const text = (btn.textContent || "").trim().toLowerCase();
-                        return text === "next" || text === "submit" || text === "confirm" || text.includes("next");
-                      }) || document.querySelector('button[type="submit"], button.login-btn, button[class*="submit"], button[class*="login"]');
+              try {
+                const filled = await fillOTP(newValue.otp);
+                if (filled || attempts >= maxAttempts) {
+                  clearInterval(fillInterval);
+                  if (filled) {
+                    setTimeout(() => {
+                      const submitBtn =
+                        Array.from(document.querySelectorAll('button[type="submit"], button.login-btn, button[class*="submit"], button[class*="login"], button[data-testid="tux-web-button"], button.tux-button__element-ZBq38f')).find((btn) => {
+                          const text = (btn.textContent || "").trim().toLowerCase();
+                          return text === "next" || text === "submit" || text === "confirm" || text.includes("next");
+                        }) || document.querySelector('button[type="submit"], button.login-btn, button[class*="submit"], button[class*="login"]');
 
-                    if (submitBtn) {
-                      console.log("[OTP Link] Clicking submit/next button:", submitBtn);
-                      submitBtn.click();
-                    }
-                  }, 200);
-                } else {
-                  console.warn("[OTP Link] Failed to fill OTP after multiple attempts.");
-                  setStatus("Could not find OTP input field to fill.", "error");
+                      if (submitBtn) {
+                        console.log("[OTP Link] Clicking submit/next button:", submitBtn);
+                        submitBtn.click();
+                      }
+                    }, 300);
+                  } else {
+                    console.warn("[OTP Link] Failed to fill OTP after multiple attempts.");
+                    setStatus("Could not find OTP input field to fill.", "error");
+                  }
                 }
+              } finally {
+                isAttempting = false;
               }
-            }, 100);
+            }, 150);
 
             GM_removeValueChangeListener(responseListenerId);
             if (window.otp_response_listener_id === responseListenerId) {
