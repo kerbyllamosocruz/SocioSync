@@ -890,6 +890,7 @@
   // =========================================================================
   function runOtpLinker(shadow) {
     const currentUrl = window.location.href;
+    const pageInitTime = Date.now();
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
     // Handle case where we got stuck on raw TikTok JSON response
@@ -2124,6 +2125,14 @@
 
         const autoReconnectEnabled = GM_getValue("sb_auto_reconnect_tiktok", false);
         if (!autoReconnectEnabled) return;
+
+        // Prevent instant auto-click on page load - require 5 second grace period
+        const elapsed = Date.now() - pageInitTime;
+        if (elapsed < 5000) {
+          const secondsLeft = Math.ceil((5000 - elapsed) / 1000);
+          setStatus(`Auto-reconnect active. Redirecting in ${secondsLeft}s (Uncheck toggle to cancel)...`, "idle");
+          return;
+        }
 
         const savedEmail = GM_getValue("otp_csv_selected_email", "");
         if (!savedEmail) return;
