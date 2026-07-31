@@ -823,7 +823,7 @@
             </div>
             
             <div style="margin: 8px 12px 0 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-                <button id="sb-btn-export-session" class="sb-btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); border: none; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); width: 100%; color: white;">🍪 Export Cookies & Session JSON</button>
+                <button id="sb-btn-export-session" class="sb-btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); border: none; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); width: 100%; color: white;">📋 Copy Session JSON</button>
             </div>
 
             <div class="suite-footer">
@@ -886,7 +886,7 @@
       }
     });
 
-    function exportCookiesAndSessionJSON() {
+    async function exportCookiesAndSessionJSON() {
       const cookiesObj = {};
       if (document.cookie) {
         document.cookie.split(";").forEach((pair) => {
@@ -924,20 +924,45 @@
       };
 
       const jsonString = JSON.stringify(exportData, null, 2);
-      const blob = new Blob([jsonString], { type: "application/json" });
       const sanitizeDomain = window.location.hostname.replace(/[^a-z0-9]/gi, "_");
-      const fileName = `${sanitizeDomain}_session_${Date.now()}.json`;
 
-      const downloadLink = document.createElement("a");
-      downloadLink.href = URL.createObjectURL(blob);
-      downloadLink.download = fileName;
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
-      URL.revokeObjectURL(downloadLink.href);
+      let copied = false;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(jsonString);
+          copied = true;
+        }
+      } catch (e) {}
+
+      if (!copied && typeof GM_setClipboard === "function") {
+        try {
+          GM_setClipboard(jsonString);
+          copied = true;
+        } catch (e) {}
+      }
+
+      if (!copied) {
+        const ta = document.createElement("textarea");
+        ta.value = jsonString;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+
+      const btn = shadow.getElementById("sb-btn-export-session");
+      if (btn) {
+        const originalText = btn.textContent;
+        btn.textContent = "📋 Copied to Clipboard!";
+        btn.style.background = "linear-gradient(135deg, #10b981 0%, #059669 100%)";
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.style.background = "linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)";
+        }, 2000);
+      }
 
       GM_setValue(`exported_session_${sanitizeDomain}`, exportData);
-      console.log(`[Automation Suite] Exported cookies & session JSON for ${window.location.hostname}:`, exportData);
+      console.log(`[Automation Suite] Copied cookies & session JSON for ${window.location.hostname} to clipboard.`);
     }
 
     const btnExportSession = shadow.getElementById("sb-btn-export-session");
