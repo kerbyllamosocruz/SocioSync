@@ -690,7 +690,7 @@
                         <option value="random">Randomize (Choose A or B randomly)</option>
                         <option value="a-only">Option 1 (A) Only</option>
                         <option value="b-only">Option 2 (B) Only</option>
-                        <option value="distribute-v4-b" selected>All profiles A (Var 1-3) & B (Var 4-6)</option>
+                        <option value="distribute-v4-b">All profiles A (Var 1-3) & B (Var 4-6)</option>
                     </select>
                 </div>
 
@@ -2655,7 +2655,7 @@
 
     const savedCaptionA = GM_getValue("sb_caption_a", "#gaymenoftiktok🏳️🌈 #gaydad #boyfriends #pridemonth #gay");
     const savedCaptionB = GM_getValue("sb_caption_b", "#gayboy #gaydad #gay #boyfriends #twink");
-    const savedCaptionMode = GM_getValue("sb_caption_mode", "distribute-v4-b");
+    const savedCaptionMode = GM_getValue("sb_caption_mode", "alternate");
     const savedDelay = GM_getValue("sb_delay", "10");
     const savedUploadDelay = GM_getValue("sb_upload_delay", "10");
     const savedVarDelay = GM_getValue("sb_var_delay", "10");
