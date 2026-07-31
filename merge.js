@@ -823,7 +823,7 @@
             </div>
             
             <div style="margin: 8px 12px 0 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-                <button id="sb-btn-export-session" class="sb-btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); border: none; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); width: 100%; color: white;">📋 Copy Session JSON</button>
+                <button id="sb-btn-export-session" class="sb-btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); border: none; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); width: 100%; color: white;">📋 Copy Cookies JSON</button>
             </div>
 
             <div class="suite-footer">
@@ -886,7 +886,7 @@
       }
     });
 
-    async function exportCookiesAndSessionJSON() {
+    async function exportCookiesJSON() {
       const cookiesObj = {};
       if (document.cookie) {
         document.cookie.split(";").forEach((pair) => {
@@ -897,30 +897,12 @@
         });
       }
 
-      const localStorageObj = {};
-      try {
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          localStorageObj[key] = localStorage.getItem(key);
-        }
-      } catch (e) {}
-
-      const sessionStorageObj = {};
-      try {
-        for (let i = 0; i < sessionStorage.length; i++) {
-          const key = sessionStorage.key(i);
-          sessionStorageObj[key] = sessionStorage.getItem(key);
-        }
-      } catch (e) {}
-
       const exportData = {
         domain: window.location.hostname,
         url: window.location.href,
         timestamp: new Date().toISOString(),
         cookiesRaw: document.cookie,
         cookies: cookiesObj,
-        localStorage: localStorageObj,
-        sessionStorage: sessionStorageObj,
       };
 
       const jsonString = JSON.stringify(exportData, null, 2);
@@ -967,7 +949,7 @@
 
     const btnExportSession = shadow.getElementById("sb-btn-export-session");
     if (btnExportSession) {
-      btnExportSession.addEventListener("click", exportCookiesAndSessionJSON);
+      btnExportSession.addEventListener("click", exportCookiesJSON);
     }
 
     makeElementDraggable(panel, shadow.getElementById("sb-suite-header"));
