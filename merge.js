@@ -755,6 +755,13 @@
                     </label>
                 </div>
 
+                <div class="sb-autofill-field" style="margin-top: 4px;">
+                    <label class="sb-autofill-checkbox-container">
+                        <input type="checkbox" id="sb-auto-reconnect-tiktok" class="sb-autofill-checkbox">
+                        <span>Auto-Connect TikTok OAuth</span>
+                    </label>
+                </div>
+
                 <div id="sb-autofill-status">
                     <div class="sb-status-info">
                         <span id="sb-status-dot" class="sb-status-dot idle"></span>
@@ -2113,7 +2120,10 @@
       }
 
       function checkForSocialBeeReconnect() {
-        if (!window.location.hostname.includes("socialbee.com")) return;
+        if (!window.location.hostname.includes("socialbee.com") && !window.location.hostname.includes("socialbee.io")) return;
+
+        const autoReconnectEnabled = GM_getValue("sb_auto_reconnect_tiktok", false);
+        if (!autoReconnectEnabled) return;
 
         const savedEmail = GM_getValue("otp_csv_selected_email", "");
         if (!savedEmail) return;
@@ -2683,6 +2693,13 @@
       const isChecked = disableAlertsInput.checked;
       GM_setValue("sb_disable_alerts", isChecked);
       updateAlertsDisabledState(isChecked);
+    });
+
+    const autoReconnectInput = shadow.getElementById("sb-auto-reconnect-tiktok");
+    const savedAutoReconnect = GM_getValue("sb_auto_reconnect_tiktok", false);
+    if (autoReconnectInput) autoReconnectInput.checked = savedAutoReconnect;
+    autoReconnectInput?.addEventListener("change", () => {
+      GM_setValue("sb_auto_reconnect_tiktok", autoReconnectInput.checked);
     });
 
     const dropzoneBase = shadow.getElementById("sb-dropzone-base");
