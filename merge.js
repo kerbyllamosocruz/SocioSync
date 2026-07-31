@@ -887,25 +887,35 @@
     });
 
     async function exportCookiesJSON() {
-      const cookiesObj = {};
+      const cookiesList = [];
+      const currentHost = window.location.hostname;
+      const domainName = currentHost.startsWith(".") ? currentHost : "." + currentHost;
+      const isHttps = window.location.protocol === "https:";
+
       if (document.cookie) {
         document.cookie.split(";").forEach((pair) => {
           const parts = pair.trim().split("=");
-          if (parts[0]) {
-            cookiesObj[parts[0]] = decodeURIComponent(parts.slice(1).join("="));
+          const name = parts[0];
+          if (name) {
+            const rawVal = parts.slice(1).join("=");
+            cookiesList.push({
+              domain: domainName,
+              expirationDate: Math.floor(Date.now() / 1000) + 31536000,
+              hostOnly: false,
+              httpOnly: false,
+              name: name,
+              path: "/",
+              sameSite: null,
+              secure: isHttps,
+              session: false,
+              storeId: null,
+              value: rawVal
+            });
           }
         });
       }
 
-      const exportData = {
-        domain: window.location.hostname,
-        url: window.location.href,
-        timestamp: new Date().toISOString(),
-        cookiesRaw: document.cookie,
-        cookies: cookiesObj,
-      };
-
-      const jsonString = JSON.stringify(exportData, null, 2);
+      const jsonString = JSON.stringify(cookiesList, null, 2);
       const sanitizeDomain = window.location.hostname.replace(/[^a-z0-9]/gi, "_");
 
       let copied = false;
