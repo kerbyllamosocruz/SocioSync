@@ -822,6 +822,10 @@
                 </div>
             </div>
             
+            <div style="margin: 8px 12px 0 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
+                <button id="sb-btn-export-session" class="sb-btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); border: none; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); width: 100%; color: white;">🍪 Export Cookies & Session JSON</button>
+            </div>
+
             <div class="suite-footer">
                 Developed by <span class="author-gradient">Kerby</span> (Discord: <span class="discord-username">buchinyan</span>)
             </div>
@@ -881,6 +885,65 @@
         toggleBtn.title = "Minimize Panel";
       }
     });
+
+    function exportCookiesAndSessionJSON() {
+      const cookiesObj = {};
+      if (document.cookie) {
+        document.cookie.split(";").forEach((pair) => {
+          const parts = pair.trim().split("=");
+          if (parts[0]) {
+            cookiesObj[parts[0]] = decodeURIComponent(parts.slice(1).join("="));
+          }
+        });
+      }
+
+      const localStorageObj = {};
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          localStorageObj[key] = localStorage.getItem(key);
+        }
+      } catch (e) {}
+
+      const sessionStorageObj = {};
+      try {
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          sessionStorageObj[key] = sessionStorage.getItem(key);
+        }
+      } catch (e) {}
+
+      const exportData = {
+        domain: window.location.hostname,
+        url: window.location.href,
+        timestamp: new Date().toISOString(),
+        cookiesRaw: document.cookie,
+        cookies: cookiesObj,
+        localStorage: localStorageObj,
+        sessionStorage: sessionStorageObj,
+      };
+
+      const jsonString = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const sanitizeDomain = window.location.hostname.replace(/[^a-z0-9]/gi, "_");
+      const fileName = `${sanitizeDomain}_session_${Date.now()}.json`;
+
+      const downloadLink = document.createElement("a");
+      downloadLink.href = URL.createObjectURL(blob);
+      downloadLink.download = fileName;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+      URL.revokeObjectURL(downloadLink.href);
+
+      GM_setValue(`exported_session_${sanitizeDomain}`, exportData);
+      console.log(`[Automation Suite] Exported cookies & session JSON for ${window.location.hostname}:`, exportData);
+    }
+
+    const btnExportSession = shadow.getElementById("sb-btn-export-session");
+    if (btnExportSession) {
+      btnExportSession.addEventListener("click", exportCookiesAndSessionJSON);
+    }
 
     makeElementDraggable(panel, shadow.getElementById("sb-suite-header"));
   }
