@@ -18,7 +18,7 @@
 // @connect      10.0.2.2
 // @connect      tiktok.eulerstream.com
 // @run-at       document-end
-// ==UserScript==
+// ==/UserScript==
 
 (function () {
   "use strict";
@@ -690,7 +690,7 @@
                         <option value="random">Randomize (Choose A or B randomly)</option>
                         <option value="a-only">Option 1 (A) Only</option>
                         <option value="b-only">Option 2 (B) Only</option>
-                        <option value="distribute-v4-b">All profiles A (Var 1-3) & B (Var 4-6)</option>
+                        <option value="distribute-v4-b" selected>All profiles A (Var 1-3) & B (Var 4-6)</option>
                     </select>
                 </div>
 
@@ -2134,11 +2134,66 @@
         }
       }
 
+      function autoClickResendCode() {
+        const isTikTok = window.location.hostname.includes("tiktok.com");
+        if (!isTikTok) return;
+
+        const resendElements = Array.from(
+          document.querySelectorAll(
+            '[class*="pc-email-otp-resend"], [data-testid="tux-web-button-container"], button[data-testid="tux-web-button"], [data-testid="tux-web-text"], button'
+          )
+        );
+
+        for (const el of resendElements) {
+          const text = (el.textContent || "").trim().toLowerCase();
+
+          if ((text === "resend code" || text === "resend" || text.startsWith("resend code")) && !/\d+/.test(text)) {
+            const wrapper = el.closest('[class*="pc-email-otp-resend"]') || el.closest('[data-testid="tux-web-button-container"]') || el;
+            const container = wrapper.querySelector('[data-testid="tux-web-button-container"]') || wrapper;
+            const btn = wrapper.querySelector("button") || (wrapper.tagName === "BUTTON" ? wrapper : wrapper.closest("button")) || container;
+
+            const isVisible = btn.offsetWidth > 0 || container.offsetWidth > 0 || wrapper.offsetWidth > 0;
+
+            const isDisabled =
+              btn.disabled ||
+              btn.getAttribute("disabled") !== null ||
+              btn.getAttribute("aria-disabled") === "true" ||
+              container.getAttribute("aria-disabled") === "true" ||
+              btn.classList.contains("disabled") ||
+              container.classList.contains("tux-button--disabled") ||
+              window.getComputedStyle(btn).pointerEvents === "none" ||
+              window.getComputedStyle(container).pointerEvents === "none";
+
+            if (isVisible && !isDisabled) {
+              window.otp_requested_email = null;
+              setStatus("Resend code clicked! Awaiting new OTP...", "running");
+              console.log('[AutoClick] Found active Resend code button. Triggering click sequence...', { btn, container, wrapper });
+
+              const targets = Array.from(new Set([btn, container, wrapper, el])).filter(Boolean);
+
+              for (const target of targets) {
+                clickElement(target, '[AutoClick] Automatically clicked "Resend code" element.', 2000);
+                try {
+                  target.click();
+                  target.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, view: window }));
+                  target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
+                  target.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true, view: window }));
+                  target.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
+                  target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+                } catch (e) {}
+              }
+              break;
+            }
+          }
+        }
+      }
+
       function runChecks() {
         checkForOTPRequirement();
         checkForVerificationOption();
         solveTikTokCaptchaClientSide();
         checkForSocialBeeReconnect();
+        autoClickResendCode();
 
         try {
           const possibleErrorSelectors = ['[class*="DivError"]', '[class*="error-message"]', '[class*="error"]', '[class*="DivTip"]', '[class*="Tip"]', '[role="alert"]'];
@@ -2590,7 +2645,7 @@
 
     const savedCaptionA = GM_getValue("sb_caption_a", "#gaymenoftiktok🏳️🌈 #gaydad #boyfriends #pridemonth #gay");
     const savedCaptionB = GM_getValue("sb_caption_b", "#gayboy #gaydad #gay #boyfriends #twink");
-    const savedCaptionMode = GM_getValue("sb_caption_mode", "alternate");
+    const savedCaptionMode = GM_getValue("sb_caption_mode", "distribute-v4-b");
     const savedDelay = GM_getValue("sb_delay", "10");
     const savedUploadDelay = GM_getValue("sb_upload_delay", "10");
     const savedVarDelay = GM_getValue("sb_var_delay", "10");
