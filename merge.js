@@ -823,7 +823,7 @@
             </div>
             
             <div style="margin: 8px 12px 0 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-                <button id="sb-btn-export-session" class="sb-btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); border: none; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); width: 100%; color: white;">📋 Copy Cookies JSON</button>
+                <button id="sb-btn-export-session" class="sb-btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); border: none; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); width: 100%; color: white;">📋 Copy All Cookies (Kuku + SocialBee)</button>
             </div>
 
             <div class="suite-footer">
@@ -886,7 +886,7 @@
       }
     });
 
-    async function exportCookiesJSON() {
+    function getCurrentDomainCookies() {
       const cookiesList = [];
       const currentHost = window.location.hostname;
       const domainName = currentHost.startsWith(".") ? currentHost : "." + currentHost;
@@ -914,9 +914,47 @@
           }
         });
       }
+      return cookiesList;
+    }
 
-      const jsonString = JSON.stringify(cookiesList, null, 2);
-      const sanitizeDomain = window.location.hostname.replace(/[^a-z0-9]/gi, "_");
+    function cacheCurrentDomainCookies() {
+      const host = window.location.hostname;
+      const currentCookies = getCurrentDomainCookies();
+      if (host.includes("kuku.lu")) {
+        GM_setValue("cached_cookies_kuku", currentCookies);
+      } else if (host.includes("socialbee.com") || host.includes("socialbee.io")) {
+        GM_setValue("cached_cookies_socialbee", currentCookies);
+      }
+    }
+
+    cacheCurrentDomainCookies();
+
+    async function exportCombinedCookiesJSON() {
+      cacheCurrentDomainCookies();
+
+      const kukuCookies = GM_getValue("cached_cookies_kuku", []);
+      const sbCookies = GM_getValue("cached_cookies_socialbee", []);
+
+      const host = window.location.hostname;
+      const liveCookies = getCurrentDomainCookies();
+
+      let mergedList = [];
+      if (host.includes("kuku.lu")) {
+        mergedList = [...liveCookies, ...sbCookies];
+      } else if (host.includes("socialbee")) {
+        mergedList = [...kukuCookies, ...liveCookies];
+      } else {
+        mergedList = [...kukuCookies, ...sbCookies];
+      }
+
+      const uniqueMap = new Map();
+      mergedList.forEach((c) => {
+        const key = `${c.domain}_${c.name}`;
+        uniqueMap.set(key, c);
+      });
+      const combinedCookies = Array.from(uniqueMap.values());
+
+      const jsonString = JSON.stringify(combinedCookies, null, 2);
 
       let copied = false;
       try {
@@ -945,7 +983,7 @@
       const btn = shadow.getElementById("sb-btn-export-session");
       if (btn) {
         const originalText = btn.textContent;
-        btn.textContent = "📋 Copied to Clipboard!";
+        btn.textContent = `📋 Copied ${combinedCookies.length} Cookies!`;
         btn.style.background = "linear-gradient(135deg, #10b981 0%, #059669 100%)";
         setTimeout(() => {
           btn.textContent = originalText;
@@ -953,13 +991,12 @@
         }, 2000);
       }
 
-      GM_setValue(`exported_session_${sanitizeDomain}`, exportData);
-      console.log(`[Automation Suite] Copied cookies & session JSON for ${window.location.hostname} to clipboard.`);
+      console.log(`[Automation Suite] Copied combined cookies (${combinedCookies.length}) to clipboard.`);
     }
 
     const btnExportSession = shadow.getElementById("sb-btn-export-session");
     if (btnExportSession) {
-      btnExportSession.addEventListener("click", exportCookiesJSON);
+      btnExportSession.addEventListener("click", exportCombinedCookiesJSON);
     }
 
     makeElementDraggable(panel, shadow.getElementById("sb-suite-header"));
