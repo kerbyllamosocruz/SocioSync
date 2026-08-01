@@ -1214,7 +1214,8 @@
             const pass = cols[passIndex].trim();
             const status = statusIndex !== -1 && cols[statusIndex] ? cols[statusIndex].trim() : "";
 
-            if (status.toLowerCase() === "done") {
+            const statusLower = status.toLowerCase();
+            if (statusLower === "done" || statusLower === "banned" || statusLower.includes("banned")) {
               continue;
             }
 
@@ -3423,7 +3424,7 @@
       const candidates = elements.filter((el) => {
         if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
 
-        if (el.closest("#sb-autofill-root")) return false;
+        if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) return false;
 
         if (el.dataset.sbDeleteAttempted === "true" || el.closest("button, a")?.dataset.sbDeleteAttempted === "true") {
           return false;
@@ -3458,7 +3459,7 @@
       const items = elements.filter((el) => {
         if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
 
-        if (el.closest("#sb-autofill-root") || el.closest(".modal, .modal-content, ngb-modal-window")) {
+        if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root") || el.closest(".modal, .modal-content, ngb-modal-window")) {
           return false;
         }
 
@@ -3497,6 +3498,7 @@
       try {
         const stepDelay = Math.max(300, parseInt(shadow.getElementById("sb-delay").value, 10) || 1500);
         let deletedCount = 0;
+        let consecutiveFailures = 0;
 
         document.querySelectorAll("[data-sb-delete-attempted], [data-sb-profile-select-attempted]").forEach((el) => {
           delete el.dataset.sbDeleteAttempted;
@@ -3511,28 +3513,59 @@
             break;
           }
 
-          let deleteBtn = findDeleteButtonDirect();
+          let deleteBtn = null;
+          let profileItem = null;
 
-          if (!deleteBtn) {
-            const profileItem = findProfileSelector();
-            if (profileItem) {
-              console.log("[SocialBee Autofill] Selecting profile item to reveal delete button:", profileItem);
-              profileItem.dataset.sbProfileSelectAttempted = "true";
+          setStatus("Waiting for account elements to load...", "running");
 
-              profileItem.scrollIntoView({ block: "center", behavior: "smooth" });
-              await sleep(500);
-              profileItem.click();
+          // Poll for delete button or profile selector (up to 20 attempts ~ 8 seconds)
+          for (let poll = 0; poll < 20; poll++) {
+            if (!isRunning) break;
+            deleteBtn = findDeleteButtonDirect();
+            if (deleteBtn) break;
 
-              await sleep(stepDelay + 1000);
+            profileItem = findProfileSelector();
+            if (profileItem) break;
 
+            await sleep(400);
+          }
+
+          if (!isRunning) break;
+
+          if (!deleteBtn && profileItem) {
+            console.log("[SocialBee Autofill] Selecting profile item to reveal delete button:", profileItem);
+            profileItem.dataset.sbProfileSelectAttempted = "true";
+
+            profileItem.scrollIntoView({ block: "center", behavior: "smooth" });
+            await sleep(400);
+            profileItem.click();
+
+            // Poll for delete button to render after clicking profile item (up to 20 attempts ~ 8 seconds)
+            setStatus("Waiting for delete button after profile selection...", "running");
+            for (let poll = 0; poll < 20; poll++) {
+              if (!isRunning) break;
               deleteBtn = findDeleteButtonDirect();
+              if (deleteBtn) break;
+              await sleep(400);
             }
           }
 
           if (!deleteBtn) {
+            if (consecutiveFailures < 2) {
+              consecutiveFailures++;
+              console.warn(`[SocialBee Autofill] Delete button not found yet (retry ${consecutiveFailures}/2). Resetting attempt flags...`);
+              document.querySelectorAll("[data-sb-delete-attempted], [data-sb-profile-select-attempted]").forEach((el) => {
+                delete el.dataset.sbDeleteAttempted;
+                delete el.dataset.sbProfileSelectAttempted;
+              });
+              await sleep(1500);
+              continue;
+            }
             console.log("[SocialBee Autofill] No delete buttons found and no remaining profiles can be selected.");
             break;
           }
+
+          consecutiveFailures = 0;
 
           let clickTarget = deleteBtn;
           if (deleteBtn.tagName === "I" || deleteBtn.tagName === "SPAN") {
@@ -3551,10 +3584,10 @@
           await sleep(500);
           clickTarget.click();
 
-          await sleep(1000);
-
+          // Poll for confirmation modal & button (up to 30 attempts ~ 9 seconds)
           let clickedConfirm = false;
-          for (let attempt = 0; attempt < 15; attempt++) {
+          for (let attempt = 0; attempt < 30; attempt++) {
+            if (!isRunning) break;
             const confirmBtn = Array.from(document.querySelectorAll("button")).find((button) => {
               const txt = (button.textContent || "").trim().toLowerCase();
               const className = (button.className || "").toLowerCase();
@@ -3568,7 +3601,7 @@
               deletedCount++;
               break;
             }
-            await sleep(250);
+            await sleep(300);
           }
 
           if (!clickedConfirm) {
