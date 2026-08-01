@@ -17,6 +17,8 @@
 // @connect      127.0.0.1
 // @connect      10.0.2.2
 // @connect      tiktok.eulerstream.com
+// @connect      www.sadcaptcha.com
+// @connect      sadcaptcha.com
 // @run-at       document-end
 // ==/UserScript==
 
@@ -695,9 +697,9 @@
                 </div>
 
                 <div class="sb-autofill-field">
-                    <label class="sb-autofill-label">Image for Var 1-3 (Optional)</label>
+                    <label class="sb-autofill-label">Var 1-3 Images (Base)</label>
                     <div id="sb-dropzone-base" class="sb-autofill-file-dropzone">
-                        <span class="sb-file-dropzone-text">Click or Drop Base Image(s) Here</span>
+                        <span class="sb-file-dropzone-text">Click or Drop Var 1-3 Image(s)</span>
                         <input type="file" id="sb-images-base" accept="image/*" multiple style="display: none;">
                     </div>
                     <div id="sb-preview-base" class="sb-file-preview-container" style="display: none;">
@@ -709,10 +711,10 @@
                     </div>
                 </div>
 
-                <div class="sb-autofill-field">
-                    <label class="sb-autofill-label">Image for Var 4-6 (Optional)</label>
+                <div class="sb-autofill-field" style="margin-top: 6px;">
+                    <label class="sb-autofill-label">Var 4-6 Images</label>
                     <div id="sb-dropzone-var4" class="sb-autofill-file-dropzone">
-                        <span class="sb-file-dropzone-text">Click or Drop Var 4 Image(s) Here</span>
+                        <span class="sb-file-dropzone-text">Click or Drop Var 4-6 Image(s)</span>
                         <input type="file" id="sb-images-var4" accept="image/*" multiple style="display: none;">
                     </div>
                     <div id="sb-preview-var4" class="sb-file-preview-container" style="display: none;">
@@ -816,7 +818,7 @@
                         </div>
                     </div>
                     <div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-                        <div style="font-size: 8px; text-transform: uppercase; color: #9ca3af; font-weight: 600; margin-bottom: 4px; letter-spacing: 0.05em; text-align: left;">EulerStream API Key</div>
+                        <div style="font-size: 8px; text-transform: uppercase; color: #9ca3af; font-weight: 600; margin-bottom: 4px; letter-spacing: 0.05em; text-align: left;">Captcha API Key (SadCaptcha)</div>
                         <input type="password" id="otp-captcha-key" placeholder="Enter API Key (auto-saved)" style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; width: 100%; box-sizing: border-box;" />
                     </div>
                 </div>
@@ -1422,10 +1424,12 @@
       });
 
       const captchaKeyInput = shadow.getElementById("otp-captcha-key");
-      const savedKey = GM_getValue("captcha_api_key", "");
-      if (savedKey) {
-        captchaKeyInput.value = savedKey;
+      let savedKey = GM_getValue("captcha_api_key", "");
+      if (!savedKey) {
+        savedKey = "b94b520aa4bb49b24e33996888c5be7e";
+        GM_setValue("captcha_api_key", savedKey);
       }
+      captchaKeyInput.value = savedKey;
 
       captchaKeyInput.addEventListener("input", () => {
         GM_setValue("captcha_api_key", captchaKeyInput.value.trim());
@@ -2123,40 +2127,80 @@
           const cleanBg = bgSrc.replace(/^data:image\/[a-z]+;base64,/, "");
           const cleanSlide = slideSrc.replace(/^data:image\/[a-z]+;base64,/, "");
 
-          let apiKey = GM_getValue("captcha_api_key", "");
-          if (!apiKey) {
-            throw new Error("EulerStream API Key not configured. Please input it in the UI panel.");
-          }
+          let apiKey = GM_getValue("captcha_api_key", "b94b520aa4bb49b24e33996888c5be7e");
 
-          console.log("[OTP Link] Requesting puzzle solution from EulerStream...");
-          const solveRes = await new Promise((resolve, reject) => {
-            GM_xmlhttpRequest({
-              method: "POST",
-              url: "https://tiktok.eulerstream.com/api/v1/captcha/slide",
-              headers: { "Content-Type": "application/json" },
-              data: JSON.stringify({
-                api_key: apiKey,
-                puzzle_image_base64: cleanBg,
-                piece_image_base64: cleanSlide,
-              }),
-              responseType: "json",
-              onload: (res) => resolve(res.response),
-              onerror: (err) => reject(err),
+          const containerText = (captchaContainer.textContent || "").toLowerCase();
+          const isRotateCaptcha =
+            containerText.includes("rotate") ||
+            containerText.includes("spin") ||
+            containerText.includes("right side up") ||
+            containerText.includes("orientation") ||
+            captchaContainer.querySelector('[class*="rotate"], [class*="whirl"], [class*="circle"]') !== null;
+
+          let dragDistance = 0;
+          const clientWidth = bgImg.clientWidth || bgImg.offsetWidth || 340;
+
+          if (isRotateCaptcha) {
+            console.log("[OTP Link] Detected Rotate CAPTCHA. Requesting solution from SadCaptcha...");
+            setStatus("Solving Rotate CAPTCHA...", "running");
+
+            const rotateRes = await new Promise((resolve, reject) => {
+              GM_xmlhttpRequest({
+                method: "POST",
+                url: `https://www.sadcaptcha.com/api/v1/rotate?licenseKey=${encodeURIComponent(apiKey)}`,
+                headers: { "Content-Type": "application/json" },
+                data: JSON.stringify({
+                  outerImageB64: cleanBg,
+                  innerImageB64: cleanSlide,
+                }),
+                responseType: "json",
+                onload: (res) => resolve(res.response),
+                onerror: (err) => reject(err),
+              });
             });
-          });
 
-          const slideX = solveRes && (solveRes.slide_x || solveRes.x);
-          if (slideX === undefined) {
-            throw new Error("EulerStream CAPTCHA response did not contain x coordinate: " + JSON.stringify(solveRes));
+            const angle = rotateRes && (rotateRes.angle !== undefined ? rotateRes.angle : rotateRes.rotation);
+            if (angle === undefined) {
+              throw new Error("SadCaptcha rotate response did not contain angle: " + JSON.stringify(rotateRes));
+            }
+
+            console.log("[OTP Link] Solved Rotate CAPTCHA! Calculated Angle: " + angle);
+            setStatus(`Rotate CAPTCHA Solved (${angle}°)! Simulating drag...`, "success");
+
+            const trackWidth = (dragHandle.parentElement?.clientWidth || clientWidth) - (dragHandle.offsetWidth || 40);
+            dragDistance = Math.round((trackWidth * angle) / 360);
+          } else {
+            console.log("[OTP Link] Requesting puzzle solution from SadCaptcha...");
+            const solveRes = await new Promise((resolve, reject) => {
+              GM_xmlhttpRequest({
+                method: "POST",
+                url: `https://www.sadcaptcha.com/api/v1/puzzle?licenseKey=${encodeURIComponent(apiKey)}`,
+                headers: { "Content-Type": "application/json" },
+                data: JSON.stringify({
+                  puzzleImageB64: cleanBg,
+                  pieceImageB64: cleanSlide,
+                }),
+                responseType: "json",
+                onload: (res) => resolve(res.response),
+                onerror: (err) => reject(err),
+              });
+            });
+
+            let slideXProportion = solveRes && (solveRes.slideXProportion !== undefined ? solveRes.slideXProportion : solveRes.slide_x_proportion);
+
+            if (slideXProportion === undefined && solveRes && solveRes.angle !== undefined) {
+              const angle = solveRes.angle;
+              const trackWidth = (dragHandle.parentElement?.clientWidth || clientWidth) - (dragHandle.offsetWidth || 40);
+              dragDistance = Math.round((trackWidth * angle) / 360);
+            } else if (slideXProportion === undefined) {
+              throw new Error("SadCaptcha response did not contain slideXProportion: " + JSON.stringify(solveRes));
+            } else {
+              dragDistance = Math.round(slideXProportion * clientWidth);
+            }
+
+            console.log("[OTP Link] Solved Puzzle CAPTCHA! Target drag distance: " + dragDistance);
+            setStatus("Puzzle CAPTCHA Solved! Simulating drag...", "success");
           }
-
-          console.log("[OTP Link] Solved! Target x: " + slideX);
-          setStatus("CAPTCHA Solved! Simulating drag...", "success");
-
-          const naturalWidth = bgImg.naturalWidth || 340;
-          const clientWidth = bgImg.clientWidth || 340;
-          const scale = clientWidth / naturalWidth;
-          const dragDistance = Math.round(slideX * scale);
 
           const rect = dragHandle.getBoundingClientRect();
           const startX = rect.left + rect.width / 2 + window.scrollX;
@@ -2380,54 +2424,110 @@
       console.log("[OTP Link] Email tab active and listening for OTP requests.");
       setStatus("Listening for OTP requests...", "idle");
 
+      let isCheckingOTP = false;
+
+      // Web Worker timer to bypass background tab timer throttling (Chrome/Edge throttle setInterval in background tabs to 60s)
+      function createBackgroundTimer(fn, ms) {
+        try {
+          const blob = new Blob([`
+            let interval = null;
+            onmessage = function(e) {
+              if (e.data === 'start') {
+                if (!interval) interval = setInterval(function() { postMessage('tick'); }, ${ms});
+              } else if (e.data === 'stop') {
+                if (interval) { clearInterval(interval); interval = null; }
+              }
+            };
+          `], { type: "application/javascript" });
+          const worker = new Worker(URL.createObjectURL(blob));
+          worker.onmessage = function() { fn(); };
+          worker.postMessage('start');
+          return worker;
+        } catch (e) {
+          console.warn("[OTP Link] Web Worker timer creation failed, falling back to setInterval:", e);
+          setInterval(fn, ms);
+          return null;
+        }
+      }
+
+      async function triggerInboxRefresh() {
+        if (typeof window.openMailRecvList === "function") {
+          try { window.openMailRecvList(); } catch (e) {}
+        }
+        if (typeof window.recv_update === "function") {
+          try { window.recv_update(); } catch (e) {}
+        }
+
+        const reloadImg = document.getElementById("image_reload") || document.getElementById("button_reload");
+        if (reloadImg) {
+          const clickTarget = reloadImg.closest("a, button") || reloadImg;
+          clickTarget.click();
+        } else {
+          const refreshBtn = Array.from(document.querySelectorAll("a, button, span, img")).find((el) => {
+            const text = (el.textContent || el.alt || "").toLowerCase();
+            const onclick = el.getAttribute("onclick") || "";
+            return text.includes("更新") || text.includes("refresh") || text.includes("update") || onclick.includes("recv");
+          });
+          if (refreshBtn) {
+            refreshBtn.click();
+          }
+        }
+      }
+
+      async function checkAndFetchOTP() {
+        if (isCheckingOTP) return;
+        const request = GM_getValue("otp_request");
+        if (request && request.status === "pending") {
+          isCheckingOTP = true;
+          try {
+            console.log("[OTP Link] Request is pending. Refreshing inbox to look for new mail...");
+            setStatus(`Refreshing inbox to find mail for ${request.email}...`, "running");
+
+            triggerInboxRefresh();
+
+            // Wait for dynamic AJAX response to render in the DOM
+            await new Promise((r) => setTimeout(r, 800));
+
+            await findAndSendOTP(request.email);
+          } catch (err) {
+            console.error("[OTP Link] Error checking OTP:", err);
+          } finally {
+            isCheckingOTP = false;
+          }
+        }
+      }
+
       GM_addValueChangeListener("otp_request", function (key, oldValue, newValue, remote) {
         if (newValue && newValue.status === "pending") {
           console.log(`[OTP Link] New OTP request received for: ${newValue.email}`);
           setStatus(`Request received for ${newValue.email}`, "running");
-          findAndSendOTP(newValue.email);
+          checkAndFetchOTP();
         }
       });
 
-      setInterval(async () => {
-        const request = GM_getValue("otp_request");
-        if (request && request.status === "pending") {
-          console.log("[OTP Link] Request is pending. Refreshing inbox to look for new mail...");
-          setStatus(`Refreshing inbox to find mail for ${request.email}...`, "running");
-
-          const reloadImg = document.getElementById("image_reload");
-          if (reloadImg) {
-            const clickTarget = reloadImg.closest("a, button") || reloadImg;
-            clickTarget.click();
-          } else {
-            const refreshBtn = Array.from(document.querySelectorAll("a, button, span")).find((el) => {
-              const text = el.textContent || "";
-              return text.includes("更新") || text.toLowerCase().includes("refresh") || text.toLowerCase().includes("update");
-            });
-            if (refreshBtn) {
-              refreshBtn.click();
-            }
-          }
-
-          findAndSendOTP(request.email);
-        }
-      }, 1500);
+      // Bypasses background tab timer throttling
+      createBackgroundTimer(checkAndFetchOTP, 1500);
 
       function isRecentEmail(text) {
-        if (!text) return false;
+        if (!text) return true;
 
-        const secMatch = text.match(/(\d+)\s*sec/i) || text.match(/(\d+)\s*秒/);
+        const secMatch = text.match(/(\d+)\s*(?:sec|s|秒)/i);
         if (secMatch) {
           const secs = parseInt(secMatch[1], 10);
-          return secs <= 60;
+          return secs <= 300; // Allow up to 5 minutes
         }
 
-        const minMatch = text.match(/(\d+)\s*min/i) || text.match(/(\d+)\s*分/);
+        const minMatch = text.match(/(\d+)\s*(?:min|m|分)/i);
         if (minMatch) {
           const mins = parseInt(minMatch[1], 10);
-          return mins <= 1;
+          return mins <= 5; // Allow up to 5 minutes
         }
 
-        return false;
+        if (/just now|now|今|新着|less than/i.test(text)) {
+          return true;
+        }
+
+        return true; // Default to true so we don't reject valid emails without explicit time strings
       }
 
       async function findAndSendOTP(targetEmail) {
@@ -2445,7 +2545,7 @@
         for (const el of allElements) {
           const txt = el.innerText || el.textContent || "";
           if (txt.includes(targetEmail) || isEmailMatch(txt, targetEmail)) {
-            if (el.tagName === "A" || el.tagName === "TR" || el.getAttribute("onclick") || el.classList.contains("mail-row") || el.classList.contains("inbox-row")) {
+            if (el.tagName === "A" || el.tagName === "TR" || el.getAttribute("onclick") || el.classList.contains("mail-row") || el.classList.contains("inbox-row") || el.getAttribute("href")) {
               if (isRecentEmail(txt)) {
                 matchingElement = el;
                 break;
@@ -2520,10 +2620,9 @@
             bodyText = document.body.innerText;
           }
 
-          if (!bodyText.includes(targetEmail) && !isEmailMatch(bodyText, targetEmail)) {
-            console.log(`[OTP Link] Opened email body does not match target email (${targetEmail}). Skipping extraction.`);
-            continue;
-          }
+          // Note: TikTok emails do not always repeat the email address in body text.
+          // Since matchingElement was ALREADY verified to match targetEmail before clicking,
+          // we check for OTP code inside the bodyText directly.
 
           const otpMatch = bodyText.match(/\b\d{6}\b/) || bodyText.match(/\b\d{4}\b/);
           if (otpMatch) {
@@ -2865,25 +2964,32 @@
       }
 
       if (isRunning) {
-        dropzoneBase.style.pointerEvents = "none";
-        dropzoneBase.style.opacity = "0.5";
-        btnClearBase.disabled = true;
-
-        dropzoneVar4.style.pointerEvents = "none";
-        dropzoneVar4.style.opacity = "0.5";
-        btnClearVar4.disabled = true;
+        if (dropzoneBase) {
+          dropzoneBase.style.pointerEvents = "none";
+          dropzoneBase.style.opacity = "0.5";
+        }
+        if (dropzoneVar4) {
+          dropzoneVar4.style.pointerEvents = "none";
+          dropzoneVar4.style.opacity = "0.5";
+        }
+        if (btnClearBase) btnClearBase.disabled = true;
+        if (btnClearVar4) btnClearVar4.disabled = true;
       } else {
-        dropzoneBase.style.pointerEvents = "auto";
-        dropzoneBase.style.opacity = "1";
-        btnClearBase.disabled = false;
-
-        dropzoneVar4.style.pointerEvents = "auto";
-        dropzoneVar4.style.opacity = "1";
-        btnClearVar4.disabled = false;
+        if (dropzoneBase) {
+          dropzoneBase.style.pointerEvents = "auto";
+          dropzoneBase.style.opacity = "1";
+        }
+        if (dropzoneVar4) {
+          dropzoneVar4.style.pointerEvents = "auto";
+          dropzoneVar4.style.opacity = "1";
+        }
+        if (btnClearBase) btnClearBase.disabled = false;
+        if (btnClearVar4) btnClearVar4.disabled = false;
       }
     }
 
     function setupDropzone(dropzone, input, onFilesSelected) {
+      if (!dropzone || !input) return;
       dropzone.addEventListener("click", () => input.click());
 
       input.addEventListener("change", (e) => {
@@ -2919,6 +3025,7 @@
     }
 
     function renderListPreviews(files, container, countEl, listEl) {
+      if (!listEl || !container || !countEl) return;
       listEl.innerHTML = "";
       if (!files || files.length === 0) {
         container.style.display = "none";
@@ -2943,31 +3050,39 @@
       });
     }
 
-    setupDropzone(dropzoneBase, inputBase, (files) => {
-      baseFiles = Array.from(files).filter((file) => file.type.startsWith("image/"));
-      renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
-      saveFilesToGM("sb_base_files", baseFiles);
-    });
+    if (dropzoneBase && inputBase) {
+      setupDropzone(dropzoneBase, inputBase, (files) => {
+        baseFiles = Array.from(files).filter((file) => file.type.startsWith("image/"));
+        renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+        saveFilesToGM("sb_base_files", baseFiles);
+      });
+    }
 
-    setupDropzone(dropzoneVar4, inputVar4, (files) => {
-      var4Files = Array.from(files).filter((file) => file.type.startsWith("image/"));
-      renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
-      saveFilesToGM("sb_var4_files", var4Files);
-    });
+    if (btnClearBase) {
+      btnClearBase.addEventListener("click", () => {
+        baseFiles = [];
+        if (inputBase) inputBase.value = "";
+        renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+        GM_setValue("sb_base_files", "");
+      });
+    }
 
-    btnClearBase.addEventListener("click", () => {
-      baseFiles = [];
-      inputBase.value = "";
-      renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
-      GM_setValue("sb_base_files", "");
-    });
+    if (dropzoneVar4 && inputVar4) {
+      setupDropzone(dropzoneVar4, inputVar4, (files) => {
+        var4Files = Array.from(files).filter((file) => file.type.startsWith("image/"));
+        renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+        saveFilesToGM("sb_var4_files", var4Files);
+      });
+    }
 
-    btnClearVar4.addEventListener("click", () => {
-      var4Files = [];
-      inputVar4.value = "";
-      renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
-      GM_setValue("sb_var4_files", "");
-    });
+    if (btnClearVar4) {
+      btnClearVar4.addEventListener("click", () => {
+        var4Files = [];
+        if (inputVar4) inputVar4.value = "";
+        renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+        GM_setValue("sb_var4_files", "");
+      });
+    }
 
     function setContentEditableText(el, text) {
       el.focus();
@@ -3141,6 +3256,16 @@
       return arr[randomIndex];
     }
 
+    function shuffleArray(arr) {
+      if (!arr || arr.length === 0) return [];
+      const shuffled = [...arr];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    }
+
     async function startAutomation() {
       const profiles = Array.from(document.querySelectorAll(".editor-selected-accounts .selected-profile"));
 
@@ -3149,13 +3274,18 @@
         return;
       }
 
-      if (baseFiles.length === 0 && var4Files.length === 0) {
-        setStatus("No images loaded. Attempting to fetch from server...", "running");
-        await loadImagesFromServer();
+      if (baseFiles.length === 0) {
+        baseFiles = loadFilesFromGM("sb_base_files");
+      }
+      if (var4Files.length === 0) {
+        var4Files = loadFilesFromGM("sb_var4_files");
       }
 
       isRunning = true;
       updateUIState();
+
+      const poolImages = shuffleArray(baseFiles);
+      const poolImagesVar4 = var4Files.length > 0 ? shuffleArray(var4Files) : [];
 
       const profileCaptions = [];
       const captionMode = shadow.getElementById("sb-caption-mode").value;
@@ -3240,8 +3370,8 @@
           setStatus(`Editor not found on profile ${i + 1}!`, "error");
         }
 
-        if (baseFiles.length > 0) {
-          const firstImg = getRandomElement(baseFiles);
+        if (poolImages.length > 0) {
+          const firstImg = poolImages[i % poolImages.length];
 
           setStatus(`Uploading base image for profile ${i + 1}: ${firstImg.name}...`, "running");
           const uploadTriggered = uploadImageToWebpage(firstImg);
@@ -3277,7 +3407,7 @@
         }
       }
 
-      if (isRunning && var4Files.length > 0) {
+      if (isRunning && (poolImages.length > 0 || poolImagesVar4.length > 0)) {
         setStatus(`Phase 2: Swapping images on Variation 4 (0/${profiles.length})...`, "running");
 
         for (let i = 0; i < profiles.length; i++) {
@@ -3314,7 +3444,7 @@
             break;
           }
 
-          const secondImg = getRandomElement(var4Files);
+          const secondImg = poolImagesVar4.length > 0 ? poolImagesVar4[i % poolImagesVar4.length] : poolImages[(i + profiles.length) % poolImages.length];
 
           selectVariation(4);
           await sleep(varDelay);
