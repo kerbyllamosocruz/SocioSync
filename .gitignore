@@ -8,9 +8,7 @@ Thumbs.db
 *.jpeg
 *.jpg
 *.png
-*.zip
 drive-download-*/
-extension.zip
 
 # Node modules / temporary build scripts if any
 node_modules/
