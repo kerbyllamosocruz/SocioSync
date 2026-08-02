@@ -8,7 +8,7 @@ Thumbs.db
 *.jpeg
 *.jpg
 *.png
-drive-download-*/
+drive-download*
 
 # Local credentials and build scripts
 create_dolphin_profiles.js
