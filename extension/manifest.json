@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "SocialBee & TikTok Automation Suite",
+  "version": "4.2",
+  "description": "All-in-one automation: caption filler, image manager, OTP synchronization, and TikTok captcha solver.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://*.tiktok.com/*",
+    "https://app.socialbee.com/*",
+    "https://app.socialbee.io/*",
+    "https://*.kuku.lu/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "https://tiktok.eulerstream.com/*",
+    "https://www.sadcaptcha.com/*",
+    "https://sadcaptcha.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.tiktok.com/*",
+        "https://app.socialbee.com/*",
+        "https://app.socialbee.io/*",
+        "https://*.kuku.lu/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}
