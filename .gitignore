@@ -10,6 +10,7 @@ Thumbs.db
 *.png
 drive-download-*/
 
-# Node modules / temporary build scripts if any
+# Local credentials and build scripts
+create_dolphin_profiles.js
 node_modules/
 build_extension.js
