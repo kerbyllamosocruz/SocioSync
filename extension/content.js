@@ -874,10 +874,6 @@ function runMainScript() {
                             <button id="otp-csv-save-btn" style="background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); border: none; color: #fff; font-size: 10px; padding: 5px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: 600;">Save & Apply</button>
                         </div>
                     </div>
-                    <div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-                        <div style="font-size: 8px; text-transform: uppercase; color: #9ca3af; font-weight: 600; margin-bottom: 4px; letter-spacing: 0.05em; text-align: left;">Captcha API Key (SadCaptcha)</div>
-                        <input type="password" id="otp-captcha-key" placeholder="Enter API Key (auto-saved)" style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; width: 100%; box-sizing: border-box;" />
-                    </div>
                 </div>
             </div>
             
@@ -2126,185 +2122,6 @@ function runMainScript() {
         }
       }
 
-      let isSolvingCaptcha = false;
-
-      async function solveTikTokCaptchaClientSide() {
-        if (isSolvingCaptcha) return;
-
-        const captchaContainer = document.querySelector('#captcha-verify-container-main-page, [id*="captcha-verify-container"], [class*="captcha-verify-container"]');
-        if (!captchaContainer) return;
-
-        isSolvingCaptcha = true;
-        setStatus("CAPTCHA puzzle detected! Attempting to solve...", "running");
-        console.log("[OTP Link] CAPTCHA detected. Finding images...");
-
-        try {
-          const images = Array.from(captchaContainer.querySelectorAll("img"));
-          if (images.length < 2) {
-            console.warn("[OTP Link] Could not find CAPTCHA images");
-            isSolvingCaptcha = false;
-            return;
-          }
-
-          let slideImg = null;
-          let bgImg = null;
-
-          for (const img of images) {
-            const style = window.getComputedStyle(img);
-            const isAbsolute = img.classList.contains("cap-absolute") || style.position === "absolute" || img.className.includes("slide");
-            if (isAbsolute) {
-              slideImg = img;
-            } else {
-              bgImg = img;
-            }
-          }
-
-          if (!slideImg || !bgImg) {
-            console.warn("[OTP Link] Could not identify slide and background images");
-            isSolvingCaptcha = false;
-            return;
-          }
-
-          const bgSrc = bgImg.getAttribute("src");
-          const slideSrc = slideImg.getAttribute("src");
-
-          if (!bgSrc || !slideSrc || !bgSrc.startsWith("data:") || !slideSrc.startsWith("data:")) {
-            console.warn("[OTP Link] Image sources are not valid base64 URI");
-            isSolvingCaptcha = false;
-            return;
-          }
-
-          const dragHandle = document.querySelector('.secsdk-captcha-drag-icon, [class*="secsdk-captcha-drag-icon"], [class*="captcha_verify_slide--slide"], [class*="captcha_slider"], .cap-absolute.cap-w-\\[56px\\] button, .secsdk_captcha_slider_button, #captcha_slider');
-          if (!dragHandle) {
-            console.warn("[OTP Link] Slider handle not found");
-            isSolvingCaptcha = false;
-            return;
-          }
-
-          const cleanBg = bgSrc.replace(/^data:image\/[a-z]+;base64,/, "");
-          const cleanSlide = slideSrc.replace(/^data:image\/[a-z]+;base64,/, "");
-
-          let apiKey = GM_getValue("captcha_api_key", "b94b520aa4bb49b24e33996888c5be7e");
-
-          const containerText = (captchaContainer.textContent || "").toLowerCase();
-          const isRotateCaptcha =
-            containerText.includes("rotate") ||
-            containerText.includes("spin") ||
-            containerText.includes("right side up") ||
-            containerText.includes("orientation") ||
-            captchaContainer.querySelector('[class*="rotate"], [class*="whirl"], [class*="circle"]') !== null;
-
-          let dragDistance = 0;
-          const clientWidth = bgImg.clientWidth || bgImg.offsetWidth || 340;
-
-          if (isRotateCaptcha) {
-            console.log("[OTP Link] Detected Rotate CAPTCHA. Requesting solution from SadCaptcha...");
-            setStatus("Solving Rotate CAPTCHA...", "running");
-
-            const rotateRes = await new Promise((resolve, reject) => {
-              GM_xmlhttpRequest({
-                method: "POST",
-                url: `https://www.sadcaptcha.com/api/v1/rotate?licenseKey=${encodeURIComponent(apiKey)}`,
-                headers: { "Content-Type": "application/json" },
-                data: JSON.stringify({
-                  outerImageB64: cleanBg,
-                  innerImageB64: cleanSlide,
-                }),
-                responseType: "json",
-                onload: (res) => resolve(res.response),
-                onerror: (err) => reject(err),
-              });
-            });
-
-            const angle = rotateRes && (rotateRes.angle !== undefined ? rotateRes.angle : rotateRes.rotation);
-            if (angle === undefined) {
-              throw new Error("SadCaptcha rotate response did not contain angle: " + JSON.stringify(rotateRes));
-            }
-
-            console.log("[OTP Link] Solved Rotate CAPTCHA! Calculated Angle: " + angle);
-            setStatus(`Rotate CAPTCHA Solved (${angle}°)! Simulating drag...`, "success");
-
-            const trackWidth = (dragHandle.parentElement?.clientWidth || clientWidth) - (dragHandle.offsetWidth || 40);
-            dragDistance = Math.round((trackWidth * angle) / 360);
-          } else {
-            console.log("[OTP Link] Requesting puzzle solution from SadCaptcha...");
-            const solveRes = await new Promise((resolve, reject) => {
-              GM_xmlhttpRequest({
-                method: "POST",
-                url: `https://www.sadcaptcha.com/api/v1/puzzle?licenseKey=${encodeURIComponent(apiKey)}`,
-                headers: { "Content-Type": "application/json" },
-                data: JSON.stringify({
-                  puzzleImageB64: cleanBg,
-                  pieceImageB64: cleanSlide,
-                }),
-                responseType: "json",
-                onload: (res) => resolve(res.response),
-                onerror: (err) => reject(err),
-              });
-            });
-
-            let slideXProportion = solveRes && (solveRes.slideXProportion !== undefined ? solveRes.slideXProportion : solveRes.slide_x_proportion);
-
-            if (slideXProportion === undefined && solveRes && solveRes.angle !== undefined) {
-              const angle = solveRes.angle;
-              const trackWidth = (dragHandle.parentElement?.clientWidth || clientWidth) - (dragHandle.offsetWidth || 40);
-              dragDistance = Math.round((trackWidth * angle) / 360);
-            } else if (slideXProportion === undefined) {
-              throw new Error("SadCaptcha response did not contain slideXProportion: " + JSON.stringify(solveRes));
-            } else {
-              dragDistance = Math.round(slideXProportion * clientWidth);
-            }
-
-            console.log("[OTP Link] Solved Puzzle CAPTCHA! Target drag distance: " + dragDistance);
-            setStatus("Puzzle CAPTCHA Solved! Simulating drag...", "success");
-          }
-
-          const rect = dragHandle.getBoundingClientRect();
-          const startX = rect.left + rect.width / 2 + window.scrollX;
-          const startY = rect.top + rect.height / 2 + window.scrollY;
-
-          function fireMouseEvent(type, x, y) {
-            const evt = new MouseEvent(type, {
-              bubbles: true,
-              cancelable: true,
-              view: window,
-              clientX: x,
-              clientY: y,
-              screenX: x,
-              screenY: y,
-            });
-            dragHandle.dispatchEvent(evt);
-            document.dispatchEvent(evt);
-          }
-
-          fireMouseEvent("mousedown", startX, startY);
-          await sleep(100);
-
-          const steps = 15;
-          for (let i = 1; i <= steps; i++) {
-            const progress = i / steps;
-            const easeProgress = progress * (2 - progress);
-            const currentX = startX + dragDistance * easeProgress;
-            const currentY = startY + (Math.random() * 4 - 2);
-            fireMouseEvent("mousemove", currentX, currentY);
-            await sleep(20 + Math.random() * 15);
-          }
-
-          await sleep(150);
-          const endX = startX + dragDistance;
-          fireMouseEvent("mouseup", endX, startY);
-
-          console.log("[OTP Link] Drag simulated successfully.");
-          setStatus("Drag complete. Checking CAPTCHA status...", "success");
-          await sleep(3000);
-        } catch (err) {
-          console.error("[OTP Link] CAPTCHA solving failed:", err);
-          setStatus("CAPTCHA solving failed: " + err.message, "error");
-        } finally {
-          isSolvingCaptcha = false;
-        }
-      }
-
       function autoClickNavFlows() {
         const isTikTok = window.location.hostname.includes("tiktok.com");
 
@@ -2435,7 +2252,6 @@ function runMainScript() {
 
         checkForOTPRequirement();
         checkForVerificationOption();
-        solveTikTokCaptchaClientSide();
         checkForSocialBeeReconnect();
         autoClickResendCode();
 
