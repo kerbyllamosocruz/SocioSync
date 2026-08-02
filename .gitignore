@@ -1,0 +1,17 @@
+# OS & IDE junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Image assets and downloaded zips
+*.jpeg
+*.jpg
+*.png
+*.zip
+drive-download-*/
+extension.zip
+
+# Node modules / temporary build scripts if any
+node_modules/
+build_extension.js
