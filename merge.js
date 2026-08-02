@@ -19,7 +19,7 @@
 // @connect      tiktok.eulerstream.com
 // @connect      www.sadcaptcha.com
 // @connect      sadcaptcha.com
-// @run-at       document-end
+// @run-at       document-start
 // ==/UserScript==
 
 (function () {
@@ -91,7 +91,18 @@
 
     const container = document.createElement("div");
     container.id = "sb-suite-root";
-    document.body.appendChild(container);
+    
+    function mountPanel() {
+      const parent = document.body || document.documentElement;
+      if (parent) {
+        if (!document.getElementById("sb-suite-root")) {
+          parent.appendChild(container);
+        }
+      } else {
+        setTimeout(mountPanel, 10);
+      }
+    }
+    mountPanel();
 
     suiteShadow = container.attachShadow({ mode: "open" });
     const shadow = suiteShadow;
@@ -2259,7 +2270,7 @@
             const text = (item.textContent || "").trim().toLowerCase();
             if (text === "use phone / email / username" || text === "phone / email / username") {
               const clickable = item.closest('div[role="link"], [data-e2e="channel-item"], button') || item;
-              clickElement(clickable, '[AutoClick] Clicked "Use phone / email / username" menu option.');
+              clickElement(clickable, '[AutoClick] Clicked "Use phone / email / username" menu option.', 0);
               clickedChannel = true;
               break;
             }
@@ -2277,7 +2288,7 @@
           }
           if (emailLoginLink) {
             const clickableLink = emailLoginLink.closest("a, button") || emailLoginLink;
-            clickElement(clickableLink, '[AutoClick] Clicked "Log in with email or username" link.');
+            clickElement(clickableLink, '[AutoClick] Clicked "Log in with email or username" link.', 0);
           }
         }
       }
@@ -2370,6 +2381,12 @@
       }
 
       function runChecks() {
+        try {
+          autoClickNavFlows();
+        } catch (e) {
+          console.error("[OTP Link] Error in autoClickNavFlows:", e);
+        }
+
         checkForOTPRequirement();
         checkForVerificationOption();
         solveTikTokCaptchaClientSide();
@@ -2405,16 +2422,10 @@
         } catch (e) {
           console.error("[OTP Link] Error checking for page errors:", e);
         }
-
-        try {
-          autoClickNavFlows();
-        } catch (e) {
-          console.error("[OTP Link] Error in autoClickNavFlows:", e);
-        }
       }
 
       runChecks();
-      setInterval(runChecks, 100);
+      setInterval(runChecks, 50);
     }
 
     // ==========================================
