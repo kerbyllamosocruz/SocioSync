@@ -2570,8 +2570,39 @@
         }
       }
 
+      function checkForTikTokPageErrorsAndRedirect() {
+        const isTikTok = window.location.hostname.includes("tiktok.com");
+        if (!isTikTok) return;
+
+        const errorElements = Array.from(document.querySelectorAll('div[type="error"], [role="status"], [aria-live="assertive"], [class*="DivTextContainer"], [class*="DivError"], [class*="error"]'));
+
+        let foundSomethingWentWrong = false;
+        for (const el of errorElements) {
+          const text = (el.textContent || "").trim().toLowerCase();
+          if (text.includes("something went wrong")) {
+            foundSomethingWentWrong = true;
+            break;
+          }
+        }
+
+        if (!foundSomethingWentWrong) {
+          const bodyText = (document.body.innerText || "").toLowerCase();
+          if (bodyText.includes("something went wrong") && bodyText.includes("please try again")) {
+            foundSomethingWentWrong = true;
+          }
+        }
+
+        if (foundSomethingWentWrong) {
+          console.warn('[OTP Link] Detected "Something went wrong" error on TikTok. Redirecting to https://app.socialbee.com/...');
+          setStatus("Something went wrong. Redirecting to SocialBee...", "error");
+          GM_setValue("otp_csv_selected_email", "");
+          window.location.href = "https://app.socialbee.com/";
+        }
+      }
+
       function runChecks() {
         toggleSuitePanelVisibilityOnCaptchaModal();
+        checkForTikTokPageErrorsAndRedirect();
         checkForOTPRequirement();
         checkForVerificationOption();
         solveTikTokCaptchaClientSide();
