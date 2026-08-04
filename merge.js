@@ -1578,6 +1578,37 @@
       element.dispatchEvent(new Event("blur", { bubbles: true }));
     }
 
+    function findLoginInputs() {
+      const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]):not([type="file"])')).filter((el) => {
+        return el.offsetWidth > 0 || el.offsetHeight > 0 || window.getComputedStyle(el).display !== "none";
+      });
+
+      let usernameInput = inputs.find((i) => {
+        const name = (i.name || "").toLowerCase();
+        const placeholder = (i.placeholder || "").toLowerCase();
+        const autocomplete = (i.autocomplete || "").toLowerCase();
+        const type = (i.type || "").toLowerCase();
+        return name.includes("user") || name.includes("email") || name.includes("phone") || placeholder.includes("email") || placeholder.includes("username") || placeholder.includes("phone") || autocomplete.includes("username") || autocomplete.includes("email") || type === "text" || type === "email";
+      });
+
+      let passwordInput = inputs.find((i) => {
+        const type = (i.type || "").toLowerCase();
+        const name = (i.name || "").toLowerCase();
+        const placeholder = (i.placeholder || "").toLowerCase();
+        const autocomplete = (i.autocomplete || "").toLowerCase();
+        return type === "password" || name.includes("pass") || placeholder.includes("password") || autocomplete.includes("password");
+      });
+
+      if (!usernameInput && inputs.length > 0) {
+        usernameInput = inputs[0];
+      }
+      if (!passwordInput && inputs.length > 1 && inputs[1] !== usernameInput) {
+        passwordInput = inputs[1];
+      }
+
+      return { usernameInput, passwordInput };
+    }
+
     let isAutofilling = false;
     let hasAutofilledForCurrentSelection = false;
 
@@ -2353,38 +2384,43 @@
 
       function autoClickNavFlows() {
         const isTikTok = window.location.hostname.includes("tiktok.com");
+        if (!isTikTok) return;
 
-        if (isTikTok) {
-          const visibleInputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]):not([type="file"])')).filter(el => el.offsetWidth > 0 || el.offsetHeight > 0);
-          if (visibleInputs.length > 0) {
-            return; // Login inputs are present and visible. Do not click navigation flows.
-          }
-          const channelItems = Array.from(document.querySelectorAll('div[data-e2e="channel-item"], div[role="link"], p, span, button'));
-          let clickedChannel = false;
+        let emailLoginLink = document.querySelector('a[href*="/login/phone-or-email/email"], a[href*="email"]');
+        if (!emailLoginLink) {
+          const candidates = Array.from(document.querySelectorAll("a, button, p, span, div[role='button']"));
+          emailLoginLink = candidates.find((el) => {
+            const text = (el.textContent || "").trim().toLowerCase();
+            return (
+              text === "log in with email or username" ||
+              text === "login with email or username" ||
+              text.includes("log in with email") ||
+              text.includes("login with email") ||
+              text.includes("email or username") ||
+              text.includes("use email/username")
+            );
+          });
+        }
 
-          for (const item of channelItems) {
-            const text = (item.textContent || "").trim().toLowerCase();
-            if (text === "use phone / email / username" || text === "phone / email / username") {
-              const clickable = item.closest('div[role="link"], [data-e2e="channel-item"], button') || item;
-              clickElement(clickable, '[AutoClick] Clicked "Use phone / email / username" menu option.');
-              clickedChannel = true;
-              break;
-            }
-          }
+        if (emailLoginLink && (emailLoginLink.offsetWidth > 0 || emailLoginLink.offsetHeight > 0)) {
+          const clickableLink = emailLoginLink.closest("a, button") || emailLoginLink;
+          console.log('[AutoClick] Found "Log in with email or username" link/button:', clickableLink);
+          clickElement(clickableLink, '[AutoClick] Clicked "Log in with email or username" link.');
+          return;
+        }
 
-          if (clickedChannel) return;
+        const passwordInput = document.querySelector('input[type="password"], input[placeholder*="Password"]');
+        if (passwordInput && passwordInput.offsetWidth > 0) {
+          return;
+        }
 
-          let emailLoginLink = document.querySelector('a[href="/login/phone-or-email/email"]');
-          if (!emailLoginLink) {
-            const candidates = Array.from(document.querySelectorAll("a, button, p, span"));
-            emailLoginLink = candidates.find((el) => {
-              const text = (el.textContent || "").trim().toLowerCase();
-              return text.includes("log in with email") || text.includes("login with email") || text.includes("email or username") || text.includes("use email/username");
-            });
-          }
-          if (emailLoginLink) {
-            const clickableLink = emailLoginLink.closest("a, button") || emailLoginLink;
-            clickElement(clickableLink, '[AutoClick] Clicked "Log in with email or username" link.');
+        const channelItems = Array.from(document.querySelectorAll('div[data-e2e="channel-item"], div[role="link"], p, span, button'));
+        for (const item of channelItems) {
+          const text = (item.textContent || "").trim().toLowerCase();
+          if (text === "use phone / email / username" || text === "phone / email / username") {
+            const clickable = item.closest('div[role="link"], [data-e2e="channel-item"], button') || item;
+            clickElement(clickable, '[AutoClick] Clicked "Use phone / email / username" menu option.');
+            return;
           }
         }
       }
@@ -2464,36 +2500,7 @@
         }
       }
 
-      function findLoginInputs() {
-        const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]):not([type="file"])')).filter((el) => {
-          return el.offsetWidth > 0 || el.offsetHeight > 0 || window.getComputedStyle(el).display !== "none";
-        });
 
-        let usernameInput = inputs.find((i) => {
-          const name = (i.name || "").toLowerCase();
-          const placeholder = (i.placeholder || "").toLowerCase();
-          const autocomplete = (i.autocomplete || "").toLowerCase();
-          const type = (i.type || "").toLowerCase();
-          return name.includes("user") || name.includes("email") || name.includes("phone") || placeholder.includes("email") || placeholder.includes("username") || placeholder.includes("phone") || autocomplete.includes("username") || autocomplete.includes("email") || type === "text" || type === "email";
-        });
-
-        let passwordInput = inputs.find((i) => {
-          const type = (i.type || "").toLowerCase();
-          const name = (i.name || "").toLowerCase();
-          const placeholder = (i.placeholder || "").toLowerCase();
-          const autocomplete = (i.autocomplete || "").toLowerCase();
-          return type === "password" || name.includes("pass") || placeholder.includes("password") || autocomplete.includes("password");
-        });
-
-        if (!usernameInput && inputs.length > 0) {
-          usernameInput = inputs[0];
-        }
-        if (!passwordInput && inputs.length > 1 && inputs[1] !== usernameInput) {
-          passwordInput = inputs[1];
-        }
-
-        return { usernameInput, passwordInput };
-      }
 
       function getOrParseCsvAccounts() {
         if (window.otpCsvAccounts && window.otpCsvAccounts.length > 0) {
