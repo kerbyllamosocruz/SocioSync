@@ -1405,6 +1405,7 @@
         }
 
         activeAccountIdx = idx;
+        hasAutofilledForCurrentSelection = false;
         const account = window.otpCsvAccounts[idx];
         GM_setValue("otp_csv_selected_email", account.email);
         GM_setValue("otp_request", null);
@@ -1578,6 +1579,7 @@
     }
 
     let isAutofilling = false;
+    let hasAutofilledForCurrentSelection = false;
 
     async function autofillCredentials(email, password) {
       if (isAutofilling) {
@@ -1585,16 +1587,30 @@
         return;
       }
       isAutofilling = true;
+      hasAutofilledForCurrentSelection = true;
 
       GM_setValue("otp_request", null);
       GM_setValue("otp_response", null);
       window.otp_requested_email = null;
 
       try {
-        const usernameInput = document.querySelector('input[name="username"], input[placeholder*="Email"], input[placeholder*="username"], input[placeholder*="phone"]');
-        const passwordInput = document.querySelector('input[type="password"], input[placeholder*="Password"]');
+        let usernameInput = document.querySelector('input[name="username"], input[placeholder*="Email"], input[placeholder*="username"], input[placeholder*="phone"], input[type="text"]');
+        let passwordInput = document.querySelector('input[type="password"], input[placeholder*="Password"]');
 
-        if (!usernameInput || !passwordInput) {
+        if (!usernameInput || !passwordInput || usernameInput.offsetWidth === 0) {
+          console.log("[OTP Link] Waiting for login input fields to appear...");
+          const startTime = Date.now();
+          while (Date.now() - startTime < 8000) {
+            await sleep(400);
+            usernameInput = document.querySelector('input[name="username"], input[placeholder*="Email"], input[placeholder*="username"], input[placeholder*="phone"], input[type="text"]');
+            passwordInput = document.querySelector('input[type="password"], input[placeholder*="Password"]');
+            if (usernameInput && passwordInput && usernameInput.offsetWidth > 0) {
+              break;
+            }
+          }
+        }
+
+        if (!usernameInput || !passwordInput || usernameInput.offsetWidth === 0) {
           console.warn("[OTP Link] Username or password input not found on page.");
           setStatus("Input fields not found.", "error");
           return;
@@ -2444,6 +2460,27 @@
         }
       }
 
+      function autoCheckAndFillLoginFields() {
+        if (isAutofilling || hasAutofilledForCurrentSelection) return;
+
+        const isTikTok = window.location.hostname.includes("tiktok.com");
+        if (!isTikTok) return;
+
+        const savedEmail = GM_getValue("otp_csv_selected_email", "");
+        if (!savedEmail || !window.otpCsvAccounts) return;
+
+        const usernameInput = document.querySelector('input[name="username"], input[placeholder*="Email"], input[placeholder*="username"], input[placeholder*="phone"], input[type="text"]');
+        const passwordInput = document.querySelector('input[type="password"], input[placeholder*="Password"]');
+
+        if (usernameInput && passwordInput && usernameInput.offsetWidth > 0 && usernameInput.value === "") {
+          const account = window.otpCsvAccounts.find((a) => a.email.toLowerCase() === savedEmail.toLowerCase());
+          if (account && account.pass) {
+            console.log(`[OTP Link] Auto-detected empty login input fields for ${account.email}. Triggering credential autofill...`);
+            autofillCredentials(account.email, account.pass);
+          }
+        }
+      }
+
       function runChecks() {
         toggleSuitePanelVisibilityOnCaptchaModal();
         checkForOTPRequirement();
@@ -2451,6 +2488,7 @@
         solveTikTokCaptchaClientSide();
         checkForSocialBeeReconnect();
         autoClickResendCode();
+        autoCheckAndFillLoginFields();
 
         try {
           const possibleErrorSelectors = ['[class*="DivError"]', '[class*="error-message"]', '[class*="error"]', '[class*="DivTip"]', '[class*="Tip"]', '[role="alert"]'];
