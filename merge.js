@@ -866,6 +866,26 @@
       shadow.getElementById("otp-login-only-controls").style.display = "block";
     }
 
+    // Restore compact mode preference
+    const isCompact = GM_getValue("sb_suite_compact_mode", false);
+    if (isCompact) {
+      panel.classList.add("compact");
+    }
+
+    const compactBtn = shadow.getElementById("sb-suite-compact-btn");
+    if (compactBtn) {
+      if (isCompact) {
+        compactBtn.classList.add("active");
+      }
+      compactBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        panel.classList.toggle("compact");
+        const nowCompact = panel.classList.contains("compact");
+        GM_setValue("sb_suite_compact_mode", nowCompact);
+        compactBtn.classList.toggle("active", nowCompact);
+      });
+    }
+
     // Toggle minimize
     const toggleBtn = shadow.getElementById("sb-suite-toggle-btn");
     toggleBtn.addEventListener("click", (e) => {
@@ -2067,6 +2087,19 @@
         }
       }
 
+      function toggleSuitePanelVisibilityOnCaptchaModal() {
+        const captchaContainer = document.querySelector('#captcha-verify-container-main-page, [id*="captcha-verify-container"], [class*="captcha-verify-container"]');
+        const suiteRoot = document.getElementById("sb-suite-root");
+        if (!suiteRoot) return;
+
+        const isCaptchaVisible = captchaContainer && (captchaContainer.offsetWidth > 0 || captchaContainer.offsetHeight > 0 || window.getComputedStyle(captchaContainer).display !== "none");
+        if (isCaptchaVisible) {
+          suiteRoot.style.display = "none";
+        } else {
+          suiteRoot.style.display = "";
+        }
+      }
+
       let isSolvingCaptcha = false;
 
       async function solveTikTokCaptchaClientSide() {
@@ -2351,6 +2384,7 @@
       }
 
       function runChecks() {
+        toggleSuitePanelVisibilityOnCaptchaModal();
         checkForOTPRequirement();
         checkForVerificationOption();
         solveTikTokCaptchaClientSide();
