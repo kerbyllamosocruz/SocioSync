@@ -813,6 +813,10 @@
                             <button id="otp-csv-btn-rand" style="background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(129, 140, 248, 0.35); color: #818cf8; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; text-align: center; border-style: solid; font-weight: 600;">🎲 Random</button>
                             <button id="otp-csv-btn-next" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; text-align: center; border-style: solid;">Next ▶</button>
                         </div>
+                        <label class="sb-autofill-checkbox-container" style="margin-top: 6px;">
+                            <input type="checkbox" id="otp-csv-auto-random-toggle" class="sb-autofill-checkbox" checked />
+                            <span>🎲 Auto Select Random Account</span>
+                        </label>
                         <div id="otp-csv-editor-container" style="display: none; margin-top: 6px; flex-direction: column; gap: 6px;">
                             <textarea id="otp-csv-textarea" placeholder="username,password,status&#10;user1,pass1,&#10;user2,pass2,Done" style="background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 9px; font-family: monospace; width: 100%; height: 90px; box-sizing: border-box; resize: vertical; padding: 6px; border-radius: 4px;"></textarea>
                             <button id="otp-csv-save-btn" style="background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); border: none; color: #fff; font-size: 10px; padding: 5px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: 600;">Save & Apply</button>
@@ -1279,11 +1283,13 @@
         }
 
         if (accounts.length > 0) {
+          const isAutoRandom = GM_getValue("otp_auto_random_account", true);
           const savedEmail = GM_getValue("otp_csv_selected_email", "");
           let matchIdx = savedEmail ? accounts.findIndex((acc) => acc.email === savedEmail) : -1;
-          if (matchIdx === -1) {
+
+          if (isAutoRandom || matchIdx === -1) {
             matchIdx = getRandomAccountIndex(accounts);
-            console.log(`[OTP Link] Randomly selected account index: ${matchIdx} (${accounts[matchIdx]?.email})`);
+            console.log(`[OTP Link] Automatically selected random account index: ${matchIdx} (${accounts[matchIdx]?.email})`);
           } else {
             console.log(`[OTP Link] Restored active selection index: ${matchIdx} (${savedEmail})`);
           }
@@ -1447,6 +1453,16 @@
           const randIdx = candidateIndices[Math.floor(Math.random() * candidateIndices.length)];
           selectEl.value = randIdx.toString();
           selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+      }
+
+      const autoRandomToggle = shadow.getElementById("otp-csv-auto-random-toggle");
+      if (autoRandomToggle) {
+        const isAutoRandom = GM_getValue("otp_auto_random_account", true);
+        autoRandomToggle.checked = isAutoRandom;
+        autoRandomToggle.addEventListener("change", () => {
+          GM_setValue("otp_auto_random_account", autoRandomToggle.checked);
+          console.log(`[OTP Link] Auto random account selection set to: ${autoRandomToggle.checked}`);
         });
       }
 
