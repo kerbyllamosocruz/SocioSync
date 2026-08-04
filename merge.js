@@ -1594,23 +1594,23 @@
       window.otp_requested_email = null;
 
       try {
-        let usernameInput = document.querySelector('input[name="username"], input[placeholder*="Email"], input[placeholder*="username"], input[placeholder*="phone"], input[type="text"]');
-        let passwordInput = document.querySelector('input[type="password"], input[placeholder*="Password"]');
+        let { usernameInput, passwordInput } = findLoginInputs();
 
-        if (!usernameInput || !passwordInput || usernameInput.offsetWidth === 0) {
+        if (!usernameInput || usernameInput.offsetWidth === 0) {
           console.log("[OTP Link] Waiting for login input fields to appear...");
           const startTime = Date.now();
           while (Date.now() - startTime < 8000) {
             await sleep(400);
-            usernameInput = document.querySelector('input[name="username"], input[placeholder*="Email"], input[placeholder*="username"], input[placeholder*="phone"], input[type="text"]');
-            passwordInput = document.querySelector('input[type="password"], input[placeholder*="Password"]');
-            if (usernameInput && passwordInput && usernameInput.offsetWidth > 0) {
+            const found = findLoginInputs();
+            usernameInput = found.usernameInput;
+            passwordInput = found.passwordInput;
+            if (usernameInput && usernameInput.offsetWidth > 0) {
               break;
             }
           }
         }
 
-        if (!usernameInput || !passwordInput || usernameInput.offsetWidth === 0) {
+        if (!usernameInput || usernameInput.offsetWidth === 0) {
           console.warn("[OTP Link] Username or password input not found on page.");
           setStatus("Input fields not found.", "error");
           return;
@@ -2355,6 +2355,10 @@
         const isTikTok = window.location.hostname.includes("tiktok.com");
 
         if (isTikTok) {
+          const visibleInputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]):not([type="file"])')).filter(el => el.offsetWidth > 0 || el.offsetHeight > 0);
+          if (visibleInputs.length > 0) {
+            return; // Login inputs are present and visible. Do not click navigation flows.
+          }
           const channelItems = Array.from(document.querySelectorAll('div[data-e2e="channel-item"], div[role="link"], p, span, button'));
           let clickedChannel = false;
 
@@ -2460,24 +2464,109 @@
         }
       }
 
+      function findLoginInputs() {
+        const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]):not([type="file"])')).filter((el) => {
+          return el.offsetWidth > 0 || el.offsetHeight > 0 || window.getComputedStyle(el).display !== "none";
+        });
+
+        let usernameInput = inputs.find((i) => {
+          const name = (i.name || "").toLowerCase();
+          const placeholder = (i.placeholder || "").toLowerCase();
+          const autocomplete = (i.autocomplete || "").toLowerCase();
+          const type = (i.type || "").toLowerCase();
+          return name.includes("user") || name.includes("email") || name.includes("phone") || placeholder.includes("email") || placeholder.includes("username") || placeholder.includes("phone") || autocomplete.includes("username") || autocomplete.includes("email") || type === "text" || type === "email";
+        });
+
+        let passwordInput = inputs.find((i) => {
+          const type = (i.type || "").toLowerCase();
+          const name = (i.name || "").toLowerCase();
+          const placeholder = (i.placeholder || "").toLowerCase();
+          const autocomplete = (i.autocomplete || "").toLowerCase();
+          return type === "password" || name.includes("pass") || placeholder.includes("password") || autocomplete.includes("password");
+        });
+
+        if (!usernameInput && inputs.length > 0) {
+          usernameInput = inputs[0];
+        }
+        if (!passwordInput && inputs.length > 1 && inputs[1] !== usernameInput) {
+          passwordInput = inputs[1];
+        }
+
+        return { usernameInput, passwordInput };
+      }
+
+      function getOrParseCsvAccounts() {
+        if (window.otpCsvAccounts && window.otpCsvAccounts.length > 0) {
+          return window.otpCsvAccounts;
+        }
+        const rawText = GM_getValue("otp_csv_raw_text", "");
+        if (!rawText) return [];
+
+        const rows = rawText.split(/\r?\n/);
+        const accounts = [];
+        let emailIndex = 0;
+        let passIndex = 1;
+        let statusIndex = -1;
+
+        if (rows.length > 0) {
+          const firstRow = rows[0].split(",");
+          const eIdx = firstRow.findIndex((h) => h.trim().toLowerCase().includes("email") || h.trim().toLowerCase().includes("user"));
+          const pIdx = firstRow.findIndex((h) => h.trim().toLowerCase().includes("pass"));
+          const sIdx = firstRow.findIndex((h) => h.trim().toLowerCase().includes("status"));
+          if (eIdx !== -1) emailIndex = eIdx;
+          if (pIdx !== -1) passIndex = pIdx;
+          if (sIdx !== -1) statusIndex = sIdx;
+        }
+
+        for (let i = 1; i < rows.length; i++) {
+          const cols = rows[i].split(",");
+          if (cols.length > Math.max(emailIndex, passIndex)) {
+            const email = cols[emailIndex].trim();
+            const pass = cols[passIndex].trim();
+            const status = statusIndex !== -1 && cols[statusIndex] ? cols[statusIndex].trim() : "";
+            const statusLower = status.toLowerCase();
+            if (statusLower === "done" || statusLower === "banned" || statusLower.includes("banned")) continue;
+            if (email && pass) accounts.push({ email, pass });
+          }
+        }
+        window.otpCsvAccounts = accounts;
+        return accounts;
+      }
+
       function autoCheckAndFillLoginFields() {
         if (isAutofilling || hasAutofilledForCurrentSelection) return;
 
         const isTikTok = window.location.hostname.includes("tiktok.com");
         if (!isTikTok) return;
 
-        const savedEmail = GM_getValue("otp_csv_selected_email", "");
-        if (!savedEmail || !window.otpCsvAccounts) return;
+        const accounts = getOrParseCsvAccounts();
+        if (accounts.length === 0) return;
 
-        const usernameInput = document.querySelector('input[name="username"], input[placeholder*="Email"], input[placeholder*="username"], input[placeholder*="phone"], input[type="text"]');
-        const passwordInput = document.querySelector('input[type="password"], input[placeholder*="Password"]');
+        let savedEmail = GM_getValue("otp_csv_selected_email", "");
+        let account = null;
 
-        if (usernameInput && passwordInput && usernameInput.offsetWidth > 0 && usernameInput.value === "") {
-          const account = window.otpCsvAccounts.find((a) => a.email.toLowerCase() === savedEmail.toLowerCase());
-          if (account && account.pass) {
-            console.log(`[OTP Link] Auto-detected empty login input fields for ${account.email}. Triggering credential autofill...`);
-            autofillCredentials(account.email, account.pass);
+        if (savedEmail) {
+          account = accounts.find((a) => a.email.toLowerCase() === savedEmail.toLowerCase());
+        }
+
+        const isAutoRandom = GM_getValue("otp_auto_random_account", true);
+        if (!account && (isAutoRandom || !savedEmail)) {
+          const randIdx = getRandomAccountIndex(accounts);
+          if (randIdx !== -1 && accounts[randIdx]) {
+            account = accounts[randIdx];
+            savedEmail = account.email;
+            GM_setValue("otp_csv_selected_email", savedEmail);
+            console.log(`[OTP Link] Auto-selected random account from CSV: ${savedEmail}`);
           }
+        }
+
+        if (!account || !account.email || !account.pass) return;
+
+        const { usernameInput } = findLoginInputs();
+
+        if (usernameInput && (usernameInput.value === "" || usernameInput.value.toLowerCase() !== account.email.toLowerCase())) {
+          console.log(`[OTP Link] Auto-detected login input fields for ${account.email}. Triggering credential autofill...`);
+          autofillCredentials(account.email, account.pass);
         }
       }
 
