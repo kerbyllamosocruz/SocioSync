@@ -810,6 +810,7 @@
                         </div>
                         <div id="otp-csv-nav-container" style="display: none; gap: 6px; margin-top: 6px;">
                             <button id="otp-csv-btn-prev" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; text-align: center; border-style: solid;">◀ Prev</button>
+                            <button id="otp-csv-btn-rand" style="background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(129, 140, 248, 0.35); color: #818cf8; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; text-align: center; border-style: solid; font-weight: 600;">🎲 Random</button>
                             <button id="otp-csv-btn-next" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; text-align: center; border-style: solid;">Next ▶</button>
                         </div>
                         <div id="otp-csv-editor-container" style="display: none; margin-top: 6px; flex-direction: column; gap: 6px;">
@@ -1249,6 +1250,16 @@
         return accounts;
       }
 
+      function getRandomAccountIndex(accountsList) {
+        if (!accountsList || accountsList.length === 0) return -1;
+        const available = accountsList.map((acc, i) => ({ acc, i })).filter((item) => !item.acc.status || item.acc.status.toLowerCase() !== "done");
+        if (available.length > 0) {
+          const choice = available[Math.floor(Math.random() * available.length)];
+          return choice.i;
+        }
+        return Math.floor(Math.random() * accountsList.length);
+      }
+
       function populateSelect(accounts) {
         window.otpCsvAccounts = accounts;
         selectEl.innerHTML = '<option value="">-- Choose Account --</option>';
@@ -1267,12 +1278,18 @@
           navContainer.style.display = "none";
         }
 
-        const savedEmail = GM_getValue("otp_csv_selected_email", "");
-        if (savedEmail) {
-          const matchIdx = accounts.findIndex((acc) => acc.email === savedEmail);
+        if (accounts.length > 0) {
+          const savedEmail = GM_getValue("otp_csv_selected_email", "");
+          let matchIdx = savedEmail ? accounts.findIndex((acc) => acc.email === savedEmail) : -1;
+          if (matchIdx === -1) {
+            matchIdx = getRandomAccountIndex(accounts);
+            console.log(`[OTP Link] Randomly selected account index: ${matchIdx} (${accounts[matchIdx]?.email})`);
+          } else {
+            console.log(`[OTP Link] Restored active selection index: ${matchIdx} (${savedEmail})`);
+          }
+
           if (matchIdx !== -1) {
             selectEl.value = matchIdx.toString();
-            console.log(`[OTP Link] Restored active selection index: ${matchIdx} (${savedEmail})`);
             selectEl.dispatchEvent(new Event("change", { bubbles: true }));
           }
         }
@@ -1404,6 +1421,34 @@
         selectEl.value = currentIdx.toString();
         selectEl.dispatchEvent(new Event("change", { bubbles: true }));
       });
+
+      const btnRand = shadow.getElementById("otp-csv-btn-rand");
+      if (btnRand) {
+        btnRand.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (!window.otpCsvAccounts || window.otpCsvAccounts.length === 0) return;
+
+          let currentIdx = activeAccountIdx !== -1 ? activeAccountIdx : parseInt(selectEl.value, 10);
+          let candidateIndices = window.otpCsvAccounts.map((_, i) => i);
+          
+          const pendingIndices = candidateIndices.filter((i) => {
+            const acc = window.otpCsvAccounts[i];
+            return !acc.status || acc.status.toLowerCase() !== "done";
+          });
+
+          if (pendingIndices.length > 0) {
+            candidateIndices = pendingIndices;
+          }
+
+          if (candidateIndices.length > 1 && !isNaN(currentIdx)) {
+            candidateIndices = candidateIndices.filter((i) => i !== currentIdx);
+          }
+
+          const randIdx = candidateIndices[Math.floor(Math.random() * candidateIndices.length)];
+          selectEl.value = randIdx.toString();
+          selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+      }
 
       btnNext.addEventListener("click", (e) => {
         e.stopPropagation();
