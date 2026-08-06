@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         SocialBee & TikTok Automation Suite
+// @name         Beetok
 // @namespace    http://tampermonkey.net/
-// @version      4.2
+// @version      4.3
 // @description  All-in-one automation: caption filler, image manager, OTP synchronization, and TikTok captcha solver.
 // @author       Kerby (Discord: buchinyan)
 // @match        https://*.tiktok.com/*
@@ -19,6 +19,8 @@
 // @connect      tiktok.eulerstream.com
 // @connect      www.sadcaptcha.com
 // @connect      sadcaptcha.com
+// @connect      us.tiktok.com
+// @connect      *.tiktok.com
 // @run-at       document-end
 // ==/UserScript==
 
@@ -665,7 +667,7 @@
     panel.id = "sb-suite-panel";
     panel.innerHTML = `
         <div id="sb-suite-header">
-            <div id="sb-suite-title">⚡ Automation Suite v4.2</div>
+            <div id="sb-suite-title">⚡ Automation Suite v4.3</div>
             <button id="sb-suite-toggle-btn" title="Minimize Panel">✕</button>
         </div>
         <div id="sb-suite-tabs">
@@ -697,14 +699,14 @@
                 </div>
 
                 <div class="sb-autofill-field">
-                    <label class="sb-autofill-label">Var 1-3 Images (Base)</label>
+                    <label class="sb-autofill-label">Var 1-3 Media (Base)</label>
                     <div id="sb-dropzone-base" class="sb-autofill-file-dropzone">
-                        <span class="sb-file-dropzone-text">Click or Drop Var 1-3 Image(s)</span>
-                        <input type="file" id="sb-images-base" accept="image/*" multiple style="display: none;">
+                        <span class="sb-file-dropzone-text">Click or Drop Var 1-3 Media (Image/MOV/Video)</span>
+                        <input type="file" id="sb-images-base" accept="image/*,video/*,.mov,.mp4,.webm,.mkv,.avi,.flv,.wmv,.3gp,.heic" multiple style="display: none;">
                     </div>
                     <div id="sb-preview-base" class="sb-file-preview-container" style="display: none;">
                         <div class="sb-file-preview-header">
-                            <span id="sb-count-base" class="sb-file-preview-count">0 images</span>
+                            <span id="sb-count-base" class="sb-file-preview-count">0 files</span>
                             <button id="sb-clear-base" class="sb-file-clear-btn">Clear</button>
                         </div>
                         <div id="sb-list-base" class="sb-file-preview-list"></div>
@@ -712,14 +714,14 @@
                 </div>
 
                 <div class="sb-autofill-field" style="margin-top: 6px;">
-                    <label class="sb-autofill-label">Var 4-6 Images</label>
+                    <label class="sb-autofill-label">Var 4-6 Media</label>
                     <div id="sb-dropzone-var4" class="sb-autofill-file-dropzone">
-                        <span class="sb-file-dropzone-text">Click or Drop Var 4-6 Image(s)</span>
-                        <input type="file" id="sb-images-var4" accept="image/*" multiple style="display: none;">
+                        <span class="sb-file-dropzone-text">Click or Drop Var 4-6 Media (Image/MOV/Video)</span>
+                        <input type="file" id="sb-images-var4" accept="image/*,video/*,.mov,.mp4,.webm,.mkv,.avi,.flv,.wmv,.3gp,.heic" multiple style="display: none;">
                     </div>
                     <div id="sb-preview-var4" class="sb-file-preview-container" style="display: none;">
                         <div class="sb-file-preview-header">
-                            <span id="sb-count-var4" class="sb-file-preview-count">0 images</span>
+                            <span id="sb-count-var4" class="sb-file-preview-count">0 files</span>
                             <button id="sb-clear-var4" class="sb-file-clear-btn">Clear</button>
                         </div>
                         <div id="sb-list-var4" class="sb-file-preview-list"></div>
@@ -2350,7 +2352,28 @@
         }
       }
 
+      function checkCaptchaAndToggleSuite() {
+        const captchaContainer = document.querySelector('#captcha-verify-container-main-page, [id*="captcha-verify-container"], [class*="captcha-verify-container"], #tiktok-verify-ele, .secsdk-captcha-drag-icon');
+        const suitePanel = shadow ? shadow.getElementById("sb-suite-panel") : null;
+        if (!suitePanel) return;
+
+        const isCaptchaActive = !!(captchaContainer && (captchaContainer.offsetWidth > 0 || captchaContainer.offsetHeight > 0) && window.getComputedStyle(captchaContainer).display !== "none" && window.getComputedStyle(captchaContainer).visibility !== "hidden");
+
+        if (isCaptchaActive) {
+          if (suitePanel.style.display !== "none") {
+            console.log("[SocialBee Suite] TikTok CAPTCHA detected active. Hiding automation suite panel.");
+            suitePanel.style.display = "none";
+          }
+        } else {
+          if (suitePanel.style.display === "none") {
+            console.log("[SocialBee Suite] TikTok CAPTCHA no longer active. Restoring automation suite panel.");
+            suitePanel.style.display = "";
+          }
+        }
+      }
+
       function runChecks() {
+        checkCaptchaAndToggleSuite();
         checkForOTPRequirement();
         checkForVerificationOption();
         solveTikTokCaptchaClientSide();
@@ -3021,30 +3044,48 @@
       listEl.innerHTML = "";
       if (!files || files.length === 0) {
         container.style.display = "none";
-        countEl.textContent = "0 images";
+        countEl.textContent = "0 files";
         return;
       }
 
       container.style.display = "flex";
-      countEl.textContent = `${files.length} image${files.length !== 1 ? "s" : ""}`;
+      countEl.textContent = `${files.length} file${files.length !== 1 ? "s" : ""}`;
 
       files.forEach((file) => {
         const item = document.createElement("div");
         item.className = "sb-file-preview-item";
 
-        const img = document.createElement("img");
-        img.src = URL.createObjectURL(file);
-        img.onload = () => URL.revokeObjectURL(img.src);
-        img.title = file.name;
+        const isVideo = file.type.startsWith("video/") || /\.(mov|mp4|webm|mkv|avi|flv|wmv|3gp|m4v)$/i.test(file.name);
+        if (isVideo) {
+          const video = document.createElement("video");
+          video.src = URL.createObjectURL(file);
+          video.muted = true;
+          video.autoplay = false;
+          video.style.width = "100%";
+          video.style.height = "100%";
+          video.style.objectFit = "cover";
+          video.title = file.name;
+          item.appendChild(video);
+        } else {
+          const img = document.createElement("img");
+          img.src = URL.createObjectURL(file);
+          img.onload = () => URL.revokeObjectURL(img.src);
+          img.title = file.name;
+          item.appendChild(img);
+        }
 
-        item.appendChild(img);
         listEl.appendChild(item);
       });
     }
 
+    const isMediaFile = (file) => {
+      if (!file) return false;
+      return file.type.startsWith("image/") || file.type.startsWith("video/") || /\.(png|jpe?g|gif|webp|bmp|heic|mov|mp4|webm|mkv|avi|flv|wmv|3gp|m4v)$/i.test(file.name);
+    };
+
     if (dropzoneBase && inputBase) {
       setupDropzone(dropzoneBase, inputBase, (files) => {
-        baseFiles = Array.from(files).filter((file) => file.type.startsWith("image/"));
+        baseFiles = Array.from(files).filter(isMediaFile);
         renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
         saveFilesToGM("sb_base_files", baseFiles);
       });
@@ -3061,7 +3102,7 @@
 
     if (dropzoneVar4 && inputVar4) {
       setupDropzone(dropzoneVar4, inputVar4, (files) => {
-        var4Files = Array.from(files).filter((file) => file.type.startsWith("image/"));
+        var4Files = Array.from(files).filter(isMediaFile);
         renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
         saveFilesToGM("sb_var4_files", var4Files);
       });
@@ -3074,6 +3115,16 @@
         renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
         GM_setValue("sb_var4_files", "");
       });
+    }
+
+    // Restore saved media files from GM storage on load
+    baseFiles = loadFilesFromGM("sb_base_files");
+    if (baseFiles.length > 0) {
+      renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+    }
+    var4Files = loadFilesFromGM("sb_var4_files");
+    if (var4Files.length > 0) {
+      renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
     }
 
     function setContentEditableText(el, text) {
