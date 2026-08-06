@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Beetok
 // @namespace    http://tampermonkey.net/
-// @version      4.3
+// @version      4.5
 // @description  All-in-one automation: caption filler, image manager, OTP synchronization, and TikTok captcha solver.
 // @author       Kerby (Discord: buchinyan)
 // @match        https://*.tiktok.com/*
@@ -45,46 +45,114 @@
       pos2 = 0,
       pos3 = 0,
       pos4 = 0;
-    dragHeader.onmousedown = dragMouseDown;
+    let isDragging = false;
+    let hasDragged = false;
+    let startX = 0;
+    let startY = 0;
 
-    function dragMouseDown(e) {
-      const targetTag = e.target.tagName;
-      if (targetTag === "BUTTON" || targetTag === "INPUT" || targetTag === "TEXTAREA" || targetTag === "SELECT") {
-        return;
+    function getEventCoords(e) {
+      if (e.touches && e.touches.length > 0) {
+        return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
       }
-      if (element.classList.contains("minimized")) {
-        return;
+      if (e.changedTouches && e.changedTouches.length > 0) {
+        return { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY };
       }
-
-      e = e || window.event;
-      e.preventDefault();
-
-      pos3 = e.clientX;
-      pos4 = e.clientY;
-
-      document.onmouseup = closeDragElement;
-      document.onmousemove = elementDrag;
+      return { clientX: e.clientX, clientY: e.clientY };
     }
 
-    function elementDrag(e) {
-      e = e || window.event;
-      e.preventDefault();
+    function dragStart(e) {
+      const targetTag = (e.target.tagName || "").toUpperCase();
+      if (!element.classList.contains("minimized")) {
+        if (targetTag === "BUTTON" || targetTag === "INPUT" || targetTag === "TEXTAREA" || targetTag === "SELECT") {
+          return;
+        }
+      }
 
-      pos1 = pos3 - e.clientX;
-      pos2 = pos4 - e.clientY;
-      pos3 = e.clientX;
-      pos4 = e.clientY;
+      const coords = getEventCoords(e);
+      pos3 = coords.clientX;
+      pos4 = coords.clientY;
+      startX = coords.clientX;
+      startY = coords.clientY;
+      hasDragged = false;
+      isDragging = true;
 
-      element.style.top = element.offsetTop - pos2 + "px";
-      element.style.left = element.offsetLeft - pos1 + "px";
+      document.addEventListener("mousemove", dragMove, { passive: false });
+      document.addEventListener("mouseup", dragEnd);
+      document.addEventListener("touchmove", dragMove, { passive: false });
+      document.addEventListener("touchend", dragEnd);
+    }
+
+    function dragMove(e) {
+      if (!isDragging) return;
+
+      const coords = getEventCoords(e);
+      const dx = coords.clientX - startX;
+      const dy = coords.clientY - startY;
+
+      if (Math.hypot(dx, dy) > 5) {
+        hasDragged = true;
+      }
+
+      if (!hasDragged) return;
+
+      if (e.cancelable) e.preventDefault();
+
+      pos1 = pos3 - coords.clientX;
+      pos2 = pos4 - coords.clientY;
+      pos3 = coords.clientX;
+      pos4 = coords.clientY;
+
+      let newTop = element.offsetTop - pos2;
+      let newLeft = element.offsetLeft - pos1;
+
+      const maxTop = Math.max(5, window.innerHeight - element.offsetHeight - 5);
+      const maxLeft = Math.max(5, window.innerWidth - element.offsetWidth - 5);
+      newTop = Math.max(5, Math.min(maxTop, newTop));
+      newLeft = Math.max(5, Math.min(maxLeft, newLeft));
+
+      element.style.top = newTop + "px";
+      element.style.left = newLeft + "px";
       element.style.bottom = "auto";
       element.style.right = "auto";
     }
 
-    function closeDragElement() {
-      document.onmouseup = null;
-      document.onmousemove = null;
+    function dragEnd(e) {
+      isDragging = false;
+      document.removeEventListener("mousemove", dragMove);
+      document.removeEventListener("mouseup", dragEnd);
+      document.removeEventListener("touchmove", dragMove);
+      document.removeEventListener("touchend", dragEnd);
     }
+
+    dragHeader.addEventListener("mousedown", dragStart);
+    dragHeader.addEventListener("touchstart", dragStart, { passive: true });
+
+    element.addEventListener("mousedown", (e) => {
+      if (element.classList.contains("minimized")) {
+        dragStart(e);
+      }
+    });
+    element.addEventListener(
+      "touchstart",
+      (e) => {
+        if (element.classList.contains("minimized")) {
+          dragStart(e);
+        }
+      },
+      { passive: true },
+    );
+
+    element.addEventListener(
+      "click",
+      (e) => {
+        if (hasDragged) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+          hasDragged = false;
+        }
+      },
+      true,
+    );
   }
 
   function createUnifiedPanel() {
@@ -107,6 +175,10 @@
             bottom: 24px;
             right: 24px;
             width: 340px;
+            max-width: calc(100vw - 20px);
+            max-height: calc(100vh - 20px);
+            display: flex;
+            flex-direction: column;
             background: rgba(15, 17, 26, 0.85);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
@@ -116,7 +188,7 @@
             color: #f3f4f6;
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
             z-index: 999999999;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), height 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.3s ease;
             overflow: hidden;
             user-select: none;
         }
@@ -125,13 +197,14 @@
             width: 52px;
             height: 52px;
             border-radius: 50%;
-            cursor: pointer;
+            cursor: move;
             display: flex;
             align-items: center;
             justify-content: center;
             background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
             box-shadow: 0 0 20px rgba(99, 102, 241, 0.6);
             border: none;
+            touch-action: none;
         }
 
         #sb-suite-panel.minimized #sb-suite-content,
@@ -220,8 +293,9 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-            max-height: 500px;
+            max-height: calc(100vh - 120px);
             overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         #sb-suite-content::-webkit-scrollbar {
@@ -659,6 +733,36 @@
         .discord-username {
             color: #9ca3af;
             font-weight: 600;
+        }
+
+        @media (max-width: 480px) {
+            #sb-suite-panel:not(.minimized) {
+                width: calc(100vw - 20px) !important;
+                right: 10px !important;
+                left: 10px !important;
+                bottom: 10px !important;
+                max-height: calc(100vh - 20px) !important;
+                border-radius: 12px !important;
+            }
+            #sb-suite-content {
+                padding: 12px !important;
+                gap: 10px !important;
+                max-height: calc(100vh - 110px) !important;
+            }
+            .sb-autofill-actions {
+                flex-wrap: wrap !important;
+                gap: 6px !important;
+            }
+            .sb-btn {
+                padding: 8px 12px !important;
+                font-size: 11px !important;
+            }
+        }
+
+        @media (max-height: 600px) {
+            #sb-suite-content {
+                max-height: calc(100vh - 80px) !important;
+            }
         }
     `;
     suiteShadow.appendChild(style);
@@ -2818,33 +2922,105 @@
     let var4Files = [];
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    function saveFilesToGM(key, fileList) {
-      const promises = Array.from(fileList).map((file) => {
-        return new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            resolve({
-              name: file.name,
-              type: file.type,
-              data: e.target.result,
-            });
-          };
-          reader.readAsDataURL(file);
-        });
-      });
+    const DB_NAME = "SocialBeeMediaDB";
+    const DB_VERSION = 1;
+    const STORE_NAME = "media_files";
 
-      Promise.all(promises).then((dataArray) => {
-        GM_setValue(key, JSON.stringify(dataArray));
-        console.log(`[SocialBee] Saved ${fileList.length} files to GM storage under key "${key}"`);
+    function openMediaDB() {
+      return new Promise((resolve, reject) => {
+        if (!window.indexedDB) {
+          return reject(new Error("IndexedDB not supported"));
+        }
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME);
+          }
+        };
+        request.onsuccess = (e) => resolve(e.target.result);
+        request.onerror = (e) => reject(e.target.error);
       });
     }
 
-    function loadFilesFromGM(key) {
+    async function saveFilesToStorage(key, fileList) {
+      try {
+        const db = await openMediaDB();
+        const filesArray = [];
+        for (let i = 0; i < fileList.length; i++) {
+          const file = fileList[i];
+          filesArray.push({
+            name: file.name,
+            type: file.type,
+            blob: file,
+            lastModified: file.lastModified || Date.now(),
+          });
+        }
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(STORE_NAME, "readwrite");
+          const store = tx.objectStore(STORE_NAME);
+          const req = store.put(filesArray, key);
+          req.onsuccess = () => resolve();
+          req.onerror = (e) => reject(e.target.error);
+        });
+        GM_setValue(key, "");
+        console.log(`[SocialBee] Saved ${fileList.length} files to IndexedDB under key "${key}"`);
+      } catch (err) {
+        console.warn("[SocialBee] IndexedDB save failed, falling back to GM:", err);
+        try {
+          if (!fileList || fileList.length === 0) {
+            GM_setValue(key, "");
+            return;
+          }
+          const promises = Array.from(fileList).map((file) => {
+            return new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                resolve({
+                  name: file.name,
+                  type: file.type,
+                  data: e.target.result,
+                });
+              };
+              reader.readAsDataURL(file);
+            });
+          });
+          const dataArray = await Promise.all(promises);
+          GM_setValue(key, JSON.stringify(dataArray));
+        } catch (e) {
+          console.error("[SocialBee] Error in GM storage fallback:", e);
+        }
+      }
+    }
+
+    async function loadFilesFromStorage(key) {
+      try {
+        const db = await openMediaDB();
+        const records = await new Promise((resolve, reject) => {
+          const tx = db.transaction(STORE_NAME, "readonly");
+          const store = tx.objectStore(STORE_NAME);
+          const req = store.get(key);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = (e) => reject(e.target.error);
+        });
+        if (records && Array.isArray(records) && records.length > 0) {
+          return records
+            .map((item) => {
+              if (item.blob instanceof File) return item.blob;
+              if (item.blob instanceof Blob) return new File([item.blob], item.name, { type: item.type || item.blob.type });
+              return null;
+            })
+            .filter(Boolean);
+        }
+      } catch (err) {
+        console.warn("[SocialBee] IndexedDB load failed, checking GM storage fallback:", err);
+      }
+
       const saved = GM_getValue(key, "");
       if (!saved) return [];
       try {
         const dataArray = JSON.parse(saved);
-        return dataArray.map((item) => {
+        const files = dataArray.map((item) => {
           const arr = item.data.split(",");
           const mime = arr[0].match(/:(.*?);/)[1];
           const bstr = atob(arr[1]);
@@ -2855,10 +3031,24 @@
           }
           return new File([u8arr], item.name, { type: mime });
         });
+        if (files.length > 0) {
+          saveFilesToStorage(key, files).catch(() => {});
+        }
+        return files;
       } catch (e) {
         console.error("[SocialBee] Error loading files from GM storage:", e);
         return [];
       }
+    }
+
+    async function clearFilesFromStorage(key) {
+      try {
+        const db = await openMediaDB();
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        store.delete(key);
+      } catch (e) {}
+      GM_setValue(key, "");
     }
 
     let alertsStyleEl = null;
@@ -3041,7 +3231,17 @@
 
     function renderListPreviews(files, container, countEl, listEl) {
       if (!listEl || !container || !countEl) return;
+
+      if (listEl._activeObjectURLs && Array.isArray(listEl._activeObjectURLs)) {
+        listEl._activeObjectURLs.forEach((url) => {
+          try {
+            URL.revokeObjectURL(url);
+          } catch (e) {}
+        });
+      }
+      listEl._activeObjectURLs = [];
       listEl.innerHTML = "";
+
       if (!files || files.length === 0) {
         container.style.display = "none";
         countEl.textContent = "0 files";
@@ -3056,11 +3256,15 @@
         item.className = "sb-file-preview-item";
 
         const isVideo = file.type.startsWith("video/") || /\.(mov|mp4|webm|mkv|avi|flv|wmv|3gp|m4v)$/i.test(file.name);
+        const objectUrl = URL.createObjectURL(file);
+        listEl._activeObjectURLs.push(objectUrl);
+
         if (isVideo) {
           const video = document.createElement("video");
-          video.src = URL.createObjectURL(file);
+          video.src = objectUrl;
           video.muted = true;
           video.autoplay = false;
+          video.preload = "metadata";
           video.style.width = "100%";
           video.style.height = "100%";
           video.style.objectFit = "cover";
@@ -3068,8 +3272,7 @@
           item.appendChild(video);
         } else {
           const img = document.createElement("img");
-          img.src = URL.createObjectURL(file);
-          img.onload = () => URL.revokeObjectURL(img.src);
+          img.src = objectUrl;
           img.title = file.name;
           item.appendChild(img);
         }
@@ -3087,7 +3290,7 @@
       setupDropzone(dropzoneBase, inputBase, (files) => {
         baseFiles = Array.from(files).filter(isMediaFile);
         renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
-        saveFilesToGM("sb_base_files", baseFiles);
+        saveFilesToStorage("sb_base_files", baseFiles);
       });
     }
 
@@ -3096,7 +3299,7 @@
         baseFiles = [];
         if (inputBase) inputBase.value = "";
         renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
-        GM_setValue("sb_base_files", "");
+        clearFilesFromStorage("sb_base_files");
       });
     }
 
@@ -3104,7 +3307,7 @@
       setupDropzone(dropzoneVar4, inputVar4, (files) => {
         var4Files = Array.from(files).filter(isMediaFile);
         renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
-        saveFilesToGM("sb_var4_files", var4Files);
+        saveFilesToStorage("sb_var4_files", var4Files);
       });
     }
 
@@ -3113,19 +3316,23 @@
         var4Files = [];
         if (inputVar4) inputVar4.value = "";
         renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
-        GM_setValue("sb_var4_files", "");
+        clearFilesFromStorage("sb_var4_files");
       });
     }
 
-    // Restore saved media files from GM storage on load
-    baseFiles = loadFilesFromGM("sb_base_files");
-    if (baseFiles.length > 0) {
-      renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
-    }
-    var4Files = loadFilesFromGM("sb_var4_files");
-    if (var4Files.length > 0) {
-      renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
-    }
+    // Restore saved media files asynchronously from IndexedDB on load
+    (async () => {
+      const storedBase = await loadFilesFromStorage("sb_base_files");
+      if (storedBase.length > 0) {
+        baseFiles = storedBase;
+        renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+      }
+      const storedVar4 = await loadFilesFromStorage("sb_var4_files");
+      if (storedVar4.length > 0) {
+        var4Files = storedVar4;
+        renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+      }
+    })();
 
     function setContentEditableText(el, text) {
       el.focus();
@@ -3862,7 +4069,7 @@
             const file = new File([blob], serverName, { type: blob.type });
             baseFiles.push(file);
           }
-          saveFilesToGM("sb_base_files", baseFiles);
+          await saveFilesToStorage("sb_base_files", baseFiles);
         }
 
         if (list.var_4_6 && list.var_4_6.length > 0) {
@@ -3872,7 +4079,7 @@
             const file = new File([blob], serverName, { type: blob.type });
             var4Files.push(file);
           }
-          saveFilesToGM("sb_var4_files", var4Files);
+          await saveFilesToStorage("sb_var4_files", var4Files);
         }
 
         renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
@@ -3885,17 +4092,21 @@
       }
     }
 
-    const storedBase = loadFilesFromGM("sb_base_files");
-    const storedVar4 = loadFilesFromGM("sb_var4_files");
-    if (storedBase.length > 0 || storedVar4.length > 0) {
-      baseFiles = storedBase;
-      var4Files = storedVar4;
-      renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
-      renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
-      setStatus("Restored saved images from local storage.", "success");
-    } else {
-      loadImagesFromServer();
-    }
+    (async () => {
+      if (baseFiles.length === 0 && var4Files.length === 0) {
+        const storedBase = await loadFilesFromStorage("sb_base_files");
+        const storedVar4 = await loadFilesFromStorage("sb_var4_files");
+        if (storedBase.length > 0 || storedVar4.length > 0) {
+          baseFiles = storedBase;
+          var4Files = storedVar4;
+          renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+          renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+          setStatus("Restored saved images from local storage.", "success");
+        } else {
+          loadImagesFromServer();
+        }
+      }
+    })();
 
     async function shareVariationsAutomation() {
       isRunning = true;
@@ -4041,15 +4252,17 @@
 
     const suitePanel = shadow.getElementById("sb-suite-panel");
     if (suitePanel) {
-      suitePanel.addEventListener("click", (e) => {
+      suitePanel.addEventListener("click", async (e) => {
         if (suitePanel.classList.contains("minimized")) {
-          const storedBase = loadFilesFromGM("sb_base_files");
-          const storedVar4 = loadFilesFromGM("sb_var4_files");
-          if (storedBase.length > 0 || storedVar4.length > 0) {
-            baseFiles = storedBase;
-            var4Files = storedVar4;
-            renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
-            renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+          if (baseFiles.length === 0 && var4Files.length === 0) {
+            const storedBase = await loadFilesFromStorage("sb_base_files");
+            const storedVar4 = await loadFilesFromStorage("sb_var4_files");
+            if (storedBase.length > 0 || storedVar4.length > 0) {
+              baseFiles = storedBase;
+              var4Files = storedVar4;
+              renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+              renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+            }
           }
         }
       });
