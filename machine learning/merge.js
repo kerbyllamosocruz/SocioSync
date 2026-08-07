@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         SocialBee & TikTok Automation Suite
+// @name         Beetok
 // @namespace    http://tampermonkey.net/
-// @version      4.2
+// @version      4.3
 // @description  All-in-one automation: caption filler, image manager, OTP synchronization, and TikTok captcha solver.
 // @author       Kerby (Discord: buchinyan)
 // @match        https://*.tiktok.com/*
@@ -19,6 +19,8 @@
 // @connect      tiktok.eulerstream.com
 // @connect      www.sadcaptcha.com
 // @connect      sadcaptcha.com
+// @connect      us.tiktok.com
+// @connect      *.tiktok.com
 // @run-at       document-end
 // ==/UserScript==
 
@@ -91,7 +93,21 @@
 
     const container = document.createElement("div");
     container.id = "sb-suite-root";
-    document.body.appendChild(container);
+
+    function mountRoot() {
+      if (document.body && !document.getElementById("sb-suite-root")) {
+        document.body.appendChild(container);
+      }
+    }
+
+    mountRoot();
+    if (!document.body) {
+      window.addEventListener("DOMContentLoaded", mountRoot);
+      window.addEventListener("load", mountRoot);
+    }
+
+    // Persistent Guard: Ensure panel remains attached if React/SPA hydration wipes it on refresh
+    setInterval(mountRoot, 1000);
 
     suiteShadow = container.attachShadow({ mode: "open" });
     const shadow = suiteShadow;
@@ -665,7 +681,7 @@
     panel.id = "sb-suite-panel";
     panel.innerHTML = `
         <div id="sb-suite-header">
-            <div id="sb-suite-title">⚡ Automation Suite v4.2</div>
+            <div id="sb-suite-title">⚡ Automation Suite v4.3</div>
             <button id="sb-suite-toggle-btn" title="Minimize Panel">✕</button>
         </div>
         <div id="sb-suite-tabs">
@@ -697,14 +713,14 @@
                 </div>
 
                 <div class="sb-autofill-field">
-                    <label class="sb-autofill-label">Var 1-3 Images (Base)</label>
+                    <label class="sb-autofill-label">Var 1-3 Media (Base)</label>
                     <div id="sb-dropzone-base" class="sb-autofill-file-dropzone">
-                        <span class="sb-file-dropzone-text">Click or Drop Var 1-3 Image(s)</span>
-                        <input type="file" id="sb-images-base" accept="image/*" multiple style="display: none;">
+                        <span class="sb-file-dropzone-text">Click or Drop Var 1-3 Media (Image/MOV/Video)</span>
+                        <input type="file" id="sb-images-base" accept="image/*,video/*,.mov,.mp4,.webm,.mkv,.avi,.flv,.wmv,.3gp,.heic" multiple style="display: none;">
                     </div>
                     <div id="sb-preview-base" class="sb-file-preview-container" style="display: none;">
                         <div class="sb-file-preview-header">
-                            <span id="sb-count-base" class="sb-file-preview-count">0 images</span>
+                            <span id="sb-count-base" class="sb-file-preview-count">0 files</span>
                             <button id="sb-clear-base" class="sb-file-clear-btn">Clear</button>
                         </div>
                         <div id="sb-list-base" class="sb-file-preview-list"></div>
@@ -712,14 +728,14 @@
                 </div>
 
                 <div class="sb-autofill-field" style="margin-top: 6px;">
-                    <label class="sb-autofill-label">Var 4-6 Images</label>
+                    <label class="sb-autofill-label">Var 4-6 Media</label>
                     <div id="sb-dropzone-var4" class="sb-autofill-file-dropzone">
-                        <span class="sb-file-dropzone-text">Click or Drop Var 4-6 Image(s)</span>
-                        <input type="file" id="sb-images-var4" accept="image/*" multiple style="display: none;">
+                        <span class="sb-file-dropzone-text">Click or Drop Var 4-6 Media (Image/MOV/Video)</span>
+                        <input type="file" id="sb-images-var4" accept="image/*,video/*,.mov,.mp4,.webm,.mkv,.avi,.flv,.wmv,.3gp,.heic" multiple style="display: none;">
                     </div>
                     <div id="sb-preview-var4" class="sb-file-preview-container" style="display: none;">
                         <div class="sb-file-preview-header">
-                            <span id="sb-count-var4" class="sb-file-preview-count">0 images</span>
+                            <span id="sb-count-var4" class="sb-file-preview-count">0 files</span>
                             <button id="sb-clear-var4" class="sb-file-clear-btn">Clear</button>
                         </div>
                         <div id="sb-list-var4" class="sb-file-preview-list"></div>
@@ -818,8 +834,23 @@
                         </div>
                     </div>
                     <div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-                        <div style="font-size: 8px; text-transform: uppercase; color: #9ca3af; font-weight: 600; margin-bottom: 4px; letter-spacing: 0.05em; text-align: left;">Captcha API Key (SadCaptcha)</div>
-                        <input type="password" id="otp-captcha-key" placeholder="Enter API Key (auto-saved)" style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; width: 100%; box-sizing: border-box;" />
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <div style="font-size: 8px; text-transform: uppercase; color: #9ca3af; font-weight: 600; letter-spacing: 0.05em; text-align: left;">Captcha Provider</div>
+                            <select id="otp-captcha-provider" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.12); color: #818cf8; font-size: 9px; padding: 2px 4px; border-radius: 4px; font-weight: 600;">
+                                <option value="sadcaptcha">SadCaptcha (Default)</option>
+                                <option value="eulerstream">Eulerstream</option>
+                                <option value="local">Local Python Server (Free)</option>
+                                <option value="auto">Auto (SadCaptcha ➔ Eulerstream)</option>
+                            </select>
+                        </div>
+                        <div id="container-sadcaptcha-key" style="margin-top: 4px;">
+                            <div style="font-size: 7.5px; color: #9ca3af; margin-bottom: 2px; text-align: left;">SadCaptcha Key:</div>
+                            <input type="password" id="otp-sadcaptcha-key" placeholder="SadCaptcha License Key" style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 9.5px; padding: 3px 6px; border-radius: 4px; width: 100%; box-sizing: border-box;" />
+                        </div>
+                        <div id="container-eulerstream-key" style="margin-top: 4px;">
+                            <div style="font-size: 7.5px; color: #9ca3af; margin-bottom: 2px; text-align: left;">Eulerstream Key:</div>
+                            <input type="password" id="otp-eulerstream-key" placeholder="Eulerstream Key (or leave blank)" style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 9.5px; padding: 3px 6px; border-radius: 4px; width: 100%; box-sizing: border-box;" />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1423,17 +1454,59 @@
         },
       });
 
-      const captchaKeyInput = shadow.getElementById("otp-captcha-key");
-      let savedKey = GM_getValue("captcha_api_key", "");
-      if (!savedKey) {
-        savedKey = "b94b520aa4bb49b24e33996888c5be7e";
-        GM_setValue("captcha_api_key", savedKey);
-      }
-      captchaKeyInput.value = savedKey;
+      const sadcaptchaKeyInput = shadow.getElementById("otp-sadcaptcha-key");
+      const eulerstreamKeyInput = shadow.getElementById("otp-eulerstream-key");
+      const sadcaptchaContainer = shadow.getElementById("container-sadcaptcha-key");
+      const eulerstreamContainer = shadow.getElementById("container-eulerstream-key");
 
-      captchaKeyInput.addEventListener("input", () => {
-        GM_setValue("captcha_api_key", captchaKeyInput.value.trim());
-      });
+      let savedSadKey = GM_getValue("sadcaptcha_api_key", GM_getValue("captcha_api_key", "b94b520aa4bb49b24e33996888c5be7e"));
+      let savedEulerKey = GM_getValue("eulerstream_api_key", "");
+
+      if (sadcaptchaKeyInput) {
+        sadcaptchaKeyInput.value = savedSadKey;
+        sadcaptchaKeyInput.addEventListener("input", () => {
+          const val = sadcaptchaKeyInput.value.trim();
+          GM_setValue("sadcaptcha_api_key", val);
+          GM_setValue("captcha_api_key", val);
+        });
+      }
+
+      if (eulerstreamKeyInput) {
+        eulerstreamKeyInput.value = savedEulerKey;
+        eulerstreamKeyInput.addEventListener("input", () => {
+          GM_setValue("eulerstream_api_key", eulerstreamKeyInput.value.trim());
+        });
+      }
+
+      const captchaProviderSelect = shadow.getElementById("otp-captcha-provider");
+      if (captchaProviderSelect) {
+        const updateKeyInputUI = (providerVal) => {
+          if (providerVal === "sadcaptcha") {
+            if (sadcaptchaContainer) sadcaptchaContainer.style.display = "block";
+            if (eulerstreamContainer) eulerstreamContainer.style.display = "none";
+          } else if (providerVal === "eulerstream") {
+            if (sadcaptchaContainer) sadcaptchaContainer.style.display = "none";
+            if (eulerstreamContainer) eulerstreamContainer.style.display = "block";
+          } else if (providerVal === "local") {
+            if (sadcaptchaContainer) sadcaptchaContainer.style.display = "none";
+            if (eulerstreamContainer) eulerstreamContainer.style.display = "none";
+          } else { // auto
+            if (sadcaptchaContainer) sadcaptchaContainer.style.display = "block";
+            if (eulerstreamContainer) eulerstreamContainer.style.display = "block";
+          }
+        };
+
+        const currentProvider = GM_getValue("captcha_provider", "sadcaptcha");
+        captchaProviderSelect.value = currentProvider;
+        updateKeyInputUI(currentProvider);
+
+        captchaProviderSelect.addEventListener("change", (e) => {
+          const val = e.target.value;
+          GM_setValue("captcha_provider", val);
+          updateKeyInputUI(val);
+          console.log("[OTP Link] CAPTCHA provider changed to:", val);
+        });
+      }
 
       if (!savedKey) {
         GM_xmlhttpRequest({
@@ -2069,6 +2142,71 @@
 
       let isSolvingCaptcha = false;
 
+      function attachHumanSolveTelemetry(captchaContainer, cleanBg, cleanSlide) {
+        if (!captchaContainer || captchaContainer.hasAttribute("data-telemetry-attached")) return;
+        captchaContainer.setAttribute("data-telemetry-attached", "true");
+
+        let isUserDragging = false;
+
+        function getDragPx() {
+          const handles = captchaContainer.querySelectorAll('.secsdk-captcha-drag-icon, [class*="secsdk-captcha-drag-icon"], [id*="slide_button"], button, [draggable="true"]');
+          for (const handle of handles) {
+            let curr = handle;
+            for (let depth = 0; depth < 4 && curr; depth++) {
+              const transform = curr.style ? (curr.style.transform || curr.style.webkitTransform || '') : '';
+              const match = transform.match(/translateX\(([\d.]+)px\)/);
+              if (match) {
+                return parseFloat(match[1]);
+              }
+              curr = curr.parentElement;
+            }
+          }
+          return 0;
+        }
+
+        function onDragStart() {
+          isUserDragging = true;
+        }
+
+        function onDragEnd() {
+          if (!isUserDragging) return;
+          isUserDragging = false;
+
+          setTimeout(() => {
+            const dragPx = getDragPx();
+            const trackBar = captchaContainer.querySelector('.captcha_verify_slide--slidebar, [class*="slide--bar"], [class*="slidebar"]') || captchaContainer.querySelector('.cap-rounded-full');
+            const dragHandle = captchaContainer.querySelector('.secsdk-captcha-drag-icon, [id*="slide_button"]');
+
+            const trackWidth = trackBar ? trackBar.clientWidth : 212;
+            const handleWidth = dragHandle ? dragHandle.offsetWidth : 44;
+            const effectiveTrackWidth = Math.max(trackWidth - handleWidth, 160);
+
+            if (dragPx > 5) {
+              const humanAngle = Math.min((dragPx / effectiveTrackWidth) * 360, 360);
+
+              GM_xmlhttpRequest({
+                method: "POST",
+                url: "http://127.0.0.1:4782/api/save_human_solve",
+                headers: { "Content-Type": "application/json" },
+                data: JSON.stringify({
+                  outerImageB64: cleanBg,
+                  innerImageB64: cleanSlide,
+                  true_angle: humanAngle
+                }),
+                onload: function(res) {
+                  console.log("[Human Telemetry] Successfully captured human solve! Angle: " + humanAngle.toFixed(1) + "°");
+                }
+              });
+            }
+          }, 400);
+        }
+
+        captchaContainer.addEventListener("mousedown", onDragStart, true);
+        captchaContainer.addEventListener("touchstart", onDragStart, true);
+        window.addEventListener("mouseup", onDragEnd, true);
+        window.addEventListener("touchend", onDragEnd, true);
+      }
+
       async function solveTikTokCaptchaClientSide() {
         if (isSolvingCaptcha) return;
 
@@ -2087,17 +2225,12 @@
             return;
           }
 
-          let slideImg = null;
-          let bgImg = null;
+          let bgImg = captchaContainer.querySelector('[data-testid="whirl-outer-img"], .captcha-verify-container > div > div > div > img:first-child, #captcha-verify-image') || images[0];
+          let slideImg = captchaContainer.querySelector('[data-testid="whirl-inner-img"], img.cap-absolute, .captcha-verify-container > div > div > div > img.cap-absolute, img.captcha_verify_img_slide') || (images.length > 1 ? images[1] : null);
 
-          for (const img of images) {
-            const style = window.getComputedStyle(img);
-            const isAbsolute = img.classList.contains("cap-absolute") || style.position === "absolute" || img.className.includes("slide");
-            if (isAbsolute) {
-              slideImg = img;
-            } else {
-              bgImg = img;
-            }
+          if (!slideImg || !bgImg) {
+            bgImg = images[0];
+            slideImg = images.length > 1 ? images[1] : null;
           }
 
           if (!slideImg || !bgImg) {
@@ -2125,117 +2258,292 @@
           const cleanBg = bgSrc.replace(/^data:image\/[a-z]+;base64,/, "");
           const cleanSlide = slideSrc.replace(/^data:image\/[a-z]+;base64,/, "");
 
-          let apiKey = GM_getValue("captcha_api_key", "b94b520aa4bb49b24e33996888c5be7e");
+          // Attach passive telemetry to auto-capture human solves if a human solves manually
+          attachHumanSolveTelemetry(captchaContainer, cleanBg, cleanSlide);
 
+          let sadKey = GM_getValue("sadcaptcha_api_key", GM_getValue("captcha_api_key", "b94b520aa4bb49b24e33996888c5be7e"));
+          let eulerKey = GM_getValue("eulerstream_api_key", "");
+
+          const isPuzzleCaptcha = captchaContainer.querySelector('#captcha-verify-image, img.captcha_verify_img_slide') !== null;
           const containerText = (captchaContainer.textContent || "").toLowerCase();
-          const isRotateCaptcha = containerText.includes("rotate") || containerText.includes("spin") || containerText.includes("right side up") || containerText.includes("orientation") || captchaContainer.querySelector('[class*="rotate"], [class*="whirl"], [class*="circle"]') !== null;
+          const isRotateCaptcha = !isPuzzleCaptcha || captchaContainer.querySelector('[data-testid*="whirl"], img.cap-absolute, img[class*="whirl"]') !== null ||
+            (slideImg && (
+              (slideImg.className || "").includes("whirl") ||
+              (slideImg.className || "").includes("cap-absolute") ||
+              (slideImg.className || "").includes("rounded") ||
+              (slideImg.className || "").includes("circle") ||
+              window.getComputedStyle(slideImg).borderRadius === "50%" ||
+              window.getComputedStyle(slideImg).borderRadius === "9999px"
+            )) ||
+            containerText.includes("rotate") || containerText.includes("spin") || containerText.includes("right side up") || containerText.includes("orientation");
 
           let dragDistance = 0;
-          const clientWidth = bgImg.clientWidth || bgImg.offsetWidth || 340;
+          const trackElem = captchaContainer.querySelector('.captcha_verify_slide--slidebar, [class*="captcha_verify_slide--bar"], [class*="secsdk_captcha_slider_bar"], [class*="drag-bar"], [class*="slider-bar"]') || dragHandle.parentElement;
+          const trackBarWidth = trackElem ? (trackElem.clientWidth || trackElem.offsetWidth) : 0;
+          const containerWidth = (trackBarWidth > 100 && trackBarWidth < 300) ? trackBarWidth : 212;
+          const handleWidth = dragHandle.offsetWidth || 44;
+          const effectiveTrackWidth = Math.max(containerWidth - handleWidth, 160);
+
+          const provider = GM_getValue("captcha_provider", "sadcaptcha");
+
+          async function solveRotate(apiProvider) {
+            let url = `https://www.sadcaptcha.com/api/v1/rotate?licenseKey=${encodeURIComponent(sadKey)}`;
+            const headers = { "Content-Type": "application/json" };
+            if (apiProvider === "local") {
+              url = "http://127.0.0.1:4782/captcha/rotate";
+            } else if (apiProvider === "eulerstream") {
+              url = `https://tiktok.eulerstream.com/tiktok/captchas/whirl?apiKey=${encodeURIComponent(eulerKey || "free")}`;
+              if (eulerKey) headers["x-api-key"] = eulerKey;
+            }
+
+            console.log(`[OTP Link] Requesting Rotate solution from ${apiProvider.toUpperCase()}...`);
+            setStatus(`Solving Rotate CAPTCHA (${apiProvider})...`, "running");
+
+            const res = await new Promise((resolve, reject) => {
+              GM_xmlhttpRequest({
+                method: "POST",
+                url: url,
+                headers: headers,
+                data: JSON.stringify({ outerImage: cleanBg, innerImage: cleanSlide, outerImageB64: cleanBg, innerImageB64: cleanSlide, outer_b64: cleanBg, inner_b64: cleanSlide }),
+                responseType: "json",
+                onload: (r) => resolve(r.response),
+                onerror: (e) => reject(e),
+              });
+            });
+
+            let angle = res && (res.angle !== undefined ? res.angle : (res.rotation !== undefined ? res.rotation : res.rotate_angle));
+            if (angle === undefined && res && (res.slideXProportion !== undefined || res.slide_x_proportion !== undefined || res.x !== undefined)) {
+              const prop = res.slideXProportion !== undefined ? res.slideXProportion : (res.slide_x_proportion !== undefined ? res.slide_x_proportion : res.x);
+              angle = prop <= 1 ? prop * 360 : prop;
+            }
+            if (angle === undefined) {
+              throw new Error(`${apiProvider} response did not contain angle: ` + JSON.stringify(res));
+            }
+            return angle;
+          }
+
+          async function solvePuzzle(apiProvider) {
+            let url = `https://www.sadcaptcha.com/api/v1/puzzle?licenseKey=${encodeURIComponent(sadKey)}`;
+            const headers = { "Content-Type": "application/json" };
+            if (apiProvider === "local") {
+              url = "http://127.0.0.1:4782/captcha/puzzle";
+            } else if (apiProvider === "eulerstream") {
+              url = `https://tiktok.eulerstream.com/captcha/puzzle?apiKey=${encodeURIComponent(eulerKey || "free")}`;
+              if (eulerKey) headers["x-api-key"] = eulerKey;
+            }
+
+            console.log(`[OTP Link] Requesting Puzzle solution from ${apiProvider.toUpperCase()}...`);
+            setStatus(`Solving Puzzle CAPTCHA (${apiProvider})...`, "running");
+
+            const res = await new Promise((resolve, reject) => {
+              GM_xmlhttpRequest({
+                method: "POST",
+                url: url,
+                headers: headers,
+                data: JSON.stringify({ puzzleImageB64: cleanBg, pieceImageB64: cleanSlide, puzzle_b64: cleanBg, piece_b64: cleanSlide }),
+                responseType: "json",
+                onload: (r) => resolve(r.response),
+                onerror: (e) => reject(e),
+              });
+            });
+
+            let prop = res && (res.slideXProportion !== undefined ? res.slideXProportion : (res.slide_x_proportion !== undefined ? res.slide_x_proportion : (res.proportion !== undefined ? res.proportion : res.x)));
+            if (prop === undefined && res && res.angle !== undefined) {
+              prop = res.angle / 360;
+            }
+            if (prop === undefined) {
+              throw new Error(`${apiProvider} response did not contain proportion: ` + JSON.stringify(res));
+            }
+            if (prop > 1) prop = prop / containerWidth;
+            if (prop > 1) prop = 1.0;
+            return Math.max(0, Math.min(1.0, prop));
+          }
 
           if (isRotateCaptcha) {
-            console.log("[OTP Link] Detected Rotate CAPTCHA. Requesting solution from SadCaptcha...");
-            setStatus("Solving Rotate CAPTCHA...", "running");
-
-            const rotateRes = await new Promise((resolve, reject) => {
-              GM_xmlhttpRequest({
-                method: "POST",
-                url: `https://www.sadcaptcha.com/api/v1/rotate?licenseKey=${encodeURIComponent(apiKey)}`,
-                headers: { "Content-Type": "application/json" },
-                data: JSON.stringify({
-                  outerImageB64: cleanBg,
-                  innerImageB64: cleanSlide,
-                }),
-                responseType: "json",
-                onload: (res) => resolve(res.response),
-                onerror: (err) => reject(err),
-              });
-            });
-
-            const angle = rotateRes && (rotateRes.angle !== undefined ? rotateRes.angle : rotateRes.rotation);
-            if (angle === undefined) {
-              throw new Error("SadCaptcha rotate response did not contain angle: " + JSON.stringify(rotateRes));
+            let angle;
+            try {
+              angle = await solveRotate(provider === "auto" ? "sadcaptcha" : provider);
+            } catch (primaryErr) {
+              if (provider === "auto" || provider === "sadcaptcha") {
+                console.warn("[OTP Link] Primary solver failed, attempting Eulerstream fallback...", primaryErr);
+                angle = await solveRotate("eulerstream");
+              } else {
+                throw primaryErr;
+              }
             }
-
-            console.log("[OTP Link] Solved Rotate CAPTCHA! Calculated Angle: " + angle);
-            setStatus(`Rotate CAPTCHA Solved (${angle}°)! Simulating drag...`, "success");
-
-            const trackWidth = (dragHandle.parentElement?.clientWidth || clientWidth) - (dragHandle.offsetWidth || 40);
-            dragDistance = Math.round((trackWidth * angle) / 360);
+            dragDistance = Math.round((effectiveTrackWidth * angle) / 360);
+            dragDistance = Math.max(0, Math.min(dragDistance, effectiveTrackWidth));
+            console.log(`[OTP Link] Solved Rotate CAPTCHA! Calculated Angle: ${angle}°, Drag Distance: ${dragDistance}px`);
+            setStatus(`Rotate CAPTCHA Solved (${angle}°)! Dragging ${dragDistance}px...`, "success");
           } else {
-            console.log("[OTP Link] Requesting puzzle solution from SadCaptcha...");
-            const solveRes = await new Promise((resolve, reject) => {
-              GM_xmlhttpRequest({
-                method: "POST",
-                url: `https://www.sadcaptcha.com/api/v1/puzzle?licenseKey=${encodeURIComponent(apiKey)}`,
-                headers: { "Content-Type": "application/json" },
-                data: JSON.stringify({
-                  puzzleImageB64: cleanBg,
-                  pieceImageB64: cleanSlide,
-                }),
-                responseType: "json",
-                onload: (res) => resolve(res.response),
-                onerror: (err) => reject(err),
-              });
-            });
-
-            let slideXProportion = solveRes && (solveRes.slideXProportion !== undefined ? solveRes.slideXProportion : solveRes.slide_x_proportion);
-
-            if (slideXProportion === undefined && solveRes && solveRes.angle !== undefined) {
-              const angle = solveRes.angle;
-              const trackWidth = (dragHandle.parentElement?.clientWidth || clientWidth) - (dragHandle.offsetWidth || 40);
-              dragDistance = Math.round((trackWidth * angle) / 360);
-            } else if (slideXProportion === undefined) {
-              throw new Error("SadCaptcha response did not contain slideXProportion: " + JSON.stringify(solveRes));
-            } else {
-              dragDistance = Math.round(slideXProportion * clientWidth);
+            let prop;
+            try {
+              prop = await solvePuzzle(provider === "auto" ? "sadcaptcha" : provider);
+            } catch (primaryErr) {
+              if (provider === "auto" || provider === "sadcaptcha") {
+                console.warn("[OTP Link] Primary solver failed, attempting Eulerstream fallback...", primaryErr);
+                prop = await solvePuzzle("eulerstream");
+              } else {
+                throw primaryErr;
+              }
             }
-
-            console.log("[OTP Link] Solved Puzzle CAPTCHA! Target drag distance: " + dragDistance);
-            setStatus("Puzzle CAPTCHA Solved! Simulating drag...", "success");
+            dragDistance = Math.round(prop * effectiveTrackWidth);
+            dragDistance = Math.max(0, Math.min(dragDistance, effectiveTrackWidth));
+            console.log(`[OTP Link] Solved Puzzle CAPTCHA! Target drag distance: ${dragDistance}px`);
+            setStatus(`Puzzle CAPTCHA Solved! Dragging ${dragDistance}px...`, "success");
           }
 
-          const rect = dragHandle.getBoundingClientRect();
-          const startX = rect.left + rect.width / 2 + window.scrollX;
-          const startY = rect.top + rect.height / 2 + window.scrollY;
+          const handle = dragHandle.closest('div[draggable="true"]') || dragHandle;
+          const box = handle.getBoundingClientRect();
+          const startX = box.x + box.width / 2 + window.scrollX;
+          const startY = box.y + box.height / 2 + window.scrollY;
+          const endX = startX + dragDistance;
 
-          function fireMouseEvent(type, x, y) {
-            const evt = new MouseEvent(type, {
-              bubbles: true,
+          console.log(`[OTP Link] Dragging handle via SadCaptcha DragEvent algorithm across ${dragDistance}px...`);
+
+          try {
+            handle.dispatchEvent(new PointerEvent("mousedown", {
+              pointerType: "mouse",
+              width: 1,
+              height: 1,
               cancelable: true,
+              bubbles: true,
               view: window,
-              clientX: x,
-              clientY: y,
-              screenX: x,
-              screenY: y,
-            });
-            dragHandle.dispatchEvent(evt);
-            document.dispatchEvent(evt);
-          }
+              clientX: startX,
+              clientY: startY
+            }));
+          } catch (e) {}
 
-          fireMouseEvent("mousedown", startX, startY);
-          await sleep(100);
+          try {
+            handle.dispatchEvent(new MouseEvent("mousedown", {
+              cancelable: true,
+              bubbles: true,
+              view: window,
+              clientX: startX,
+              clientY: startY
+            }));
+          } catch (e) {}
 
-          const steps = 15;
+          try {
+            handle.dispatchEvent(new DragEvent("dragstart", {
+              cancelable: true,
+              bubbles: true,
+              view: window,
+              clientX: startX,
+              clientY: startY
+            }));
+          } catch (e) {}
+
+          await sleep(150);
+
+          const steps = 30;
           for (let i = 1; i <= steps; i++) {
             const progress = i / steps;
-            const easeProgress = progress * (2 - progress);
+            const easeProgress = progress < 0.5 ? 2 * progress * progress : -1 + (4 - 2 * progress) * progress;
             const currentX = startX + dragDistance * easeProgress;
-            const currentY = startY + (Math.random() * 4 - 2);
-            fireMouseEvent("mousemove", currentX, currentY);
-            await sleep(20 + Math.random() * 15);
+            const currentY = startY + (Math.random() * 1.2 - 0.6);
+
+            try {
+              captchaContainer.dispatchEvent(new MouseEvent("mousemove", {
+                bubbles: true,
+                cancelable: true,
+                view: window,
+                clientX: currentX,
+                clientY: currentY
+              }));
+            } catch (e) {}
+
+            try {
+              handle.dispatchEvent(new DragEvent("drag", {
+                cancelable: true,
+                bubbles: true,
+                view: window,
+                clientX: currentX,
+                clientY: currentY
+              }));
+            } catch (e) {}
+
+            const currentOffset = currentX - startX;
+            if (handle && currentOffset >= 0) {
+              try {
+                handle.style.transform = `translateX(${currentOffset}px)`;
+                const btnChild = handle.querySelector('#captcha_slide_button, .secsdk-captcha-drag-icon');
+                if (btnChild) {
+                  btnChild.style.transform = `translateX(${currentOffset}px)`;
+                }
+
+                if (slideImg && !isRotateCaptcha) {
+                  slideImg.style.transform = `translateX(${currentOffset}px)`;
+                  if (slideImg.parentElement && slideImg.parentElement !== captchaContainer && (slideImg.parentElement.className || "").includes("cap-")) {
+                    slideImg.parentElement.style.transform = `translateX(${currentOffset}px)`;
+                  }
+                } else if (slideImg && isRotateCaptcha) {
+                  const currentAngle = (currentOffset / effectiveTrackWidth) * 360;
+                  slideImg.style.transform = `rotate(${currentAngle}deg)`;
+                  if (slideImg.parentElement && slideImg.parentElement !== captchaContainer && (slideImg.parentElement.className || "").includes("cap-")) {
+                    slideImg.parentElement.style.transform = `rotate(${currentAngle}deg)`;
+                  }
+                }
+              } catch (e) {}
+            }
+
+            await sleep(15 + Math.floor(Math.random() * 15));
           }
 
           await sleep(150);
-          const endX = startX + dragDistance;
-          fireMouseEvent("mouseup", endX, startY);
 
-          console.log("[OTP Link] Drag simulated successfully.");
+          try {
+            handle.style.transform = `translateX(${dragDistance}px)`;
+            const btnChild = handle.querySelector('#captcha_slide_button, .secsdk-captcha-drag-icon');
+            if (btnChild) btnChild.style.transform = `translateX(${dragDistance}px)`;
+            if (slideImg && !isRotateCaptcha) {
+              slideImg.style.transform = `translateX(${dragDistance}px)`;
+            } else if (slideImg && isRotateCaptcha) {
+              const finalAngle = (dragDistance / effectiveTrackWidth) * 360;
+              slideImg.style.transform = `rotate(${finalAngle}deg)`;
+              if (slideImg.parentElement && slideImg.parentElement !== captchaContainer) {
+                slideImg.parentElement.style.transform = `rotate(${finalAngle}deg)`;
+              }
+            }
+          } catch (e) {}
+
+          const releaseOpts = {
+            bubbles: true,
+            cancelable: true,
+            view: window,
+            clientX: endX,
+            clientY: startY,
+            button: 0,
+            buttons: 0,
+            pointerId: 1,
+            pointerType: "mouse",
+            isPrimary: true
+          };
+
+          const releaseTargets = [handle, handle.querySelector('#captcha_slide_button, .secsdk-captcha-drag-icon'), captchaContainer, document, window].filter(Boolean);
+
+          for (const target of releaseTargets) {
+            try { target.dispatchEvent(new PointerEvent("pointerup", releaseOpts)); } catch (e) {}
+            try { target.dispatchEvent(new MouseEvent("mouseup", releaseOpts)); } catch (e) {}
+            try { target.dispatchEvent(new MouseEvent("mouseup", releaseOpts)); } catch (e) {}
+            try { target.dispatchEvent(new DragEvent("dragend", releaseOpts)); } catch (e) {}
+            try {
+              if (typeof TouchEvent !== "undefined") {
+                target.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true, changedTouches: [] }));
+              }
+            } catch (e) {}
+          }
+
+          console.log(`[OTP Link] Drag simulated successfully across ${dragDistance}px.`);
           setStatus("Drag complete. Checking CAPTCHA status...", "success");
           await sleep(3000);
         } catch (err) {
           console.error("[OTP Link] CAPTCHA solving failed:", err);
-          setStatus("CAPTCHA solving failed: " + err.message, "error");
+          if (err.message && err.message.includes("licenseKey is invalid")) {
+            setStatus("SadCaptcha API Key Invalid! Please update key in panel.", "error");
+          } else {
+            setStatus("CAPTCHA solving failed: " + err.message, "error");
+          }
         } finally {
           isSolvingCaptcha = false;
         }
@@ -2245,6 +2553,10 @@
         const isTikTok = window.location.hostname.includes("tiktok.com");
 
         if (isTikTok) {
+          if (window.location.pathname.includes("/v2/auth/authorize")) {
+            return;
+          }
+
           const channelItems = Array.from(document.querySelectorAll('div[data-e2e="channel-item"], div[role="link"], p, span, button'));
           let clickedChannel = false;
 
@@ -2350,7 +2662,28 @@
         }
       }
 
+      function checkCaptchaAndToggleSuite() {
+        const captchaContainer = document.querySelector('#captcha-verify-container-main-page, [id*="captcha-verify-container"], [class*="captcha-verify-container"], #tiktok-verify-ele, .secsdk-captcha-drag-icon');
+        const suitePanel = shadow ? shadow.getElementById("sb-suite-panel") : null;
+        if (!suitePanel) return;
+
+        const isCaptchaActive = !!(captchaContainer && (captchaContainer.offsetWidth > 0 || captchaContainer.offsetHeight > 0) && window.getComputedStyle(captchaContainer).display !== "none" && window.getComputedStyle(captchaContainer).visibility !== "hidden");
+
+        if (isCaptchaActive) {
+          if (suitePanel.style.display !== "none") {
+            console.log("[SocialBee Suite] TikTok CAPTCHA detected active. Hiding automation suite panel.");
+            suitePanel.style.display = "none";
+          }
+        } else {
+          if (suitePanel.style.display === "none") {
+            console.log("[SocialBee Suite] TikTok CAPTCHA no longer active. Restoring automation suite panel.");
+            suitePanel.style.display = "";
+          }
+        }
+      }
+
       function runChecks() {
+        checkCaptchaAndToggleSuite();
         checkForOTPRequirement();
         checkForVerificationOption();
         solveTikTokCaptchaClientSide();
@@ -3021,30 +3354,52 @@
       listEl.innerHTML = "";
       if (!files || files.length === 0) {
         container.style.display = "none";
-        countEl.textContent = "0 images";
+        countEl.textContent = "0 files";
         return;
       }
 
       container.style.display = "flex";
-      countEl.textContent = `${files.length} image${files.length !== 1 ? "s" : ""}`;
+      countEl.textContent = `${files.length} file${files.length !== 1 ? "s" : ""}`;
 
       files.forEach((file) => {
         const item = document.createElement("div");
         item.className = "sb-file-preview-item";
 
-        const img = document.createElement("img");
-        img.src = URL.createObjectURL(file);
-        img.onload = () => URL.revokeObjectURL(img.src);
-        img.title = file.name;
+        const isVideo = file.type.startsWith("video/") || /\.(mov|mp4|webm|mkv|avi|flv|wmv|3gp|m4v)$/i.test(file.name);
+        if (isVideo) {
+          const video = document.createElement("video");
+          video.src = URL.createObjectURL(file);
+          video.muted = true;
+          video.autoplay = false;
+          video.style.width = "100%";
+          video.style.height = "100%";
+          video.style.objectFit = "cover";
+          video.title = file.name;
+          item.appendChild(video);
+        } else {
+          const img = document.createElement("img");
+          img.src = URL.createObjectURL(file);
+          img.onload = () => URL.revokeObjectURL(img.src);
+          img.title = file.name;
+          item.appendChild(img);
+        }
 
-        item.appendChild(img);
         listEl.appendChild(item);
       });
     }
 
+    const isMediaFile = (file) => {
+      if (!file) return false;
+      return (
+        file.type.startsWith("image/") ||
+        file.type.startsWith("video/") ||
+        /\.(png|jpe?g|gif|webp|bmp|heic|mov|mp4|webm|mkv|avi|flv|wmv|3gp|m4v)$/i.test(file.name)
+      );
+    };
+
     if (dropzoneBase && inputBase) {
       setupDropzone(dropzoneBase, inputBase, (files) => {
-        baseFiles = Array.from(files).filter((file) => file.type.startsWith("image/"));
+        baseFiles = Array.from(files).filter(isMediaFile);
         renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
         saveFilesToGM("sb_base_files", baseFiles);
       });
@@ -3061,7 +3416,7 @@
 
     if (dropzoneVar4 && inputVar4) {
       setupDropzone(dropzoneVar4, inputVar4, (files) => {
-        var4Files = Array.from(files).filter((file) => file.type.startsWith("image/"));
+        var4Files = Array.from(files).filter(isMediaFile);
         renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
         saveFilesToGM("sb_var4_files", var4Files);
       });
@@ -3074,6 +3429,16 @@
         renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
         GM_setValue("sb_var4_files", "");
       });
+    }
+
+    // Restore saved media files from GM storage on load
+    baseFiles = loadFilesFromGM("sb_base_files");
+    if (baseFiles.length > 0) {
+      renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+    }
+    var4Files = loadFilesFromGM("sb_var4_files");
+    if (var4Files.length > 0) {
+      renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
     }
 
     function setContentEditableText(el, text) {
@@ -3605,6 +3970,170 @@
       return items.length > 0 ? items[0] : null;
     }
 
+    function getSocialBeeAuthToken() {
+      const token = localStorage.getItem("jhi-authenticationtoken") ||
+                    localStorage.getItem("token") ||
+                    sessionStorage.getItem("jhi-authenticationtoken") ||
+                    sessionStorage.getItem("token");
+      if (token) {
+        const cleanToken = token.replace(/^"|"$/g, "").trim();
+        return cleanToken.startsWith("Bearer ") ? cleanToken : `Bearer ${cleanToken}`;
+      }
+      return null;
+    }
+
+    async function apiDisconnectAccount(accountId, maxRetries = 3) {
+      const token = getSocialBeeAuthToken();
+      const headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/plain, */*"
+      };
+      if (token) {
+        headers["Authorization"] = token;
+      }
+
+      const numericId = parseInt(accountId, 10);
+      console.info(`%c[SocialBee API] 🚀 Attempting API Disconnect for Account ID: ${accountId} (VPN resilient mode)`, "color: #6366f1; font-weight: bold;");
+
+      const payloads = [
+        { id: isNaN(numericId) ? accountId : numericId },
+        { accountId: isNaN(numericId) ? accountId : numericId },
+        { id: String(accountId) }
+      ];
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        for (const payload of payloads) {
+          try {
+            console.log(`[SocialBee API] Attempt ${attempt}/${maxRetries} sending POST to https://app.socialbee.com/api/account/disconnect`, payload);
+            const response = await fetch("https://app.socialbee.com/api/account/disconnect", {
+              method: "POST",
+              headers: headers,
+              body: JSON.stringify(payload)
+            });
+
+            console.log(`[SocialBee API] Response status: ${response.status} ${response.statusText}`);
+            if (response.ok) {
+              console.info(`%c[SocialBee API] ✅ SUCCESS: Account ${accountId} disconnected via API (POST /api/account/disconnect)`, "color: #10b981; font-weight: bold;");
+              return true;
+            }
+          } catch (err) {
+            console.warn(`[SocialBee API] Attempt ${attempt} network glitch for account ${accountId} (VPN latency?):`, err);
+          }
+        }
+
+        // Try DELETE request or query string endpoints as fallback
+        const fallbackUrls = [
+          `https://app.socialbee.com/api/account/disconnect?id=${encodeURIComponent(accountId)}`,
+          `https://app.socialbee.com/api/account/disconnect?accountId=${encodeURIComponent(accountId)}`,
+          `https://app.socialbee.com/api/account/${encodeURIComponent(accountId)}`,
+          `https://app.socialbee.com/api/accounts/${encodeURIComponent(accountId)}`
+        ];
+
+        for (const url of fallbackUrls) {
+          try {
+            console.log(`[SocialBee API] Trying fallback request: ${url}`);
+            const method = url.includes("/disconnect?") ? "POST" : "DELETE";
+            const res = await fetch(url, { method: method, headers: headers });
+            console.log(`[SocialBee API] Fallback response status: ${res.status} ${res.statusText}`);
+            if (res.ok) {
+              console.info(`%c[SocialBee API] ✅ SUCCESS: Account ${accountId} disconnected via API (${method} ${url})`, "color: #10b981; font-weight: bold;");
+              return true;
+            }
+          } catch (e) {}
+        }
+
+        if (attempt < maxRetries) {
+          console.log(`[SocialBee API] Retrying account ${accountId} in 800ms due to slow response...`);
+          await sleep(800);
+        }
+      }
+
+      console.error(`[SocialBee API] ❌ All API disconnect methods failed for Account ID: ${accountId} after ${maxRetries} retries.`);
+      return false;
+    }
+
+    async function fetchConnectedAccountIdsFromApi() {
+      const token = getSocialBeeAuthToken();
+      if (!token) {
+        console.warn("[SocialBee API] No Auth Token found in storage. Will extract account IDs from DOM.");
+        return [];
+      }
+      const headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Authorization": token
+      };
+
+      const endpoints = [
+        "https://app.socialbee.com/api/account/connected",
+        "https://app.socialbee.com/api/accounts",
+        "https://app.socialbee.com/api/account",
+        "https://app.socialbee.com/api/user/profiles",
+        "https://app.socialbee.com/api/profiles",
+        "https://app.socialbee.com/api/social-accounts"
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`[SocialBee API] Querying accounts endpoint: ${endpoint}`);
+          const res = await fetch(endpoint, { method: "GET", headers: headers });
+          if (res.ok) {
+            const data = await res.json();
+            const list = Array.isArray(data) ? data : (data.accounts || data.profiles || data.content || data.data || []);
+            const ids = list.map((item) => item.id || item.accountId || item.account_id || item.profileId).filter(Boolean);
+            if (ids.length > 0) {
+              console.info(`%c[SocialBee API] Found ${ids.length} account ID(s) via API (${endpoint}):`, "color: #3b82f6; font-weight: bold;", ids);
+              return ids;
+            }
+          }
+        } catch (e) {}
+      }
+      return [];
+    }
+
+    function extractAccountIdsFromDOM() {
+      const accountIds = new Set();
+
+      const selectors = [
+        "[data-account-id]", "[data-id]", "[data-profile-id]", "[data-account]", "[data-profile]",
+        "[id*='account']", "[id*='profile']", "[id*='social']",
+        "a[href*='account']", "a[href*='profile']",
+        "button[id]", "button[data-id]", "div[id]", "li[id]", "tr[id]"
+      ];
+
+      document.querySelectorAll(selectors.join(",")).forEach((el) => {
+        if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) return;
+
+        const attributesToCheck = ["data-account-id", "data-id", "data-profile-id", "data-account", "data-profile", "id", "href"];
+        attributesToCheck.forEach((attrName) => {
+          const val = el.getAttribute(attrName);
+          if (!val) return;
+
+          if (/^\d{3,12}$/.test(val.trim())) {
+            accountIds.add(val.trim());
+          }
+
+          const match = val.match(/(?:account|profile|id)[s/=_:-]+(\d{3,12})/i);
+          if (match) {
+            accountIds.add(match[1]);
+          }
+        });
+
+        // Check ng-reflect attributes for Angular app context
+        Array.from(el.attributes).forEach((attr) => {
+          if (attr.name.startsWith("ng-reflect-")) {
+            const m = attr.value.match(/(\d{3,12})/);
+            if (m) accountIds.add(m[1]);
+          }
+        });
+      });
+
+      const ids = Array.from(accountIds);
+      if (ids.length > 0) {
+        console.info(`%c[SocialBee API] Extracted ${ids.length} account ID(s) from DOM scan:`, "color: #3b82f6; font-weight: bold;", ids);
+      }
+      return ids;
+    }
+
     async function deleteAllAccounts() {
       let initialCount = getConnectedProfilesCount();
       let countMessage = initialCount !== null ? ` (${initialCount} remaining)` : "";
@@ -3616,10 +4145,53 @@
       isRunning = true;
       updateUIState();
       setStatus(`Starting account deletion...${countMessage}`, "running");
+      console.info("%c[SocialBee Disconnect] Starting account removal process...", "color: #8b5cf6; font-weight: bold; font-size: 14px;");
 
       try {
         const stepDelay = Math.max(300, parseInt(shadow.getElementById("sb-delay").value, 10) || 1500);
         let deletedCount = 0;
+
+        // Phase 1: Try API Disconnect first for maximum speed and reliability
+        setStatus("Attempting API account disconnection...", "running");
+        let accountIds = await fetchConnectedAccountIdsFromApi();
+        if (accountIds.length === 0) {
+          accountIds = extractAccountIdsFromDOM();
+        }
+
+        if (accountIds.length > 0) {
+          console.info(`%c[SocialBee API] Starting API deletion sequence for ${accountIds.length} account(s)`, "color: #6366f1; font-weight: bold;", accountIds);
+          for (let i = 0; i < accountIds.length; i++) {
+            if (!isRunning) break;
+            const accId = accountIds[i];
+            setStatus(`Disconnecting account ${i + 1}/${accountIds.length} via API (ID: ${accId})...`, "running");
+            const success = await apiDisconnectAccount(accId);
+            if (success) {
+              deletedCount++;
+            } else {
+              console.warn(`[SocialBee API] API disconnect failed for account ${accId}. Will attempt UI deletion fallback.`);
+            }
+            await sleep(300);
+          }
+
+          if (deletedCount > 0) {
+            setStatus(`Disconnected ${deletedCount} account(s) via API. Refreshing UI...`, "running");
+            await sleep(1000);
+          }
+        } else {
+          console.warn("[SocialBee API] No target account IDs found via API or DOM scanning.");
+        }
+
+        // Check if any connected profiles remain
+        let currentCount = getConnectedProfilesCount();
+        if (currentCount === 0) {
+          console.info(`%c[SocialBee Disconnect] 🎉 All ${deletedCount} account(s) successfully removed via API!`, "color: #10b981; font-weight: bold; font-size: 14px;");
+          setStatus(`Successfully removed ${deletedCount} account${deletedCount !== 1 ? "s" : ""} via API!`, "success");
+          return;
+        }
+
+        // Phase 2: UI Clicking Fallback if accounts remain or API IDs couldn't be extracted
+        console.warn("%c[SocialBee Disconnect] ⚠️ Accounts remain after API phase. Switching to UI clicking fallback...", "color: #f59e0b; font-weight: bold;");
+        setStatus(`Falling back to UI automation for remaining accounts...`, "running");
         let consecutiveFailures = 0;
 
         document.querySelectorAll("[data-sb-delete-attempted], [data-sb-profile-select-attempted]").forEach((el) => {

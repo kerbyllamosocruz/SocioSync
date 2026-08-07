@@ -2590,10 +2590,10 @@
             containerText.includes("rotate") || containerText.includes("spin") || containerText.includes("right side up") || containerText.includes("orientation");
 
           let dragDistance = 0;
-          const trackContainer = captchaContainer.querySelector('[class*="captcha_verify_slide--bar"], [class*="drag-bar"], [class*="slider-bar"], [class*="captcha-drag-bar"], [class*="secsdk_captcha_slider_bar"]') || dragHandle.closest('[class*="bar"], [class*="track"]') || captchaContainer;
-          const containerWidth = (trackContainer && trackContainer.clientWidth > 100) ? trackContainer.clientWidth : (bgImg.clientWidth || bgImg.offsetWidth || 340);
+          const trackElem = dragHandle.parentElement || captchaContainer.querySelector('[class*="captcha_verify_slide--bar"], [class*="drag-bar"], [class*="slider-bar"], [class*="captcha-drag-bar"], [class*="secsdk_captcha_slider_bar"]');
+          const containerWidth = (trackElem && trackElem.clientWidth > 100) ? trackElem.clientWidth : (bgImg.clientWidth || bgImg.offsetWidth || 270);
           const handleWidth = dragHandle.offsetWidth || 44;
-          const effectiveTrackWidth = Math.max(containerWidth - handleWidth, 240);
+          const effectiveTrackWidth = Math.max(containerWidth - handleWidth, 180);
 
           const provider = GM_getValue("captcha_provider", "sadcaptcha");
 
@@ -2655,8 +2655,9 @@
             if (prop === undefined) {
               throw new Error(`${apiProvider} response did not contain proportion: ` + JSON.stringify(res));
             }
-            if (prop > 1) prop = prop / effectiveTrackWidth;
-            return prop;
+            if (prop > 1) prop = prop / containerWidth;
+            if (prop > 1) prop = 1.0;
+            return Math.max(0, Math.min(1.0, prop));
           }
 
           if (isRotateCaptcha) {
@@ -2672,6 +2673,7 @@
               }
             }
             dragDistance = Math.round((effectiveTrackWidth * angle) / 360);
+            dragDistance = Math.max(0, Math.min(dragDistance, effectiveTrackWidth));
             console.log(`[OTP Link] Solved Rotate CAPTCHA! Calculated Angle: ${angle}°, Drag Distance: ${dragDistance}px`);
             setStatus(`Rotate CAPTCHA Solved (${angle}°)! Dragging ${dragDistance}px...`, "success");
           } else {
@@ -2687,11 +2689,12 @@
               }
             }
             dragDistance = Math.round(prop * effectiveTrackWidth);
+            dragDistance = Math.max(0, Math.min(dragDistance, effectiveTrackWidth));
             console.log(`[OTP Link] Solved Puzzle CAPTCHA! Target drag distance: ${dragDistance}px`);
             setStatus(`Puzzle CAPTCHA Solved! Dragging ${dragDistance}px...`, "success");
           }
 
-          const handle = captchaContainer.querySelector('div[draggable="true"]:has(.secsdk-captcha-drag-icon), div[draggable="true"]:has(#captcha_slide_button), div[draggable="true"]') || captchaContainer.querySelector('#captcha_slide_button, .secsdk-captcha-drag-icon') || dragHandle;
+          const handle = dragHandle.closest('div[draggable="true"]') || dragHandle;
           const box = handle.getBoundingClientRect();
           const startX = box.x + box.width / 2 + window.scrollX;
           const startY = box.y + box.height / 2 + window.scrollY;

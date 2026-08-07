@@ -17,11 +17,6 @@
 // @connect      127.0.0.1
 // @connect      10.0.2.2
 // @connect      tiktok.eulerstream.com
-// @connect      www.sadcaptcha.com
-// @connect      sadcaptcha.com
-// @connect      m.kuku.lu
-// @connect      kuku.lu
-// @connect      *.kuku.lu
 // @run-at       document-end
 // ==/UserScript==
 
@@ -700,9 +695,9 @@
                 </div>
 
                 <div class="sb-autofill-field">
-                    <label class="sb-autofill-label">Var 1-3 Images (Base)</label>
+                    <label class="sb-autofill-label">Image for Var 1-3 (Optional)</label>
                     <div id="sb-dropzone-base" class="sb-autofill-file-dropzone">
-                        <span class="sb-file-dropzone-text">Click or Drop Var 1-3 Image(s)</span>
+                        <span class="sb-file-dropzone-text">Click or Drop Base Image(s) Here</span>
                         <input type="file" id="sb-images-base" accept="image/*" multiple style="display: none;">
                     </div>
                     <div id="sb-preview-base" class="sb-file-preview-container" style="display: none;">
@@ -714,10 +709,10 @@
                     </div>
                 </div>
 
-                <div class="sb-autofill-field" style="margin-top: 6px;">
-                    <label class="sb-autofill-label">Var 4-6 Images</label>
+                <div class="sb-autofill-field">
+                    <label class="sb-autofill-label">Image for Var 4-6 (Optional)</label>
                     <div id="sb-dropzone-var4" class="sb-autofill-file-dropzone">
-                        <span class="sb-file-dropzone-text">Click or Drop Var 4-6 Image(s)</span>
+                        <span class="sb-file-dropzone-text">Click or Drop Var 4 Image(s) Here</span>
                         <input type="file" id="sb-images-var4" accept="image/*" multiple style="display: none;">
                     </div>
                     <div id="sb-preview-var4" class="sb-file-preview-container" style="display: none;">
@@ -821,31 +816,8 @@
                         </div>
                     </div>
                     <div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                            <div style="font-size: 8px; text-transform: uppercase; color: #9ca3af; font-weight: 600; letter-spacing: 0.05em; text-align: left;">Captcha Provider</div>
-                            <select id="otp-captcha-provider" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.12); color: #818cf8; font-size: 9px; padding: 2px 4px; border-radius: 4px; font-weight: 600;">
-                                <option value="sadcaptcha">SadCaptcha (Default)</option>
-                                <option value="eulerstream">Eulerstream</option>
-                                <option value="auto">Auto (SadCaptcha ➔ Eulerstream)</option>
-                            </select>
-                        </div>
+                        <div style="font-size: 8px; text-transform: uppercase; color: #9ca3af; font-weight: 600; margin-bottom: 4px; letter-spacing: 0.05em; text-align: left;">EulerStream API Key</div>
                         <input type="password" id="otp-captcha-key" placeholder="Enter API Key (auto-saved)" style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; width: 100%; box-sizing: border-box;" />
-                    </div>
-                </div>
-
-                <div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                        <div style="font-size: 8px; text-transform: uppercase; color: #818cf8; font-weight: 700; letter-spacing: 0.05em; text-align: left;">🔑 Multi-Account instaddr Keys (<span id="kuku-key-count">0</span>)</div>
-                    </div>
-                    <div id="kuku-keys-list" style="display: flex; flex-direction: column; gap: 4px; max-height: 80px; overflow-y: auto; margin-bottom: 6px;"></div>
-                    <div style="display: flex; gap: 6px; align-items: center;">
-                        <input type="text" id="kuku-key-input" placeholder="Paste sessionhash / cookie string" style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 9px; padding: 4px 6px; border-radius: 4px; flex: 1;" />
-                        <button id="kuku-add-key-btn" style="background: rgba(99, 102, 241, 0.25); border: 1px solid rgba(129, 140, 248, 0.4); color: #818cf8; font-size: 9px; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: 600;">+ Add</button>
-                    </div>
-                    <button id="kuku-autodetect-key-btn" style="margin-top: 6px; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(52, 211, 153, 0.4); color: #34d399; font-size: 9px; padding: 4px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: 600;">⚡ Save Active Tab's Account Key</button>
-                    <div style="display: flex; gap: 6px; margin-top: 6px;">
-                        <button id="kuku-export-keys-btn" style="flex: 1; background: rgba(139, 92, 246, 0.2); border: 1px solid rgba(167, 139, 250, 0.4); color: #c084fc; font-size: 9px; padding: 4px; border-radius: 4px; cursor: pointer; font-weight: 600;">📋 Export Keys</button>
-                        <button id="kuku-import-keys-btn" style="flex: 1; background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(96, 165, 250, 0.4); color: #60a5fa; font-size: 9px; padding: 4px; border-radius: 4px; cursor: pointer; font-weight: 600;">📥 Import Keys</button>
                     </div>
                 </div>
             </div>
@@ -890,224 +862,6 @@
 
     if (role === "Login Tab") {
       shadow.getElementById("otp-login-only-controls").style.display = "block";
-    }
-
-    // instaddr Multi-Account Keys panel setup
-    function renderKukuKeysList() {
-      const container = shadow.getElementById("kuku-keys-list");
-      const countEl = shadow.getElementById("kuku-key-count");
-      if (!container || !countEl) return;
-
-      const saved = GM_getValue("kuku_account_keys", []);
-      countEl.textContent = saved.length;
-
-      if (saved.length === 0) {
-        container.innerHTML = `<div style="font-size: 9px; color: #6b7280; font-style: italic;">No saved account keys. Add key or click 'Save Active Tab'.</div>`;
-        return;
-      }
-
-      container.innerHTML = "";
-      saved.forEach((acc, idx) => {
-        const item = document.createElement("div");
-        item.style.cssText = "display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.06); padding: 4px 6px; border-radius: 4px; font-size: 9px;";
-
-        const label = document.createElement("span");
-        label.style.cssText = "color: #e5e7eb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;";
-        label.textContent = acc.name || `Account #${idx + 1}`;
-        label.title = acc.key;
-
-        const delBtn = document.createElement("button");
-        delBtn.style.cssText = "background: none; border: none; color: #ef4444; cursor: pointer; font-size: 10px; padding: 0 4px;";
-        delBtn.textContent = "✕";
-        delBtn.title = "Delete key";
-        delBtn.addEventListener("click", () => {
-          saved.splice(idx, 1);
-          GM_setValue("kuku_account_keys", saved);
-          renderKukuKeysList();
-        });
-
-        item.appendChild(label);
-        item.appendChild(delBtn);
-        container.appendChild(item);
-      });
-    }
-
-    renderKukuKeysList();
-
-    const addKeyBtn = shadow.getElementById("kuku-add-key-btn");
-    const keyInput = shadow.getElementById("kuku-key-input");
-    if (addKeyBtn && keyInput) {
-      addKeyBtn.addEventListener("click", () => {
-        let val = keyInput.value.trim();
-        if (!val) {
-          alert("Please enter a sessionhash key or cookie string into the text box first.");
-          return;
-        }
-
-        if (!val.includes("=") && /^[a-zA-Z0-9_-]+$/.test(val)) {
-          val = "cookie_sessionhash=" + val;
-        }
-
-        const saved = GM_getValue("kuku_account_keys", []);
-
-        let hashVal = "";
-        if (val.includes("cookie_sessionhash=")) {
-          const match = val.match(/cookie_sessionhash=([^;]+)/);
-          if (match) hashVal = match[1];
-        } else if (/^[a-zA-Z0-9_-]+$/.test(val)) {
-          hashVal = val;
-        }
-
-        const isDuplicate = saved.some((a) => {
-          if (a.key === val) return true;
-          if (hashVal && a.key.includes(hashVal)) return true;
-          return false;
-        });
-
-        if (isDuplicate) {
-          alert("This account key is already saved in your list!");
-          return;
-        }
-
-        const cleanHash = hashVal.replace(/^SHASH(%3A|:)/i, "");
-        let name = cleanHash ? "Hash (" + cleanHash.slice(0, 8) + "...)" : "Key #" + (saved.length + 1);
-
-        saved.push({
-          id: "kuku_" + Date.now(),
-          name: name,
-          key: val,
-          addedAt: Date.now(),
-        });
-
-        GM_setValue("kuku_account_keys", saved);
-        keyInput.value = "";
-        renderKukuKeysList();
-        alert(`Successfully added new account key: ${name}`);
-      });
-    }
-
-    const autoDetectBtn = shadow.getElementById("kuku-autodetect-key-btn");
-    if (autoDetectBtn) {
-      autoDetectBtn.addEventListener("click", () => {
-        if (!window.location.hostname.includes("kuku.lu")) {
-          alert("Please click this button while on an m.kuku.lu tab to auto-detect its account key!");
-          return;
-        }
-
-        let activeEmail = "";
-        const emailEls = Array.from(document.querySelectorAll("#area_mailaddr, #area_recv_mailaddr, .mailaddr, td, span, div, b"));
-        for (const el of emailEls) {
-          const txt = (el.textContent || "").trim();
-          if (txt.includes("@kuku.lu") || txt.includes("@instaddr") || /[a-zA-Z0-9.*_%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(txt)) {
-            const match = txt.match(/[a-zA-Z0-9.*_%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-            if (match) {
-              activeEmail = match[0];
-              break;
-            }
-          }
-        }
-
-        const cookies = document.cookie;
-        let localHash = "";
-        try {
-          localHash = localStorage.getItem("cookie_sessionhash") || localStorage.getItem("sessionhash") || localStorage.getItem("nopsw") || "";
-        } catch (e) {}
-
-        const hashMatch = cookies ? cookies.match(/cookie_sessionhash=([^;]+)/) : null;
-        const hashVal = hashMatch ? hashMatch[1] : localHash;
-
-        if (!cookies && !hashVal) {
-          alert("No active session cookie or session hash found on this tab. Please refresh the page (F5) after switching accounts!");
-          return;
-        }
-
-        const keyData = cookies || ("cookie_sessionhash=" + hashVal);
-        const saved = GM_getValue("kuku_account_keys", []);
-
-        const cleanHash = hashVal.replace(/^SHASH(%3A|:)/i, "");
-        let name = activeEmail || (cleanHash ? "Hash (" + cleanHash.slice(0, 8) + "...)" : "Account #" + (saved.length + 1));
-        if (name.length > 45) name = name.slice(0, 45) + "...";
-
-        const existingIdx = saved.findIndex((a) => {
-          if (hashVal && a.key.includes(hashVal)) return true;
-          if (activeEmail && a.name === activeEmail) return true;
-          if (a.key === keyData) return true;
-          return false;
-        });
-
-        if (existingIdx >= 0) {
-          saved[existingIdx].key = keyData;
-          saved[existingIdx].name = name;
-          alert(`Updated key for account: ${name}\nSession Hash: ${cleanHash ? cleanHash.slice(0, 10) + "..." : "Saved"}`);
-        } else {
-          saved.push({
-            id: "kuku_" + Date.now(),
-            name: name,
-            key: keyData,
-            addedAt: Date.now(),
-          });
-          alert(`Saved new account key for: ${name}\nSession Hash: ${cleanHash ? cleanHash.slice(0, 10) + "..." : "Saved"}`);
-        }
-
-        GM_setValue("kuku_account_keys", saved);
-        renderKukuKeysList();
-      });
-    }
-
-    const exportKeysBtn = shadow.getElementById("kuku-export-keys-btn");
-    if (exportKeysBtn) {
-      exportKeysBtn.addEventListener("click", () => {
-        const saved = GM_getValue("kuku_account_keys", []);
-        if (saved.length === 0) {
-          alert("No saved instaddr account keys to export.");
-          return;
-        }
-        const jsonStr = JSON.stringify(saved, null, 2);
-        navigator.clipboard
-          .writeText(jsonStr)
-          .then(() => {
-            alert(`Successfully copied ${saved.length} instaddr account keys to your clipboard as JSON!`);
-          })
-          .catch((err) => {
-            prompt("Copy your instaddr account keys JSON manually:", jsonStr);
-          });
-      });
-    }
-
-    const importKeysBtn = shadow.getElementById("kuku-import-keys-btn");
-    if (importKeysBtn) {
-      importKeysBtn.addEventListener("click", () => {
-        const input = prompt("Paste your exported instaddr account keys JSON:");
-        if (!input) return;
-        try {
-          const parsed = JSON.parse(input);
-          if (!Array.isArray(parsed)) {
-            alert("Invalid format. Expected a JSON array of account keys.");
-            return;
-          }
-          const saved = GM_getValue("kuku_account_keys", []);
-          let addedCount = 0;
-          parsed.forEach((item) => {
-            if (item && item.key) {
-              const exists = saved.some((a) => a.key === item.key);
-              if (!exists) {
-                saved.push({
-                  id: item.id || "kuku_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
-                  name: item.name || "Imported Key",
-                  key: item.key,
-                  addedAt: item.addedAt || Date.now(),
-                });
-                addedCount++;
-              }
-            }
-          });
-          GM_setValue("kuku_account_keys", saved);
-          renderKukuKeysList();
-          alert(`Import successful! Added ${addedCount} new account keys.`);
-        } catch (e) {
-          alert("Failed to parse JSON. Please make sure you pasted valid JSON content.");
-        }
-      });
     }
 
     // Toggle minimize
@@ -1377,10 +1131,8 @@
         console.log(`${logMessage} (Attempt: ${lastClickTime ? "Retry" : "First"})`);
         clickedElements.set(el, now);
 
-        try {
-          el.click();
-          el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-        } catch (e) {}
+        el.click();
+        el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
       }
     }
 
@@ -1422,153 +1174,6 @@
     let statusDotEl = shadow.getElementById("otp-status-dot");
     statusText = statusTextEl;
     statusDot = statusDotEl;
-
-    async function fetchOTPFromMultiAccounts(targetEmail) {
-      if (!targetEmail) return null;
-      const savedAccounts = GM_getValue("kuku_account_keys", []);
-      if (!Array.isArray(savedAccounts) || savedAccounts.length === 0) {
-        return null;
-      }
-
-      const activeReq = GM_getValue("otp_request");
-      if (!activeReq || activeReq.status !== "pending") {
-        return null;
-      }
-
-      const invalidOtp = activeReq.invalid_otp || window.last_invalid_otp || null;
-
-      for (let idx = 0; idx < savedAccounts.length; idx++) {
-        const acc = savedAccounts[idx];
-        if (!acc || !acc.key) continue;
-        try {
-          console.log(`[OTP Link Multi-Account] Checking saved key ${idx + 1}/${savedAccounts.length} (${acc.name})...`);
-          setStatus(`Checking key ${idx + 1}/${savedAccounts.length}: ${acc.name}...`, "running");
-
-          const cookieStr = typeof acc.key === "string" ? acc.key : (acc.cookieStr || "");
-
-          // 1. Try AJAX endpoint
-          let resText = await new Promise((resolve) => {
-            GM_xmlhttpRequest({
-              method: "GET",
-              url: "https://m.kuku.lu/recv._ajax.php?action=recv_update&t=" + Date.now(),
-              headers: {
-                "Cookie": cookieStr,
-                "User-Agent": navigator.userAgent,
-                "X-Requested-With": "XMLHttpRequest"
-              },
-              timeout: 5000,
-              onload: (res) => resolve(res.responseText || ""),
-              onerror: () => resolve(""),
-              ontimeout: () => resolve("")
-            });
-          });
-
-          // 2. Fallback to recv.php if AJAX is empty
-          if (!resText || resText.length < 50) {
-            resText = await new Promise((resolve) => {
-              GM_xmlhttpRequest({
-                method: "GET",
-                url: "https://m.kuku.lu/recv.php?t=" + Date.now(),
-                headers: {
-                  "Cookie": cookieStr,
-                  "User-Agent": navigator.userAgent,
-                  "Referer": "https://m.kuku.lu/index.php"
-                },
-                timeout: 5000,
-                onload: (res) => resolve(res.responseText || ""),
-                onerror: () => resolve(""),
-                ontimeout: () => resolve("")
-              });
-            });
-          }
-
-          if (!resText) continue;
-
-          // Direct check for 6-digit OTP code in response text
-          const otpMatches = resText.match(/\b\d{6}\b/g) || resText.match(/\b\d{4}\b/g);
-          if (otpMatches && otpMatches.length > 0) {
-            for (const otpCode of otpMatches) {
-              if (invalidOtp && invalidOtp === otpCode) continue;
-
-              console.log(`[OTP Link Multi-Account] Found OTP ${otpCode} for ${targetEmail} from account key: ${acc.name || acc.id}!`);
-              setStatus(`Found OTP ${otpCode} via saved key (${acc.name})!`, "success");
-
-              GM_setValue("otp_response", {
-                email: targetEmail,
-                otp: otpCode,
-                timestamp: Date.now(),
-                source: acc.name || "multi-account-key"
-              });
-
-              GM_setValue("otp_request", {
-                email: targetEmail,
-                status: "completed",
-                timestamp: Date.now()
-              });
-
-              return { otp: otpCode, email: targetEmail, account: acc.name };
-            }
-          }
-
-          // Extract mail ID (num) to fetch full body via sm_number.php
-          const numMatches = resText.match(/(?:num|mail_id|openMailData|openMailRecv|sm_number\.php\?num=)\s*['"]?(\d+)['"]?/g) || resText.match(/num=(\d+)/g) || resText.match(/\b\d{5,10}\b/g);
-          if (numMatches && numMatches.length > 0) {
-            const uniqueNums = Array.from(new Set(numMatches.map(m => {
-              const digits = m.match(/\d+/);
-              return digits ? digits[0] : null;
-            }))).filter(Boolean).slice(0, 4);
-
-            for (const num of uniqueNums) {
-              const bodyText = await new Promise((resolve) => {
-                GM_xmlhttpRequest({
-                  method: "GET",
-                  url: `https://m.kuku.lu/sm_number.php?num=${num}&t=` + Date.now(),
-                  headers: {
-                    "Cookie": cookieStr,
-                    "User-Agent": navigator.userAgent,
-                    "Referer": "https://m.kuku.lu/recv.php"
-                  },
-                  timeout: 4000,
-                  onload: (res) => resolve(res.responseText || ""),
-                  onerror: () => resolve(""),
-                  ontimeout: () => resolve("")
-                });
-              });
-
-              if (bodyText) {
-                const bodyOtp = bodyText.match(/\b\d{6}\b/g) || bodyText.match(/\b\d{4}\b/g);
-                if (bodyOtp && bodyOtp.length > 0) {
-                  for (const otpCode of bodyOtp) {
-                    if (invalidOtp && invalidOtp === otpCode) continue;
-
-                    console.log(`[OTP Link Multi-Account Body] Found OTP ${otpCode} inside mail #${num} for ${targetEmail} from account key: ${acc.name || acc.id}!`);
-                    setStatus(`Found OTP ${otpCode} in mail body (${acc.name})!`, "success");
-
-                    GM_setValue("otp_response", {
-                      email: targetEmail,
-                      otp: otpCode,
-                      timestamp: Date.now(),
-                      source: acc.name || "multi-account-key"
-                    });
-
-                    GM_setValue("otp_request", {
-                      email: targetEmail,
-                      status: "completed",
-                      timestamp: Date.now()
-                    });
-
-                    return { otp: otpCode, email: targetEmail, account: acc.name };
-                  }
-                }
-              }
-            }
-          }
-        } catch (err) {
-          console.warn(`[OTP Link Multi-Account] Error checking account (${acc.name}):`, err);
-        }
-      }
-      return null;
-    }
 
     // CSV logic if Login Tab
     if (role === "Login Tab") {
@@ -1817,25 +1422,14 @@
       });
 
       const captchaKeyInput = shadow.getElementById("otp-captcha-key");
-      let savedKey = GM_getValue("captcha_api_key", "");
-      if (!savedKey) {
-        savedKey = "b94b520aa4bb49b24e33996888c5be7e";
-        GM_setValue("captcha_api_key", savedKey);
+      const savedKey = GM_getValue("captcha_api_key", "");
+      if (savedKey) {
+        captchaKeyInput.value = savedKey;
       }
-      captchaKeyInput.value = savedKey;
 
       captchaKeyInput.addEventListener("input", () => {
         GM_setValue("captcha_api_key", captchaKeyInput.value.trim());
       });
-
-      const captchaProviderSelect = shadow.getElementById("otp-captcha-provider");
-      if (captchaProviderSelect) {
-        captchaProviderSelect.value = GM_getValue("captcha_provider", "sadcaptcha");
-        captchaProviderSelect.addEventListener("change", (e) => {
-          GM_setValue("captcha_provider", e.target.value);
-          console.log("[OTP Link] CAPTCHA provider changed to:", e.target.value);
-        });
-      }
 
       if (!savedKey) {
         GM_xmlhttpRequest({
@@ -1945,24 +1539,8 @@
           }) || document.querySelector('button[type="submit"], button[data-e2e="login-button"]');
 
         if (loginBtn) {
-          console.log("[OTP Link] Clicking login button with event sequence:", loginBtn);
-          try {
-            loginBtn.focus();
-            const rect = loginBtn.getBoundingClientRect();
-            const clientX = rect.left + rect.width / 2;
-            const clientY = rect.top + rect.height / 2;
-            const opts = { bubbles: true, cancelable: true, clientX, clientY };
-
-            loginBtn.dispatchEvent(new PointerEvent("pointerdown", opts));
-            loginBtn.dispatchEvent(new MouseEvent("mousedown", opts));
-            await sleep(60);
-            loginBtn.dispatchEvent(new PointerEvent("pointerup", opts));
-            loginBtn.dispatchEvent(new MouseEvent("mouseup", opts));
-            loginBtn.dispatchEvent(new MouseEvent("click", opts));
-            loginBtn.click();
-          } catch (e) {
-            loginBtn.click();
-          }
+          console.log("[OTP Link] Clicking login button:", loginBtn);
+          loginBtn.click();
           setStatus("Login clicked! Awaiting OTP or Callback...", "running");
 
           const startTime = Date.now();
@@ -2385,13 +1963,11 @@
           GM_setValue("otp_response", null);
         }
 
-        if (window.otp_response_listener_id && typeof GM_removeValueChangeListener === "function") {
-          try {
-            GM_removeValueChangeListener(window.otp_response_listener_id);
-          } catch (e) {}
+        if (window.otp_response_listener_id) {
+          GM_removeValueChangeListener(window.otp_response_listener_id);
         }
 
-        function handleOtpResponse(newValue) {
+        const responseListenerId = GM_addValueChangeListener("otp_response", function (key, oldValue, newValue, remote) {
           if (newValue && newValue.email && isEmailMatch(newValue.email, targetEmail) && newValue.otp) {
             console.log(`[OTP Link] Received matching OTP for ${newValue.email}: ${newValue.otp}`);
             setStatus(`Received OTP ${newValue.otp}! Filling...`, "success");
@@ -2430,33 +2006,13 @@
               }
             }, 150);
 
-            if (window.otp_response_listener_id && typeof GM_removeValueChangeListener === "function") {
-              try {
-                GM_removeValueChangeListener(window.otp_response_listener_id);
-              } catch (e) {}
+            GM_removeValueChangeListener(responseListenerId);
+            if (window.otp_response_listener_id === responseListenerId) {
               window.otp_response_listener_id = null;
             }
           }
-        }
-
-        if (typeof GM_addValueChangeListener === "function") {
-          try {
-            window.otp_response_listener_id = GM_addValueChangeListener("otp_response", function (key, oldValue, newValue, remote) {
-              handleOtpResponse(newValue);
-            });
-          } catch (e) {}
-        }
-
-        if (!window.otp_response_poll_interval) {
-          window.otp_response_poll_interval = setInterval(() => {
-            const currentResp = GM_getValue("otp_response");
-            if (currentResp && currentResp.email && isEmailMatch(currentResp.email, targetEmail) && currentResp.otp) {
-              handleOtpResponse(currentResp);
-              clearInterval(window.otp_response_poll_interval);
-              window.otp_response_poll_interval = null;
-            }
-          }, 1000);
-        }
+        });
+        window.otp_response_listener_id = responseListenerId;
 
         const currentResp = GM_getValue("otp_response");
         if (currentResp && currentResp.email && isEmailMatch(currentResp.email, targetEmail) && currentResp.otp) {
@@ -2471,20 +2027,6 @@
           timestamp: Date.now(),
           invalid_otp: window.last_invalid_otp || null,
         });
-
-        // Query saved instaddr keys directly from TikTok tab
-        fetchOTPFromMultiAccounts(targetEmail);
-        if (!window.multiAccountPollInterval) {
-          window.multiAccountPollInterval = setInterval(async () => {
-            const req = GM_getValue("otp_request");
-            if (req && req.status === "pending") {
-              await fetchOTPFromMultiAccounts(req.email);
-            } else {
-              clearInterval(window.multiAccountPollInterval);
-              window.multiAccountPollInterval = null;
-            }
-          }, 1500);
-        }
       }
 
       function checkForVerificationOption() {
@@ -2541,12 +2083,17 @@
             return;
           }
 
-          let bgImg = captchaContainer.querySelector('[data-testid="whirl-outer-img"], .captcha-verify-container > div > div > div > img:first-child, #captcha-verify-image') || images[0];
-          let slideImg = captchaContainer.querySelector('[data-testid="whirl-inner-img"], img.cap-absolute, .captcha-verify-container > div > div > div > img.cap-absolute, img.captcha_verify_img_slide') || (images.length > 1 ? images[1] : null);
+          let slideImg = null;
+          let bgImg = null;
 
-          if (!slideImg || !bgImg) {
-            bgImg = images[0];
-            slideImg = images.length > 1 ? images[1] : null;
+          for (const img of images) {
+            const style = window.getComputedStyle(img);
+            const isAbsolute = img.classList.contains("cap-absolute") || style.position === "absolute" || img.className.includes("slide");
+            if (isAbsolute) {
+              slideImg = img;
+            } else {
+              bgImg = img;
+            }
           }
 
           if (!slideImg || !bgImg) {
@@ -2574,275 +2121,82 @@
           const cleanBg = bgSrc.replace(/^data:image\/[a-z]+;base64,/, "");
           const cleanSlide = slideSrc.replace(/^data:image\/[a-z]+;base64,/, "");
 
-          let apiKey = GM_getValue("captcha_api_key", "b94b520aa4bb49b24e33996888c5be7e");
+          let apiKey = GM_getValue("captcha_api_key", "");
+          if (!apiKey) {
+            throw new Error("EulerStream API Key not configured. Please input it in the UI panel.");
+          }
 
-          const isPuzzleCaptcha = captchaContainer.querySelector('#captcha-verify-image, img.captcha_verify_img_slide') !== null;
-          const containerText = (captchaContainer.textContent || "").toLowerCase();
-          const isRotateCaptcha = !isPuzzleCaptcha || captchaContainer.querySelector('[data-testid*="whirl"], img.cap-absolute, img[class*="whirl"]') !== null ||
-            (slideImg && (
-              (slideImg.className || "").includes("whirl") ||
-              (slideImg.className || "").includes("cap-absolute") ||
-              (slideImg.className || "").includes("rounded") ||
-              (slideImg.className || "").includes("circle") ||
-              window.getComputedStyle(slideImg).borderRadius === "50%" ||
-              window.getComputedStyle(slideImg).borderRadius === "9999px"
-            )) ||
-            containerText.includes("rotate") || containerText.includes("spin") || containerText.includes("right side up") || containerText.includes("orientation");
-
-          let dragDistance = 0;
-          const trackContainer = captchaContainer.querySelector('[class*="captcha_verify_slide--bar"], [class*="drag-bar"], [class*="slider-bar"], [class*="captcha-drag-bar"], [class*="secsdk_captcha_slider_bar"]') || dragHandle.closest('[class*="bar"], [class*="track"]') || captchaContainer;
-          const containerWidth = (trackContainer && trackContainer.clientWidth > 100) ? trackContainer.clientWidth : (bgImg.clientWidth || bgImg.offsetWidth || 340);
-          const handleWidth = dragHandle.offsetWidth || 44;
-          const effectiveTrackWidth = Math.max(containerWidth - handleWidth, 240);
-
-          const provider = GM_getValue("captcha_provider", "sadcaptcha");
-
-          async function solveRotate(apiProvider) {
-            const url = apiProvider === "eulerstream"
-              ? `https://tiktok.eulerstream.com/captcha/rotate?apiKey=${encodeURIComponent(apiKey)}`
-              : `https://www.sadcaptcha.com/api/v1/rotate?licenseKey=${encodeURIComponent(apiKey)}`;
-
-            console.log(`[OTP Link] Requesting Rotate solution from ${apiProvider.toUpperCase()}...`);
-            setStatus(`Solving Rotate CAPTCHA (${apiProvider})...`, "running");
-
-            const res = await new Promise((resolve, reject) => {
-              GM_xmlhttpRequest({
-                method: "POST",
-                url: url,
-                headers: { "Content-Type": "application/json" },
-                data: JSON.stringify({ outerImageB64: cleanBg, innerImageB64: cleanSlide, outer_b64: cleanBg, inner_b64: cleanSlide }),
-                responseType: "json",
-                onload: (r) => resolve(r.response),
-                onerror: (e) => reject(e),
-              });
+          console.log("[OTP Link] Requesting puzzle solution from EulerStream...");
+          const solveRes = await new Promise((resolve, reject) => {
+            GM_xmlhttpRequest({
+              method: "POST",
+              url: "https://tiktok.eulerstream.com/api/v1/captcha/slide",
+              headers: { "Content-Type": "application/json" },
+              data: JSON.stringify({
+                api_key: apiKey,
+                puzzle_image_base64: cleanBg,
+                piece_image_base64: cleanSlide,
+              }),
+              responseType: "json",
+              onload: (res) => resolve(res.response),
+              onerror: (err) => reject(err),
             });
+          });
 
-            let angle = res && (res.angle !== undefined ? res.angle : (res.rotation !== undefined ? res.rotation : res.rotate_angle));
-            if (angle === undefined && res && (res.slideXProportion !== undefined || res.slide_x_proportion !== undefined || res.x !== undefined)) {
-              const prop = res.slideXProportion !== undefined ? res.slideXProportion : (res.slide_x_proportion !== undefined ? res.slide_x_proportion : res.x);
-              angle = prop <= 1 ? prop * 360 : prop;
-            }
-            if (angle === undefined) {
-              throw new Error(`${apiProvider} response did not contain angle: ` + JSON.stringify(res));
-            }
-            return angle;
+          const slideX = solveRes && (solveRes.slide_x || solveRes.x);
+          if (slideX === undefined) {
+            throw new Error("EulerStream CAPTCHA response did not contain x coordinate: " + JSON.stringify(solveRes));
           }
 
-          async function solvePuzzle(apiProvider) {
-            const url = apiProvider === "eulerstream"
-              ? `https://tiktok.eulerstream.com/captcha/puzzle?apiKey=${encodeURIComponent(apiKey)}`
-              : `https://www.sadcaptcha.com/api/v1/puzzle?licenseKey=${encodeURIComponent(apiKey)}`;
+          console.log("[OTP Link] Solved! Target x: " + slideX);
+          setStatus("CAPTCHA Solved! Simulating drag...", "success");
 
-            console.log(`[OTP Link] Requesting Puzzle solution from ${apiProvider.toUpperCase()}...`);
-            setStatus(`Solving Puzzle CAPTCHA (${apiProvider})...`, "running");
+          const naturalWidth = bgImg.naturalWidth || 340;
+          const clientWidth = bgImg.clientWidth || 340;
+          const scale = clientWidth / naturalWidth;
+          const dragDistance = Math.round(slideX * scale);
 
-            const res = await new Promise((resolve, reject) => {
-              GM_xmlhttpRequest({
-                method: "POST",
-                url: url,
-                headers: { "Content-Type": "application/json" },
-                data: JSON.stringify({ puzzleImageB64: cleanBg, pieceImageB64: cleanSlide, puzzle_b64: cleanBg, piece_b64: cleanSlide }),
-                responseType: "json",
-                onload: (r) => resolve(r.response),
-                onerror: (e) => reject(e),
-              });
+          const rect = dragHandle.getBoundingClientRect();
+          const startX = rect.left + rect.width / 2 + window.scrollX;
+          const startY = rect.top + rect.height / 2 + window.scrollY;
+
+          function fireMouseEvent(type, x, y) {
+            const evt = new MouseEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              view: window,
+              clientX: x,
+              clientY: y,
+              screenX: x,
+              screenY: y,
             });
-
-            let prop = res && (res.slideXProportion !== undefined ? res.slideXProportion : (res.slide_x_proportion !== undefined ? res.slide_x_proportion : (res.proportion !== undefined ? res.proportion : res.x)));
-            if (prop === undefined && res && res.angle !== undefined) {
-              prop = res.angle / 360;
-            }
-            if (prop === undefined) {
-              throw new Error(`${apiProvider} response did not contain proportion: ` + JSON.stringify(res));
-            }
-            if (prop > 1) prop = prop / effectiveTrackWidth;
-            return prop;
+            dragHandle.dispatchEvent(evt);
+            document.dispatchEvent(evt);
           }
 
-          if (isRotateCaptcha) {
-            let angle;
-            try {
-              angle = await solveRotate(provider === "auto" ? "sadcaptcha" : provider);
-            } catch (primaryErr) {
-              if (provider === "auto" || provider === "sadcaptcha") {
-                console.warn("[OTP Link] Primary solver failed, attempting Eulerstream fallback...", primaryErr);
-                angle = await solveRotate("eulerstream");
-              } else {
-                throw primaryErr;
-              }
-            }
-            dragDistance = Math.round((effectiveTrackWidth * angle) / 360);
-            console.log(`[OTP Link] Solved Rotate CAPTCHA! Calculated Angle: ${angle}°, Drag Distance: ${dragDistance}px`);
-            setStatus(`Rotate CAPTCHA Solved (${angle}°)! Dragging ${dragDistance}px...`, "success");
-          } else {
-            let prop;
-            try {
-              prop = await solvePuzzle(provider === "auto" ? "sadcaptcha" : provider);
-            } catch (primaryErr) {
-              if (provider === "auto" || provider === "sadcaptcha") {
-                console.warn("[OTP Link] Primary solver failed, attempting Eulerstream fallback...", primaryErr);
-                prop = await solvePuzzle("eulerstream");
-              } else {
-                throw primaryErr;
-              }
-            }
-            dragDistance = Math.round(prop * effectiveTrackWidth);
-            console.log(`[OTP Link] Solved Puzzle CAPTCHA! Target drag distance: ${dragDistance}px`);
-            setStatus(`Puzzle CAPTCHA Solved! Dragging ${dragDistance}px...`, "success");
-          }
+          fireMouseEvent("mousedown", startX, startY);
+          await sleep(100);
 
-          const handle = captchaContainer.querySelector('div[draggable="true"]:has(.secsdk-captcha-drag-icon), div[draggable="true"]:has(#captcha_slide_button), div[draggable="true"]') || captchaContainer.querySelector('#captcha_slide_button, .secsdk-captcha-drag-icon') || dragHandle;
-          const box = handle.getBoundingClientRect();
-          const startX = box.x + box.width / 2 + window.scrollX;
-          const startY = box.y + box.height / 2 + window.scrollY;
-          const endX = startX + dragDistance;
-
-          console.log(`[OTP Link] Dragging handle via SadCaptcha DragEvent algorithm across ${dragDistance}px...`);
-
-          try {
-            handle.dispatchEvent(new PointerEvent("mousedown", {
-              pointerType: "mouse",
-              width: 1,
-              height: 1,
-              cancelable: true,
-              bubbles: true,
-              view: window,
-              clientX: startX,
-              clientY: startY
-            }));
-          } catch (e) {}
-
-          try {
-            handle.dispatchEvent(new MouseEvent("mousedown", {
-              cancelable: true,
-              bubbles: true,
-              view: window,
-              clientX: startX,
-              clientY: startY
-            }));
-          } catch (e) {}
-
-          try {
-            handle.dispatchEvent(new DragEvent("dragstart", {
-              cancelable: true,
-              bubbles: true,
-              view: window,
-              clientX: startX,
-              clientY: startY
-            }));
-          } catch (e) {}
-
-          await sleep(150);
-
-          const steps = 30;
+          const steps = 15;
           for (let i = 1; i <= steps; i++) {
             const progress = i / steps;
-            const easeProgress = progress < 0.5 ? 2 * progress * progress : -1 + (4 - 2 * progress) * progress;
+            const easeProgress = progress * (2 - progress);
             const currentX = startX + dragDistance * easeProgress;
-            const currentY = startY + (Math.random() * 1.2 - 0.6);
-
-            try {
-              captchaContainer.dispatchEvent(new MouseEvent("mousemove", {
-                bubbles: true,
-                cancelable: true,
-                view: window,
-                clientX: currentX,
-                clientY: currentY
-              }));
-            } catch (e) {}
-
-            try {
-              handle.dispatchEvent(new DragEvent("drag", {
-                cancelable: true,
-                bubbles: true,
-                view: window,
-                clientX: currentX,
-                clientY: currentY
-              }));
-            } catch (e) {}
-
-            const currentOffset = currentX - startX;
-            if (handle && currentOffset >= 0) {
-              try {
-                handle.style.transform = `translateX(${currentOffset}px)`;
-                const btnChild = handle.querySelector('#captcha_slide_button, .secsdk-captcha-drag-icon');
-                if (btnChild) {
-                  btnChild.style.transform = `translateX(${currentOffset}px)`;
-                }
-
-                if (slideImg && !isRotateCaptcha) {
-                  slideImg.style.transform = `translateX(${currentOffset}px)`;
-                  if (slideImg.parentElement && slideImg.parentElement !== captchaContainer && (slideImg.parentElement.className || "").includes("cap-")) {
-                    slideImg.parentElement.style.transform = `translateX(${currentOffset}px)`;
-                  }
-                } else if (slideImg && isRotateCaptcha) {
-                  const currentAngle = (currentOffset / effectiveTrackWidth) * 360;
-                  slideImg.style.transform = `rotate(${currentAngle}deg)`;
-                  if (slideImg.parentElement && slideImg.parentElement !== captchaContainer && (slideImg.parentElement.className || "").includes("cap-")) {
-                    slideImg.parentElement.style.transform = `rotate(${currentAngle}deg)`;
-                  }
-                }
-              } catch (e) {}
-            }
-
-            await sleep(15 + Math.floor(Math.random() * 15));
+            const currentY = startY + (Math.random() * 4 - 2);
+            fireMouseEvent("mousemove", currentX, currentY);
+            await sleep(20 + Math.random() * 15);
           }
 
           await sleep(150);
+          const endX = startX + dragDistance;
+          fireMouseEvent("mouseup", endX, startY);
 
-          // Force final position transform at endX
-          try {
-            handle.style.transform = `translateX(${dragDistance}px)`;
-            const btnChild = handle.querySelector('#captcha_slide_button, .secsdk-captcha-drag-icon');
-            if (btnChild) btnChild.style.transform = `translateX(${dragDistance}px)`;
-            if (slideImg && !isRotateCaptcha) {
-              slideImg.style.transform = `translateX(${dragDistance}px)`;
-            } else if (slideImg && isRotateCaptcha) {
-              const finalAngle = (dragDistance / effectiveTrackWidth) * 360;
-              slideImg.style.transform = `rotate(${finalAngle}deg)`;
-              if (slideImg.parentElement && slideImg.parentElement !== captchaContainer) {
-                slideImg.parentElement.style.transform = `rotate(${finalAngle}deg)`;
-              }
-            }
-          } catch (e) {}
-
-          const releaseOpts = {
-            bubbles: true,
-            cancelable: true,
-            view: window,
-            clientX: endX,
-            clientY: startY,
-            button: 0,
-            buttons: 0,
-            pointerId: 1,
-            pointerType: "mouse",
-            isPrimary: true
-          };
-
-          const releaseTargets = [handle, handle.querySelector('#captcha_slide_button, .secsdk-captcha-drag-icon'), captchaContainer, document, window].filter(Boolean);
-
-          for (const target of releaseTargets) {
-            try { target.dispatchEvent(new PointerEvent("pointerup", releaseOpts)); } catch (e) {}
-            try { target.dispatchEvent(new PointerEvent("mouseup", releaseOpts)); } catch (e) {}
-            try { target.dispatchEvent(new MouseEvent("mouseup", releaseOpts)); } catch (e) {}
-            try { target.dispatchEvent(new DragEvent("dragend", releaseOpts)); } catch (e) {}
-            try {
-              if (typeof TouchEvent !== "undefined") {
-                target.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true, changedTouches: [] }));
-              }
-            } catch (e) {}
-          }
-
-          console.log(`[OTP Link] Drag simulated successfully across ${dragDistance}px.`);
+          console.log("[OTP Link] Drag simulated successfully.");
           setStatus("Drag complete. Checking CAPTCHA status...", "success");
           await sleep(3000);
         } catch (err) {
           console.error("[OTP Link] CAPTCHA solving failed:", err);
-          if (err.message && err.message.includes("licenseKey is invalid")) {
-            setStatus("SadCaptcha API Key Invalid! Please update key in panel.", "error");
-          } else {
-            setStatus("CAPTCHA solving failed: " + err.message, "error");
-          }
+          setStatus("CAPTCHA solving failed: " + err.message, "error");
         } finally {
           isSolvingCaptcha = false;
         }
@@ -2919,16 +2273,6 @@
         const isTikTok = window.location.hostname.includes("tiktok.com");
         if (!isTikTok) return;
 
-        const req = GM_getValue("otp_request");
-        if (req && req.status === "pending" && Date.now() - (req.timestamp || 0) < 45000) {
-          return;
-        }
-
-        const now = Date.now();
-        if (window.lastAutoResendClickTime && now - window.lastAutoResendClickTime < 30000) {
-          return;
-        }
-
         const resendElements = Array.from(document.querySelectorAll('[class*="pc-email-otp-resend"], [data-testid="tux-web-button-container"], button[data-testid="tux-web-button"], [data-testid="tux-web-text"], button'));
 
         for (const el of resendElements) {
@@ -2940,16 +2284,27 @@
             const btn = wrapper.querySelector("button") || (wrapper.tagName === "BUTTON" ? wrapper : wrapper.closest("button")) || container;
 
             const isVisible = btn.offsetWidth > 0 || container.offsetWidth > 0 || wrapper.offsetWidth > 0;
+
             const isDisabled = btn.disabled || btn.getAttribute("disabled") !== null || btn.getAttribute("aria-disabled") === "true" || container.getAttribute("aria-disabled") === "true" || btn.classList.contains("disabled") || container.classList.contains("tux-button--disabled") || window.getComputedStyle(btn).pointerEvents === "none" || window.getComputedStyle(container).pointerEvents === "none";
 
             if (isVisible && !isDisabled) {
-              window.lastAutoResendClickTime = now;
-              setStatus("Resend code triggered! Awaiting new OTP...", "running");
-              console.log("[AutoClick] Triggering Resend code click sequence...", { btn, container, wrapper });
+              window.otp_requested_email = null;
+              setStatus("Resend code clicked! Awaiting new OTP...", "running");
+              console.log("[AutoClick] Found active Resend code button. Triggering click sequence...", { btn, container, wrapper });
 
-              try {
-                btn.click();
-              } catch (e) {}
+              const targets = Array.from(new Set([btn, container, wrapper, el])).filter(Boolean);
+
+              for (const target of targets) {
+                clickElement(target, '[AutoClick] Automatically clicked "Resend code" element.', 2000);
+                try {
+                  target.click();
+                  target.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, view: window }));
+                  target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
+                  target.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true, view: window }));
+                  target.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
+                  target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+                } catch (e) {}
+              }
               break;
             }
           }
@@ -3011,132 +2366,54 @@
       console.log("[OTP Link] Email tab active and listening for OTP requests.");
       setStatus("Listening for OTP requests...", "idle");
 
-      let isCheckingOTP = false;
-
-      // Web Worker timer to bypass background tab timer throttling (Chrome/Edge throttle setInterval in background tabs to 60s)
-      function createBackgroundTimer(fn, ms) {
-        try {
-          const blob = new Blob(
-            [
-              `
-            let interval = null;
-            onmessage = function(e) {
-              if (e.data === 'start') {
-                if (!interval) interval = setInterval(function() { postMessage('tick'); }, ${ms});
-              } else if (e.data === 'stop') {
-                if (interval) { clearInterval(interval); interval = null; }
-              }
-            };
-          `,
-            ],
-            { type: "application/javascript" },
-          );
-          const worker = new Worker(URL.createObjectURL(blob));
-          worker.onmessage = function () {
-            fn();
-          };
-          worker.postMessage("start");
-          return worker;
-        } catch (e) {
-          console.warn("[OTP Link] Web Worker timer creation failed, falling back to setInterval:", e);
-          setInterval(fn, ms);
-          return null;
-        }
-      }
-
-      async function triggerInboxRefresh() {
-        if (typeof window.openMailRecvList === "function") {
-          try {
-            window.openMailRecvList();
-          } catch (e) {}
-        }
-        if (typeof window.recv_update === "function") {
-          try {
-            window.recv_update();
-          } catch (e) {}
-        }
-
-        const reloadImg = document.getElementById("image_reload") || document.getElementById("button_reload");
-        if (reloadImg) {
-          const clickTarget = reloadImg.closest("a, button") || reloadImg;
-          clickTarget.click();
-        } else {
-          const refreshBtn = Array.from(document.querySelectorAll("a, button, span, img")).find((el) => {
-            const text = (el.textContent || el.alt || "").toLowerCase();
-            const onclick = el.getAttribute("onclick") || "";
-            return text.includes("更新") || text.includes("refresh") || text.includes("update") || onclick.includes("recv");
-          });
-          if (refreshBtn) {
-            refreshBtn.click();
-          }
-        }
-      }
-
-
-
-      async function checkAndFetchOTP() {
-        if (isCheckingOTP) return;
-        const request = GM_getValue("otp_request");
-        if (request && request.status === "pending") {
-          isCheckingOTP = true;
-          try {
-            console.log("[OTP Link] Request is pending. Checking saved multi-account keys first...");
-            setStatus(`Checking saved instaddr keys for ${request.email}...`, "running");
-
-            const multiResult = await fetchOTPFromMultiAccounts(request.email);
-            if (multiResult) {
-              console.log("[OTP Link] Multi-account API fetch succeeded!");
-              return;
-            }
-
-            console.log("[OTP Link] Multi-account check completed without match. Refreshing open tab inbox...");
-            setStatus(`Refreshing inbox to find mail for ${request.email}...`, "running");
-
-            triggerInboxRefresh();
-
-            // Wait for dynamic AJAX response to render in the DOM
-            await new Promise((r) => setTimeout(r, 800));
-
-            await findAndSendOTP(request.email);
-          } catch (err) {
-            console.error("[OTP Link] Error checking OTP:", err);
-          } finally {
-            isCheckingOTP = false;
-          }
-        }
-      }
-
       GM_addValueChangeListener("otp_request", function (key, oldValue, newValue, remote) {
         if (newValue && newValue.status === "pending") {
           console.log(`[OTP Link] New OTP request received for: ${newValue.email}`);
           setStatus(`Request received for ${newValue.email}`, "running");
-          checkAndFetchOTP();
+          findAndSendOTP(newValue.email);
         }
       });
 
-      // Bypasses background tab timer throttling
-      createBackgroundTimer(checkAndFetchOTP, 1500);
+      setInterval(async () => {
+        const request = GM_getValue("otp_request");
+        if (request && request.status === "pending") {
+          console.log("[OTP Link] Request is pending. Refreshing inbox to look for new mail...");
+          setStatus(`Refreshing inbox to find mail for ${request.email}...`, "running");
+
+          const reloadImg = document.getElementById("image_reload");
+          if (reloadImg) {
+            const clickTarget = reloadImg.closest("a, button") || reloadImg;
+            clickTarget.click();
+          } else {
+            const refreshBtn = Array.from(document.querySelectorAll("a, button, span")).find((el) => {
+              const text = el.textContent || "";
+              return text.includes("更新") || text.toLowerCase().includes("refresh") || text.toLowerCase().includes("update");
+            });
+            if (refreshBtn) {
+              refreshBtn.click();
+            }
+          }
+
+          findAndSendOTP(request.email);
+        }
+      }, 1500);
 
       function isRecentEmail(text) {
-        if (!text) return true;
+        if (!text) return false;
 
-        const secMatch = text.match(/(\d+)\s*(?:sec|s|秒)/i);
+        const secMatch = text.match(/(\d+)\s*sec/i) || text.match(/(\d+)\s*秒/);
         if (secMatch) {
           const secs = parseInt(secMatch[1], 10);
-          return secs <= 300; // Allow up to 5 minutes
+          return secs <= 60;
         }
 
-        const minMatch = text.match(/(\d+)\s*(?:min|m|分)/i);
+        const minMatch = text.match(/(\d+)\s*min/i) || text.match(/(\d+)\s*分/);
         if (minMatch) {
           const mins = parseInt(minMatch[1], 10);
-          return mins <= 5; // Allow up to 5 minutes
+          return mins <= 1;
         }
 
-        if (/just now|now|今|新着|less than/i.test(text)) {
-          return true;
-        }
-
-        return true; // Default to true so we don't reject valid emails without explicit time strings
+        return false;
       }
 
       async function findAndSendOTP(targetEmail) {
@@ -3154,7 +2431,7 @@
         for (const el of allElements) {
           const txt = el.innerText || el.textContent || "";
           if (txt.includes(targetEmail) || isEmailMatch(txt, targetEmail)) {
-            if (el.tagName === "A" || el.tagName === "TR" || el.getAttribute("onclick") || el.classList.contains("mail-row") || el.classList.contains("inbox-row") || el.getAttribute("href")) {
+            if (el.tagName === "A" || el.tagName === "TR" || el.getAttribute("onclick") || el.classList.contains("mail-row") || el.classList.contains("inbox-row")) {
               if (isRecentEmail(txt)) {
                 matchingElement = el;
                 break;
@@ -3229,9 +2506,10 @@
             bodyText = document.body.innerText;
           }
 
-          // Note: TikTok emails do not always repeat the email address in body text.
-          // Since matchingElement was ALREADY verified to match targetEmail before clicking,
-          // we check for OTP code inside the bodyText directly.
+          if (!bodyText.includes(targetEmail) && !isEmailMatch(bodyText, targetEmail)) {
+            console.log(`[OTP Link] Opened email body does not match target email (${targetEmail}). Skipping extraction.`);
+            continue;
+          }
 
           const otpMatch = bodyText.match(/\b\d{6}\b/) || bodyText.match(/\b\d{4}\b/);
           if (otpMatch) {
@@ -3573,32 +2851,25 @@
       }
 
       if (isRunning) {
-        if (dropzoneBase) {
-          dropzoneBase.style.pointerEvents = "none";
-          dropzoneBase.style.opacity = "0.5";
-        }
-        if (dropzoneVar4) {
-          dropzoneVar4.style.pointerEvents = "none";
-          dropzoneVar4.style.opacity = "0.5";
-        }
-        if (btnClearBase) btnClearBase.disabled = true;
-        if (btnClearVar4) btnClearVar4.disabled = true;
+        dropzoneBase.style.pointerEvents = "none";
+        dropzoneBase.style.opacity = "0.5";
+        btnClearBase.disabled = true;
+
+        dropzoneVar4.style.pointerEvents = "none";
+        dropzoneVar4.style.opacity = "0.5";
+        btnClearVar4.disabled = true;
       } else {
-        if (dropzoneBase) {
-          dropzoneBase.style.pointerEvents = "auto";
-          dropzoneBase.style.opacity = "1";
-        }
-        if (dropzoneVar4) {
-          dropzoneVar4.style.pointerEvents = "auto";
-          dropzoneVar4.style.opacity = "1";
-        }
-        if (btnClearBase) btnClearBase.disabled = false;
-        if (btnClearVar4) btnClearVar4.disabled = false;
+        dropzoneBase.style.pointerEvents = "auto";
+        dropzoneBase.style.opacity = "1";
+        btnClearBase.disabled = false;
+
+        dropzoneVar4.style.pointerEvents = "auto";
+        dropzoneVar4.style.opacity = "1";
+        btnClearVar4.disabled = false;
       }
     }
 
     function setupDropzone(dropzone, input, onFilesSelected) {
-      if (!dropzone || !input) return;
       dropzone.addEventListener("click", () => input.click());
 
       input.addEventListener("change", (e) => {
@@ -3634,7 +2905,6 @@
     }
 
     function renderListPreviews(files, container, countEl, listEl) {
-      if (!listEl || !container || !countEl) return;
       listEl.innerHTML = "";
       if (!files || files.length === 0) {
         container.style.display = "none";
@@ -3659,39 +2929,31 @@
       });
     }
 
-    if (dropzoneBase && inputBase) {
-      setupDropzone(dropzoneBase, inputBase, (files) => {
-        baseFiles = Array.from(files).filter((file) => file.type.startsWith("image/"));
-        renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
-        saveFilesToGM("sb_base_files", baseFiles);
-      });
-    }
+    setupDropzone(dropzoneBase, inputBase, (files) => {
+      baseFiles = Array.from(files).filter((file) => file.type.startsWith("image/"));
+      renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+      saveFilesToGM("sb_base_files", baseFiles);
+    });
 
-    if (btnClearBase) {
-      btnClearBase.addEventListener("click", () => {
-        baseFiles = [];
-        if (inputBase) inputBase.value = "";
-        renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
-        GM_setValue("sb_base_files", "");
-      });
-    }
+    setupDropzone(dropzoneVar4, inputVar4, (files) => {
+      var4Files = Array.from(files).filter((file) => file.type.startsWith("image/"));
+      renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+      saveFilesToGM("sb_var4_files", var4Files);
+    });
 
-    if (dropzoneVar4 && inputVar4) {
-      setupDropzone(dropzoneVar4, inputVar4, (files) => {
-        var4Files = Array.from(files).filter((file) => file.type.startsWith("image/"));
-        renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
-        saveFilesToGM("sb_var4_files", var4Files);
-      });
-    }
+    btnClearBase.addEventListener("click", () => {
+      baseFiles = [];
+      inputBase.value = "";
+      renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+      GM_setValue("sb_base_files", "");
+    });
 
-    if (btnClearVar4) {
-      btnClearVar4.addEventListener("click", () => {
-        var4Files = [];
-        if (inputVar4) inputVar4.value = "";
-        renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
-        GM_setValue("sb_var4_files", "");
-      });
-    }
+    btnClearVar4.addEventListener("click", () => {
+      var4Files = [];
+      inputVar4.value = "";
+      renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+      GM_setValue("sb_var4_files", "");
+    });
 
     function setContentEditableText(el, text) {
       el.focus();
@@ -3865,16 +3127,6 @@
       return arr[randomIndex];
     }
 
-    function shuffleArray(arr) {
-      if (!arr || arr.length === 0) return [];
-      const shuffled = [...arr];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-      return shuffled;
-    }
-
     async function startAutomation() {
       const profiles = Array.from(document.querySelectorAll(".editor-selected-accounts .selected-profile"));
 
@@ -3883,18 +3135,13 @@
         return;
       }
 
-      if (baseFiles.length === 0) {
-        baseFiles = loadFilesFromGM("sb_base_files");
-      }
-      if (var4Files.length === 0) {
-        var4Files = loadFilesFromGM("sb_var4_files");
+      if (baseFiles.length === 0 && var4Files.length === 0) {
+        setStatus("No images loaded. Attempting to fetch from server...", "running");
+        await loadImagesFromServer();
       }
 
       isRunning = true;
       updateUIState();
-
-      const poolImages = shuffleArray(baseFiles);
-      const poolImagesVar4 = var4Files.length > 0 ? shuffleArray(var4Files) : [];
 
       const profileCaptions = [];
       const captionMode = shadow.getElementById("sb-caption-mode").value;
@@ -3979,8 +3226,8 @@
           setStatus(`Editor not found on profile ${i + 1}!`, "error");
         }
 
-        if (poolImages.length > 0) {
-          const firstImg = poolImages[i % poolImages.length];
+        if (baseFiles.length > 0) {
+          const firstImg = getRandomElement(baseFiles);
 
           setStatus(`Uploading base image for profile ${i + 1}: ${firstImg.name}...`, "running");
           const uploadTriggered = uploadImageToWebpage(firstImg);
@@ -4016,7 +3263,7 @@
         }
       }
 
-      if (isRunning && (poolImages.length > 0 || poolImagesVar4.length > 0)) {
+      if (isRunning && var4Files.length > 0) {
         setStatus(`Phase 2: Swapping images on Variation 4 (0/${profiles.length})...`, "running");
 
         for (let i = 0; i < profiles.length; i++) {
@@ -4053,7 +3300,7 @@
             break;
           }
 
-          const secondImg = poolImagesVar4.length > 0 ? poolImagesVar4[i % poolImagesVar4.length] : poolImages[(i + profiles.length) % poolImages.length];
+          const secondImg = getRandomElement(var4Files);
 
           selectVariation(4);
           await sleep(varDelay);
@@ -4163,7 +3410,7 @@
       const candidates = elements.filter((el) => {
         if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
 
-        if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) return false;
+        if (el.closest("#sb-autofill-root")) return false;
 
         if (el.dataset.sbDeleteAttempted === "true" || el.closest("button, a")?.dataset.sbDeleteAttempted === "true") {
           return false;
@@ -4198,7 +3445,7 @@
       const items = elements.filter((el) => {
         if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
 
-        if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root") || el.closest(".modal, .modal-content, ngb-modal-window")) {
+        if (el.closest("#sb-autofill-root") || el.closest(".modal, .modal-content, ngb-modal-window")) {
           return false;
         }
 
@@ -4237,7 +3484,6 @@
       try {
         const stepDelay = Math.max(300, parseInt(shadow.getElementById("sb-delay").value, 10) || 1500);
         let deletedCount = 0;
-        let consecutiveFailures = 0;
 
         document.querySelectorAll("[data-sb-delete-attempted], [data-sb-profile-select-attempted]").forEach((el) => {
           delete el.dataset.sbDeleteAttempted;
@@ -4252,59 +3498,28 @@
             break;
           }
 
-          let deleteBtn = null;
-          let profileItem = null;
+          let deleteBtn = findDeleteButtonDirect();
 
-          setStatus("Waiting for account elements to load...", "running");
+          if (!deleteBtn) {
+            const profileItem = findProfileSelector();
+            if (profileItem) {
+              console.log("[SocialBee Autofill] Selecting profile item to reveal delete button:", profileItem);
+              profileItem.dataset.sbProfileSelectAttempted = "true";
 
-          // Poll for delete button or profile selector (up to 20 attempts ~ 8 seconds)
-          for (let poll = 0; poll < 20; poll++) {
-            if (!isRunning) break;
-            deleteBtn = findDeleteButtonDirect();
-            if (deleteBtn) break;
+              profileItem.scrollIntoView({ block: "center", behavior: "smooth" });
+              await sleep(500);
+              profileItem.click();
 
-            profileItem = findProfileSelector();
-            if (profileItem) break;
+              await sleep(stepDelay + 1000);
 
-            await sleep(400);
-          }
-
-          if (!isRunning) break;
-
-          if (!deleteBtn && profileItem) {
-            console.log("[SocialBee Autofill] Selecting profile item to reveal delete button:", profileItem);
-            profileItem.dataset.sbProfileSelectAttempted = "true";
-
-            profileItem.scrollIntoView({ block: "center", behavior: "smooth" });
-            await sleep(400);
-            profileItem.click();
-
-            // Poll for delete button to render after clicking profile item (up to 20 attempts ~ 8 seconds)
-            setStatus("Waiting for delete button after profile selection...", "running");
-            for (let poll = 0; poll < 20; poll++) {
-              if (!isRunning) break;
               deleteBtn = findDeleteButtonDirect();
-              if (deleteBtn) break;
-              await sleep(400);
             }
           }
 
           if (!deleteBtn) {
-            if (consecutiveFailures < 2) {
-              consecutiveFailures++;
-              console.warn(`[SocialBee Autofill] Delete button not found yet (retry ${consecutiveFailures}/2). Resetting attempt flags...`);
-              document.querySelectorAll("[data-sb-delete-attempted], [data-sb-profile-select-attempted]").forEach((el) => {
-                delete el.dataset.sbDeleteAttempted;
-                delete el.dataset.sbProfileSelectAttempted;
-              });
-              await sleep(1500);
-              continue;
-            }
             console.log("[SocialBee Autofill] No delete buttons found and no remaining profiles can be selected.");
             break;
           }
-
-          consecutiveFailures = 0;
 
           let clickTarget = deleteBtn;
           if (deleteBtn.tagName === "I" || deleteBtn.tagName === "SPAN") {
@@ -4323,10 +3538,10 @@
           await sleep(500);
           clickTarget.click();
 
-          // Poll for confirmation modal & button (up to 30 attempts ~ 9 seconds)
+          await sleep(1000);
+
           let clickedConfirm = false;
-          for (let attempt = 0; attempt < 30; attempt++) {
-            if (!isRunning) break;
+          for (let attempt = 0; attempt < 15; attempt++) {
             const confirmBtn = Array.from(document.querySelectorAll("button")).find((button) => {
               const txt = (button.textContent || "").trim().toLowerCase();
               const className = (button.className || "").toLowerCase();
@@ -4340,7 +3555,7 @@
               deletedCount++;
               break;
             }
-            await sleep(300);
+            await sleep(250);
           }
 
           if (!clickedConfirm) {
