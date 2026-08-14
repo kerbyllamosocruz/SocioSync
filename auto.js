@@ -7,6 +7,8 @@
 // @match        https://*.tiktok.com/*
 // @match        https://app.socialbee.com/*
 // @match        https://app.socialbee.io/*
+// @match        https://*.vistasocial.com/*
+// @match        https://vistasocial.com/*
 // @match        https://*.kuku.lu/*
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -157,7 +159,7 @@
 
   function createUnifiedPanel() {
     const role = currentUrl.includes("kuku.lu") ? "Email Tab" : "Login Tab";
-    const isOnSocialBee = hostname.includes("socialbee.com") || hostname.includes("socialbee.io");
+    const isOnSocialBee = hostname.includes("socialbee.com") || hostname.includes("socialbee.io") || hostname.includes("vistasocial.com");
 
     const container = document.createElement("div");
     container.id = "sb-suite-root";
@@ -176,7 +178,7 @@
             right: 24px;
             width: 340px;
             max-width: calc(100vw - 20px);
-            max-height: calc(100vh - 20px);
+            max-height: min(520px, calc(100vh - 40px));
             display: flex;
             flex-direction: column;
             background: rgba(15, 17, 26, 0.85);
@@ -293,7 +295,7 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-            max-height: calc(100vh - 120px);
+            max-height: min(430px, calc(100vh - 120px));
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
         }
@@ -1032,6 +1034,8 @@
         GM_setValue("cached_cookies_kuku", currentCookies);
       } else if (host.includes("socialbee.com") || host.includes("socialbee.io")) {
         GM_setValue("cached_cookies_socialbee", currentCookies);
+      } else if (host.includes("vistasocial.com")) {
+        GM_setValue("cached_cookies_vistasocial", currentCookies);
       }
     }
 
@@ -1042,17 +1046,18 @@
 
       const kukuCookies = GM_getValue("cached_cookies_kuku", []);
       const sbCookies = GM_getValue("cached_cookies_socialbee", []);
+      const vistaCookies = GM_getValue("cached_cookies_vistasocial", []);
 
       const host = window.location.hostname;
       const liveCookies = getCurrentDomainCookies();
 
       let mergedList = [];
       if (host.includes("kuku.lu")) {
-        mergedList = [...liveCookies, ...sbCookies];
-      } else if (host.includes("socialbee")) {
-        mergedList = [...kukuCookies, ...liveCookies];
+        mergedList = [...liveCookies, ...sbCookies, ...vistaCookies];
+      } else if (host.includes("socialbee") || host.includes("vistasocial")) {
+        mergedList = [...kukuCookies, ...liveCookies, ...vistaCookies];
       } else {
-        mergedList = [...kukuCookies, ...sbCookies];
+        mergedList = [...kukuCookies, ...sbCookies, ...vistaCookies];
       }
 
       const uniqueMap = new Map();
@@ -1251,7 +1256,7 @@
     }
 
     // Check for successful callback redirect
-    if (currentUrl.includes("socialbee.com") && (currentUrl.includes("signin/tiktok/callback") || currentUrl.includes("success") || (currentUrl.includes("profiles") && currentUrl.includes("code=")))) {
+    if ((currentUrl.includes("socialbee.com") || currentUrl.includes("vistasocial.com")) && (currentUrl.includes("signin/tiktok/callback") || currentUrl.includes("success") || (currentUrl.includes("profiles") && (currentUrl.includes("code=") || currentUrl.includes("connected"))))) {
       console.log("[OTP Link] Detected TikTok OAuth callback. Setting authorization flag.");
       GM_setValue("tiktok_authorized_flag", true);
 
@@ -1271,7 +1276,7 @@
 
     function determineRole() {
       if (currentUrl.includes("kuku.lu")) return "Email Tab";
-      if (currentUrl.includes("tiktok.com") || currentUrl.includes("socialbee.com") || currentUrl.includes("socialbee.io")) return "Login Tab";
+      if (currentUrl.includes("tiktok.com") || currentUrl.includes("socialbee.com") || currentUrl.includes("socialbee.io") || currentUrl.includes("vistasocial.com")) return "Login Tab";
       return null;
     }
 
@@ -1802,26 +1807,84 @@
     }
 
     function findTikTokReconnectButton() {
+      if (window.location.hostname.includes("vistasocial.com")) {
+        // Step 1: Check for "Add profile" initial button first (if modal is not open yet)
+        const addProfileBtn = document.querySelector('[data-doc-anchor="settings-profiles-add"], button[data-doc-anchor="settings-profiles-add"]');
+        if (addProfileBtn && addProfileBtn.offsetWidth > 0 && !document.querySelector('[class*="AddProfileModal"]')) {
+          return addProfileBtn;
+        }
+
+        // Step 2a: Check for "Continue" step button (data-doc-anchor="add-profile-continue")
+        const continueBtn = document.querySelector('[data-doc-anchor="add-profile-continue"], button[data-doc-anchor="add-profile-continue"]');
+        if (continueBtn && continueBtn.offsetWidth > 0) {
+          return continueBtn;
+        }
+
+        // Step 2b / Step 3: Scoped strictly to TikTok container (data-doc-anchor="connect-network-tiktok")
+        const vistaTikTokContainer = document.querySelector('[data-doc-anchor="connect-network-tiktok"], [data-doc-anchor*="connect-network-tiktok"]');
+        if (vistaTikTokContainer && vistaTikTokContainer.offsetWidth > 0) {
+          // Look for the Connect button specifically INSIDE the TikTok container
+          const tiktokConnectBtn = vistaTikTokContainer.querySelector('button[class*="AddProfileModal__ConnectButton"], button, [role="button"]');
+          if (tiktokConnectBtn && tiktokConnectBtn.offsetWidth > 0) {
+            return tiktokConnectBtn;
+          }
+          return vistaTikTokContainer;
+        }
+
+        // Fallback: If modal is open, search for buttons specifically inside TikTok wrappers
+        const modalButtons = Array.from(document.querySelectorAll('[class*="AddProfileModal"] button, [class*="AddProfileModal"] div[role="button"]'));
+        for (const btn of modalButtons) {
+          if (btn.offsetWidth === 0 && btn.offsetHeight === 0) continue;
+          const parent = btn.closest('[data-doc-anchor*="tiktok"], [class*="NetworkWrapper"]');
+          const parentText = (parent ? parent.textContent || "" : "").toLowerCase();
+          const docAnchor = (parent ? parent.getAttribute("data-doc-anchor") || "" : "").toLowerCase();
+          if (docAnchor.includes("tiktok") || parentText.includes("tiktok")) {
+            return btn;
+          }
+        }
+      }
+
+      // 2. SocialBee specific form/class selectors:
       let btn = document.querySelector('form[action*="/signin/tiktok"] button, form[action="/signin/tiktok"] button, a[href*="/signin/tiktok"]');
-      if (btn) return btn;
+      if (btn && btn.offsetWidth > 0) return btn;
 
       btn = document.querySelector('.connect-social-tiktok button, [class*="connect-social-tiktok"] button');
-      if (btn) return btn;
+      if (btn && btn.offsetWidth > 0) return btn;
 
-      const allButtons = Array.from(document.querySelectorAll("button, a"));
+      // 3. Scan all buttons / links / clickable elements for TikTok connect/reconnect
+      const allButtons = Array.from(document.querySelectorAll("button, a, div[role='button']"));
+
       for (const element of allButtons) {
+        if (element.offsetWidth === 0 && element.offsetHeight === 0) continue;
+
         const text = (element.textContent || "").trim().toLowerCase();
         const parentForm = element.closest("form");
         const action = parentForm ? parentForm.getAttribute("action") || "" : "";
+        const href = element.getAttribute("href") || "";
+        const parentText = (element.parentElement ? element.parentElement.textContent || "" : "").toLowerCase();
+        const rowText = (element.closest("tr, div, li") ? element.closest("tr, div, li").textContent || "" : "").toLowerCase();
 
-        if ((text.includes("reconnect") || text.includes("connect")) && (text.includes("tiktok") || action.includes("tiktok") || element.getAttribute("href")?.includes("tiktok"))) {
+        const isTikTok = text.includes("tiktok") || action.includes("tiktok") || href.includes("tiktok") || parentText.includes("tiktok") || rowText.includes("tiktok");
+        const isConnectAction = text.includes("reconnect") || text.includes("connect") || text.includes("re-connect") || text.includes("re-authorize") || text.includes("authorize");
+
+        if (isTikTok && isConnectAction) {
           return element;
         }
       }
+
+      // Generic fallback: button whose text is reconnect or connect
+      for (const element of allButtons) {
+        if (element.offsetWidth === 0 && element.offsetHeight === 0) continue;
+        const text = (element.textContent || "").trim().toLowerCase();
+        if (text === "reconnect" || text.includes("reconnect tiktok") || text === "connect tiktok") {
+          return element;
+        }
+      }
+
       return null;
     }
 
-    if (currentUrl.includes("tiktok.com") || currentUrl.includes("socialbee.com") || currentUrl.includes("socialbee.io")) {
+    if (currentUrl.includes("tiktok.com") || currentUrl.includes("socialbee.com") || currentUrl.includes("socialbee.io") || currentUrl.includes("vistasocial.com")) {
       console.log("[OTP Link] Login tab active.");
       setStatus("Listening for OTP fields...", "idle");
 
@@ -1925,7 +1988,7 @@
               const cleaned = cleanExtractedEmail(email);
               if (cleaned) {
                 const emailLower = cleaned.toLowerCase();
-                if (!emailLower.includes("tiktok.com") && !emailLower.includes("socialbee.com") && !emailLower.includes("example.com")) {
+                if (!emailLower.includes("tiktok.com") && !emailLower.includes("socialbee.com") && !emailLower.includes("vistasocial.com") && !emailLower.includes("example.com")) {
                   return cleaned;
                 }
               }
@@ -1939,7 +2002,7 @@
             const cleaned = cleanExtractedEmail(email);
             if (cleaned) {
               const emailLower = cleaned.toLowerCase();
-              if (!emailLower.includes("tiktok.com") && !emailLower.includes("socialbee.com") && !emailLower.includes("example.com")) {
+              if (!emailLower.includes("tiktok.com") && !emailLower.includes("socialbee.com") && !emailLower.includes("vistasocial.com") && !emailLower.includes("example.com")) {
                 return cleaned;
               }
             }
@@ -2382,7 +2445,9 @@
       }
 
       function checkForSocialBeeReconnect() {
-        if (!window.location.hostname.includes("socialbee.com") && !window.location.hostname.includes("socialbee.io")) return;
+        const isSocialBee = window.location.hostname.includes("socialbee.com") || window.location.hostname.includes("socialbee.io");
+        const isVistaSocial = window.location.hostname.includes("vistasocial.com");
+        if (!isSocialBee && !isVistaSocial) return;
 
         const autoReconnectEnabled = GM_getValue("sb_auto_reconnect_tiktok", false);
         if (!autoReconnectEnabled) return;
@@ -2407,10 +2472,31 @@
 
         const reconnectBtn = findTikTokReconnectButton();
         if (reconnectBtn && reconnectBtn.offsetWidth > 0) {
-          window.hasClickedSocialBeeReconnect = true;
-          console.log(`[OTP Link] Found TikTok Reconnect button for ${savedEmail}. Clicking...`);
-          setStatus("Clicking TikTok Reconnect button...", "success");
-          clickElement(reconnectBtn, "[AutoClick] Clicked TikTok Reconnect button.");
+          const docAnchor = reconnectBtn.getAttribute("data-doc-anchor") || "";
+          const parentAnchor = (reconnectBtn.closest("[data-doc-anchor]") ? reconnectBtn.closest("[data-doc-anchor]").getAttribute("data-doc-anchor") : "") || "";
+          const className = reconnectBtn.className || "";
+          const text = (reconnectBtn.textContent || "").trim().toLowerCase();
+
+          const isTikTokConnect = docAnchor.includes("connect-network-tiktok") || parentAnchor.includes("connect-network-tiktok") || (className.includes("AddProfileModal__ConnectButton") && (docAnchor.includes("tiktok") || parentAnchor.includes("tiktok")));
+
+          const isIntermediateStep = !isTikTokConnect && (
+            docAnchor === "settings-profiles-add" ||
+            docAnchor === "add-profile-continue" ||
+            (docAnchor.includes("add-profile") && !docAnchor.includes("tiktok")) ||
+            text === "add profile" ||
+            text === "continue"
+          );
+
+          if (isIntermediateStep) {
+            console.log(`[OTP Link] Found step button (${docAnchor || text}). Clicking step...`);
+            setStatus(`Clicking step (${text || docAnchor})...`, "running");
+            clickElement(reconnectBtn, `[AutoClick] Clicked step button: ${docAnchor || text}`);
+          } else {
+            window.hasClickedSocialBeeReconnect = true;
+            console.log(`[OTP Link] Found TikTok Reconnect/Connect button for ${savedEmail}. Clicking...`);
+            setStatus("Clicking TikTok Reconnect button...", "success");
+            clickElement(reconnectBtn, "[AutoClick] Clicked TikTok Reconnect button.");
+          }
         }
       }
 
@@ -2913,7 +2999,7 @@
       return `http://${host}:4782${path}`;
     }
 
-    if (!window.location.hostname.includes("socialbee.com") && !window.location.hostname.includes("socialbee.io")) {
+    if (!window.location.hostname.includes("socialbee.com") && !window.location.hostname.includes("socialbee.io") && !window.location.hostname.includes("vistasocial.com")) {
       return;
     }
 
@@ -4323,7 +4409,7 @@
   createUnifiedPanel();
 
   // Dispatch modules based on matched domains/pages
-  if (hostname.includes("tiktok.com") || hostname.includes("kuku.lu") || hostname.includes("socialbee.com") || hostname.includes("socialbee.io")) {
+  if (hostname.includes("tiktok.com") || hostname.includes("kuku.lu") || hostname.includes("socialbee.com") || hostname.includes("socialbee.io") || hostname.includes("vistasocial.com")) {
     try {
       runOtpLinker(suiteShadow);
     } catch (e) {
@@ -4331,7 +4417,7 @@
     }
   }
 
-  if (hostname.includes("socialbee.com") || hostname.includes("socialbee.io")) {
+  if (hostname.includes("socialbee.com") || hostname.includes("socialbee.io") || hostname.includes("vistasocial.com")) {
     try {
       runSocialBeeManager(suiteShadow);
     } catch (e) {
