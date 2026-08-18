@@ -178,7 +178,7 @@
             right: 24px;
             width: 340px;
             max-width: calc(100vw - 20px);
-            max-height: min(520px, calc(100vh - 40px));
+            max-height: 480px;
             display: flex;
             flex-direction: column;
             background: rgba(15, 17, 26, 0.85);
@@ -295,7 +295,7 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-            max-height: min(430px, calc(100vh - 120px));
+            max-height: 380px;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
         }
@@ -933,7 +933,7 @@
             </div>
 
             <div style="margin: 8px 12px 0 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-                <button id="sb-btn-export-session" class="sb-btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); border: none; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); width: 100%; color: white;">📋 Copy All Cookies (Kuku + SocialBee)</button>
+                <button id="sb-btn-export-session" class="sb-btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); border: none; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); width: 100%; color: white;">📋 Copy All Cookies (SocialBee / Vista)</button>
             </div>
 
             <div class="suite-footer">
@@ -2131,8 +2131,8 @@
         setStatus(`Requesting OTP for ${targetEmail}...`, "running");
 
         const staleResp = GM_getValue("otp_response");
-        if (staleResp && (!staleResp.email || !isEmailMatch(staleResp.email, targetEmail))) {
-          console.log(`[OTP Link] Clearing old/mismatched OTP response for ${staleResp?.email}`);
+        if (staleResp && (!staleResp.email || !isEmailMatch(staleResp.email, targetEmail) || (staleResp.timestamp && Date.now() - staleResp.timestamp > 120000))) {
+          console.log(`[OTP Link] Clearing old/mismatched/expired OTP response for ${staleResp?.email}`);
           GM_setValue("otp_response", null);
         }
 
@@ -2142,7 +2142,13 @@
 
         const responseListenerId = GM_addValueChangeListener("otp_response", function (key, oldValue, newValue, remote) {
           if (newValue && newValue.email && isEmailMatch(newValue.email, targetEmail) && newValue.otp) {
-            console.log(`[OTP Link] Received matching OTP for ${newValue.email}: ${newValue.otp}`);
+            const age = Date.now() - (newValue.timestamp || 0);
+            if (age > 120000) {
+              console.log(`[OTP Link] Received OTP for ${newValue.email} but it is expired (${Math.round(age / 1000)}s old > 120s limit). Ignoring.`);
+              return;
+            }
+
+            console.log(`[OTP Link] Received matching valid OTP for ${newValue.email}: ${newValue.otp}`);
             setStatus(`Received OTP ${newValue.otp}! Filling...`, "success");
 
             let attempts = 0;
@@ -2189,9 +2195,15 @@
 
         const currentResp = GM_getValue("otp_response");
         if (currentResp && currentResp.email && isEmailMatch(currentResp.email, targetEmail) && currentResp.otp) {
-          console.log(`[OTP Link] Found existing matching OTP response for ${currentResp.email}: ${currentResp.otp}`);
-          fillOTP(currentResp.otp);
-          return;
+          const age = Date.now() - (currentResp.timestamp || 0);
+          if (age <= 120000) {
+            console.log(`[OTP Link] Found existing matching valid OTP response for ${currentResp.email}: ${currentResp.otp} (${Math.round(age / 1000)}s old)`);
+            fillOTP(currentResp.otp);
+            return;
+          } else {
+            console.log(`[OTP Link] Found expired OTP response for ${currentResp.email} (${Math.round(age / 1000)}s old > 120s limit). Clearing stale OTP.`);
+            GM_setValue("otp_response", null);
+          }
         }
 
         GM_setValue("otp_request", {
@@ -2683,6 +2695,13 @@
         if (isCheckingOTP) return;
         const request = GM_getValue("otp_request");
         if (request && request.status === "pending") {
+          const reqAge = Date.now() - (request.timestamp || 0);
+          if (reqAge > 120000) {
+            console.log(`[OTP Link] Pending OTP request for ${request.email} expired (${Math.round(reqAge / 1000)}s old > 120s limit). Clearing request.`);
+            GM_setValue("otp_request", null);
+            return;
+          }
+
           isCheckingOTP = true;
           try {
             console.log("[OTP Link] Request is pending. Refreshing inbox to look for new mail...");
@@ -2719,20 +2738,34 @@
         const secMatch = text.match(/(\d+)\s*(?:sec|s|秒)/i);
         if (secMatch) {
           const secs = parseInt(secMatch[1], 10);
-          return secs <= 300; // Allow up to 5 minutes
+          return secs <= 120; // Allow up to 120 seconds (2 minutes)
         }
 
         const minMatch = text.match(/(\d+)\s*(?:min|m|分)/i);
         if (minMatch) {
           const mins = parseInt(minMatch[1], 10);
-          return mins <= 5; // Allow up to 5 minutes
+          return mins <= 2; // Allow up to 2 minutes
+        }
+
+        const hourMatch = text.match(/(\d+)\s*(?:hour|hr|h|時間)/i);
+        if (hourMatch) {
+          return false; // Reject 1hr or older
+        }
+
+        const dayMatch = text.match(/(\d+)\s*(?:day|d|日)/i);
+        if (dayMatch) {
+          return false; // Reject days old
         }
 
         if (/just now|now|今|新着|less than/i.test(text)) {
           return true;
         }
 
-        return true; // Default to true so we don't reject valid emails without explicit time strings
+        if (/ago|past|前/i.test(text)) {
+          return false;
+        }
+
+        return true;
       }
 
       async function findAndSendOTP(targetEmail) {
@@ -3886,17 +3919,26 @@
     }
 
     function findDeleteButtonDirect() {
-      const elements = Array.from(document.querySelectorAll("button, a, i, span, div[role='button']"));
+      const elements = Array.from(document.querySelectorAll("button, a, i, span, div[role='button'], [class*='Item__StyledItem']"));
       const candidates = elements.filter((el) => {
         if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
 
         if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) return false;
 
-        if (el.dataset.sbDeleteAttempted === "true" || el.closest("button, a")?.dataset.sbDeleteAttempted === "true") {
+        if (el.closest("nav, aside, header, [class*='Sidebar'], [class*='sidebar'], [class*='Nav'], [class*='nav']")) return false;
+
+        if (el.closest("a[href]")) {
+          const href = (el.closest("a[href]").getAttribute("href") || "").toLowerCase();
+          if (href.includes("/ai") || href.includes("/dashboard") || href.includes("/planner") || href.includes("/inbox")) {
+            return false;
+          }
+        }
+
+        if (el.dataset.sbDeleteAttempted === "true" || el.closest("button, a, [class*='Item__StyledItem']")?.dataset.sbDeleteAttempted === "true") {
           return false;
         }
 
-        if (el.closest(".modal, .modal-content, .modal-dialog, .modal-container, ngb-modal-window")) {
+        if (el.closest(".modal, .modal-content, .modal-dialog, .modal-container, ngb-modal-window") && !el.closest('[class*="Item__StyledItem"]')) {
           return false;
         }
 
@@ -3910,17 +3952,56 @@
         }
 
         const isTrashIcon = className.includes("trash") || className.includes("delete") || className.includes("remove") || className.includes("disconnect");
-        const isDeleteWord = text === "delete" || text === "remove" || text === "disconnect" || text.includes("remove account") || text.includes("delete account") || text.includes("disconnect profile") || text.includes("remove profile");
+        const isDeleteWord = text === "delete" || text === "remove" || text === "disconnect" || text === "remove profile" || text.includes("remove account") || text.includes("delete account") || text.includes("disconnect profile") || text.includes("remove profile");
         const isDeleteTitle = title.includes("delete") || title.includes("remove") || title.includes("disconnect") || title.includes("unlink") || title.includes("trash");
         const isDeleteId = id.includes("delete") || id.includes("remove") || id.includes("disconnect");
+        const isVistaItem = className.includes("item__styleditem") && (text.includes("remove") || text.includes("delete"));
 
-        return isTrashIcon || isDeleteWord || isDeleteTitle || isDeleteId;
+        return isTrashIcon || isDeleteWord || isDeleteTitle || isDeleteId || isVistaItem;
       });
 
       return candidates.length > 0 ? candidates[0] : null;
     }
 
     function findProfileSelector() {
+      if (window.location.hostname.includes("vistasocial.com")) {
+        const vistaActionBtns = Array.from(
+          document.querySelectorAll(
+            'tbody tr [class*="TableItem__StyledImage"], table tr [class*="TableItem__StyledImage"], tbody tr [class*="TableItem__BodyCell"], table tr [class*="TableItem__BodyCell"], td [class*="TableItem__StyledImage"], td [class*="TableItem__BodyCell"]'
+          )
+        ).filter((el) => {
+          if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
+          if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) return false;
+
+          // Reject top header navigation, sidebars, and nav badges
+          if (el.closest("[data-doc-anchor^='nav-'], [class*='Header'], [class*='header'], [class*='Sidebar'], [class*='sidebar'], nav, aside, header")) {
+            return false;
+          }
+
+          const parentRow = el.closest("tr, td");
+          if (!parentRow) return false;
+
+          if (el.dataset.sbProfileSelectAttempted === "true" || parentRow.dataset.sbProfileSelectAttempted === "true" || el.closest("tr")?.dataset.sbProfileSelectAttempted === "true") {
+            return false;
+          }
+
+          if (el.closest("a[href]")) {
+            const href = (el.closest("a[href]").getAttribute("href") || "").toLowerCase();
+            if (href.includes("/ai") || href.includes("/dashboard") || href.includes("/planner") || href.includes("/inbox") || href.includes("/automations")) {
+              return false;
+            }
+          }
+
+          return true;
+        });
+
+        if (vistaActionBtns.length > 0) {
+          const target = vistaActionBtns[0];
+          const innerIcon = target.querySelector('[class*="TableItem__StyledImage"], svg') || target;
+          return innerIcon;
+        }
+      }
+
       const elements = Array.from(document.querySelectorAll("a, button, div, li, tr, [role='tab']"));
       const items = elements.filter((el) => {
         if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
@@ -3935,7 +4016,6 @@
 
         const className = (el.className || "").toLowerCase();
         const id = (el.id || "").toLowerCase();
-        const text = (el.textContent || "").trim().toLowerCase();
 
         const isProfileClass = className.includes("profile-card") || className.includes("account-card") || className.includes("profile-item") || className.includes("account-item") || className.includes("connected-account") || className.includes("sidebar-profile");
         const isProfileId = id.includes("profile") || id.includes("account");
@@ -3947,6 +4027,132 @@
       });
 
       return items.length > 0 ? items[0] : null;
+    }
+
+    async function deleteVistaSocialAccounts(stepDelay) {
+      let deletedCount = 0;
+      let consecutiveFailures = 0;
+
+      while (isRunning) {
+        const rows = Array.from(document.querySelectorAll('tr[class*="TableItem__Row"], tbody tr')).filter((row) => {
+          if (row.offsetWidth === 0 || row.offsetHeight === 0) return false;
+          if (row.dataset.sbProfileDeleteAttempted === "true") return false;
+          // Must contain TableItem elements or 3-dots icon
+          return row.querySelector('[class*="TableItem__StyledImage"], [class*="TableItem__BodyCell"], svg[viewBox="8 6 7 12"]') !== null;
+        });
+
+        if (rows.length === 0) {
+          if (consecutiveFailures < 2) {
+            consecutiveFailures++;
+            console.warn(`[SocialBee Autofill] No remaining Vista Social rows found (retry ${consecutiveFailures}/2)...`);
+            await sleep(1500);
+            continue;
+          }
+          console.log("[SocialBee Autofill] No remaining Vista Social profile rows found. Deletion complete!");
+          break;
+        }
+
+        consecutiveFailures = 0;
+        const currentRow = rows[0];
+        currentRow.dataset.sbProfileDeleteAttempted = "true";
+
+        // Step 1: Find 3-dots button inside this specific row
+        const threeDotsBtn =
+          currentRow.querySelector('[class*="TableItem__StyledImage"]') ||
+          currentRow.querySelector('svg[viewBox="8 6 7 12"]')?.closest("div, td") ||
+          currentRow.querySelector("td:last-child div, td:last-child");
+
+        if (!threeDotsBtn) {
+          console.warn("[SocialBee Autofill] Could not locate 3-dots button in row:", currentRow);
+          continue;
+        }
+
+        setStatus(`Opening menu for profile ${deletedCount + 1}...`, "running");
+        threeDotsBtn.scrollIntoView({ block: "center", behavior: "smooth" });
+        await sleep(400);
+
+        threeDotsBtn.click();
+        try {
+          threeDotsBtn.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+          threeDotsBtn.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
+        } catch (e) {}
+
+        // Step 2: Poll for 'Remove profile' menu button
+        setStatus("Waiting for 'Remove profile' menu option...", "running");
+        let removeProfileTarget = null;
+        for (let poll = 0; poll < 20; poll++) {
+          if (!isRunning) break;
+
+          const allEls = Array.from(
+            document.querySelectorAll('[class*="DropdownMenu"] button, [class*="DropdownMenu"] p, [class*="Item__StyledItem"], button, p, span, div')
+          );
+          removeProfileTarget = allEls.find((el) => {
+            if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) return false;
+            const txt = (el.textContent || "").trim().toLowerCase();
+            return txt === "remove profile" || (txt.includes("remove profile") && txt.length < 25);
+          });
+
+          if (removeProfileTarget) break;
+          await sleep(300);
+        }
+
+        if (!isRunning) break;
+
+        if (!removeProfileTarget) {
+          console.warn("[SocialBee Autofill] 'Remove profile' button did not appear after clicking 3 dots.");
+          continue;
+        }
+
+        const removeProfileBtn = removeProfileTarget.closest('button, [class*="Item__StyledItem"]') || removeProfileTarget;
+        console.log("[SocialBee Autofill] Found 'Remove profile' target:", removeProfileTarget, "button wrapper:", removeProfileBtn);
+
+        setStatus(`Clicking 'Remove profile' for account ${deletedCount + 1}...`, "running");
+        removeProfileBtn.scrollIntoView({ block: "center", behavior: "instant" });
+        await sleep(300);
+
+        const triggerClick = (target) => {
+          try {
+            if (typeof target.focus === "function") target.focus();
+            target.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+            target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+            target.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true }));
+            target.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
+            target.click();
+          } catch (e) {}
+        };
+
+        triggerClick(removeProfileTarget);
+        if (removeProfileBtn !== removeProfileTarget) {
+          triggerClick(removeProfileBtn);
+        }
+
+        await sleep(500);
+
+        // Step 3: Handle modal confirmation (if present)
+        for (let attempt = 0; attempt < 20; attempt++) {
+          if (!isRunning) break;
+          const confirmBtn = Array.from(document.querySelectorAll("button, div[role='button'], [class*='Button']")).find((button) => {
+            if (button.offsetWidth === 0 || button.offsetHeight === 0) return false;
+            if (button.closest("#sb-suite-root") || button.closest("#sb-autofill-root")) return false;
+            if (button === removeProfileBtn || button === removeProfileTarget) return false;
+            const txt = (button.textContent || "").trim().toLowerCase();
+            return txt.includes("yes, remove") || txt === "remove" || txt.includes("confirm") || txt.includes("delete");
+          });
+
+          if (confirmBtn && confirmBtn.offsetWidth > 0) {
+            console.log("[SocialBee Autofill] Found confirm button in modal. Clicking:", confirmBtn);
+            triggerClick(confirmBtn);
+            break;
+          }
+          await sleep(300);
+        }
+
+        deletedCount++;
+        setStatus(`Successfully removed ${deletedCount} account${deletedCount !== 1 ? "s" : ""}!`, "running");
+        await sleep(stepDelay + 1000);
+      }
+
+      return deletedCount;
     }
 
     async function deleteAllAccounts() {
@@ -3963,6 +4169,13 @@
 
       try {
         const stepDelay = Math.max(300, parseInt(shadow.getElementById("sb-delay").value, 10) || 1500);
+
+        if (window.location.hostname.includes("vistasocial.com")) {
+          const deletedCount = await deleteVistaSocialAccounts(stepDelay);
+          setStatus(`Successfully removed ${deletedCount} account${deletedCount !== 1 ? "s" : ""}!`, "success");
+          return;
+        }
+
         let deletedCount = 0;
         let consecutiveFailures = 0;
 
@@ -3999,15 +4212,21 @@
           if (!isRunning) break;
 
           if (!deleteBtn && profileItem) {
-            console.log("[SocialBee Autofill] Selecting profile item to reveal delete button:", profileItem);
+            console.log("[SocialBee Autofill] Selecting profile item/3-dots menu to reveal delete button:", profileItem);
             profileItem.dataset.sbProfileSelectAttempted = "true";
+            const parentCellOrRow = profileItem.closest("td, tr, div");
+            if (parentCellOrRow) parentCellOrRow.dataset.sbProfileSelectAttempted = "true";
 
             profileItem.scrollIntoView({ block: "center", behavior: "smooth" });
-            await sleep(400);
+            await sleep(300);
             profileItem.click();
+            try {
+              profileItem.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+              profileItem.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
+            } catch (e) {}
 
             // Poll for delete button to render after clicking profile item (up to 20 attempts ~ 8 seconds)
-            setStatus("Waiting for delete button after profile selection...", "running");
+            setStatus("Waiting for delete button after menu selection...", "running");
             for (let poll = 0; poll < 20; poll++) {
               if (!isRunning) break;
               deleteBtn = findDeleteButtonDirect();
@@ -4035,7 +4254,7 @@
 
           let clickTarget = deleteBtn;
           if (deleteBtn.tagName === "I" || deleteBtn.tagName === "SPAN") {
-            clickTarget = deleteBtn.closest("button, a") || deleteBtn;
+            clickTarget = deleteBtn.closest("button, a, div[role='button'], [class*='Item__StyledItem']") || deleteBtn;
           }
 
           clickTarget.dataset.sbDeleteAttempted = "true";
@@ -4050,14 +4269,25 @@
           await sleep(500);
           clickTarget.click();
 
-          // Poll for confirmation modal & button (up to 30 attempts ~ 9 seconds)
+          // Poll for confirmation modal & button (up to 20 attempts ~ 6 seconds)
           let clickedConfirm = false;
-          for (let attempt = 0; attempt < 30; attempt++) {
+          for (let attempt = 0; attempt < 20; attempt++) {
             if (!isRunning) break;
-            const confirmBtn = Array.from(document.querySelectorAll("button")).find((button) => {
+            const confirmBtn = Array.from(document.querySelectorAll("button, div[role='button'], [class*='Item__StyledItem']")).find((button) => {
+              if (button.offsetWidth === 0 || button.offsetHeight === 0) return false;
+              if (button.closest("#sb-suite-root") || button.closest("#sb-autofill-root")) return false;
               const txt = (button.textContent || "").trim().toLowerCase();
               const className = (button.className || "").toLowerCase();
-              return txt.includes("yes, remove social account") || txt.includes("yes, remove") || txt === "remove" || txt.includes("disconnect") || (className.includes("btn-primary-sb") && (txt.includes("remove") || txt.includes("disconnect")));
+              return (
+                txt.includes("yes, remove social account") ||
+                txt.includes("yes, remove") ||
+                txt === "remove" ||
+                txt === "remove profile" ||
+                txt === "delete" ||
+                txt.includes("confirm") ||
+                txt.includes("disconnect") ||
+                (className.includes("btn-primary-sb") && (txt.includes("remove") || txt.includes("disconnect")))
+              );
             });
 
             if (confirmBtn && confirmBtn.offsetWidth > 0) {
@@ -4071,9 +4301,15 @@
           }
 
           if (!clickedConfirm) {
-            console.warn("[SocialBee Autofill] Failed to find/click confirmation button for this item.");
-            setStatus("Could not confirm deletion of account.", "error");
-            break;
+            if (!document.body.contains(clickTarget) || clickTarget.offsetWidth === 0) {
+              console.log("[SocialBee Autofill] Target element removed/hidden after click. Counting as deleted.");
+              clickedConfirm = true;
+              deletedCount++;
+            } else {
+              console.warn("[SocialBee Autofill] Failed to find/click confirmation button for this item.");
+              setStatus("Could not confirm deletion of account.", "error");
+              break;
+            }
           }
 
           await sleep(stepDelay + 1500);
