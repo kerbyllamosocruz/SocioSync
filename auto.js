@@ -885,7 +885,6 @@
                 </div>
                 <div class="sb-autofill-actions" style="margin-top: 8px;">
                     <button id="sb-btn-share-vars" class="sb-btn sb-btn-primary" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border: none; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25); flex: 1;">🔄 Share Vars</button>
-                    <button id="sb-btn-load-server" class="sb-btn sb-btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25); flex: 1;">📂 Server Images</button>
                 </div>
                 <div class="sb-autofill-actions" style="margin-top: 8px;">
                     <button id="sb-btn-logout-tiktok" class="sb-btn" style="background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%); border: none; box-shadow: 0 4px 12px rgba(244, 63, 94, 0.25); flex: 1; color: white;">🔑 Logout TikTok</button>
@@ -3198,7 +3197,6 @@
     const btnStop = shadow.getElementById("sb-btn-stop");
     const btnDeleteAll = shadow.getElementById("sb-btn-delete-all");
     const btnLogoutTiktok = shadow.getElementById("sb-btn-logout-tiktok");
-    const btnLoadServer = shadow.getElementById("sb-btn-load-server");
     const btnShareVars = shadow.getElementById("sb-btn-share-vars");
     const statusText = shadow.getElementById("sb-status-text");
     const statusDot = shadow.getElementById("sb-status-dot");
@@ -4334,85 +4332,7 @@
         window.open("https://www.tiktok.com/logout?auto_close=true", "_blank", "width=500,height=600");
       });
     }
-    if (btnLoadServer) btnLoadServer.addEventListener("click", loadImagesFromServer);
     if (btnShareVars) btnShareVars.addEventListener("click", shareVariationsAutomation);
-
-    function fetchBlobFromUrl(url) {
-      return new Promise((resolve, reject) => {
-        GM_xmlhttpRequest({
-          method: "GET",
-          url: url,
-          responseType: "blob",
-          onload: (res) => {
-            if (res.status >= 200 && res.status < 300) {
-              resolve({
-                blob: res.response,
-                filename: res.responseHeaders.match(/x-filename:\s*(.+)/i)?.[1]?.trim() || "image.png",
-              });
-            } else {
-              reject(new Error(`Failed to load image: ${res.statusText}`));
-            }
-          },
-          onerror: (err) => reject(err),
-        });
-      });
-    }
-
-    function fetchJsonFromUrl(url) {
-      return new Promise((resolve, reject) => {
-        GM_xmlhttpRequest({
-          method: "GET",
-          url: url,
-          responseType: "json",
-          onload: (res) => {
-            if (res.status >= 200 && res.status < 300) {
-              resolve(res.response);
-            } else {
-              reject(new Error(`Failed to load list: ${res.statusText}`));
-            }
-          },
-          onerror: (err) => reject(err),
-        });
-      });
-    }
-
-    async function loadImagesFromServer() {
-      try {
-        setStatus("Loading server images...", "running");
-        const list = await fetchJsonFromUrl(getServerUrl("/images/list"));
-
-        baseFiles = [];
-        var4Files = [];
-
-        if (list.var_1_3 && list.var_1_3.length > 0) {
-          for (const filename of list.var_1_3) {
-            const fileUrl = getServerUrl(`/images/file?folder=var_1_3&name=${encodeURIComponent(filename)}`);
-            const { blob, filename: serverName } = await fetchBlobFromUrl(fileUrl);
-            const file = new File([blob], serverName, { type: blob.type });
-            baseFiles.push(file);
-          }
-          await saveFilesToStorage("sb_base_files", baseFiles);
-        }
-
-        if (list.var_4_6 && list.var_4_6.length > 0) {
-          for (const filename of list.var_4_6) {
-            const fileUrl = getServerUrl(`/images/file?folder=var_4_6&name=${encodeURIComponent(filename)}`);
-            const { blob, filename: serverName } = await fetchBlobFromUrl(fileUrl);
-            const file = new File([blob], serverName, { type: blob.type });
-            var4Files.push(file);
-          }
-          await saveFilesToStorage("sb_var4_files", var4Files);
-        }
-
-        renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
-        renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
-
-        setStatus(`Loaded ${baseFiles.length} base & ${var4Files.length} var4-6 images from server.`, "success");
-      } catch (err) {
-        console.error("Failed to load server images:", err);
-        setStatus("Failed to load server images: " + err.message, "error");
-      }
-    }
 
     (async () => {
       if (baseFiles.length === 0 && var4Files.length === 0) {
@@ -4424,8 +4344,6 @@
           renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
           renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
           setStatus("Restored saved images from local storage.", "success");
-        } else {
-          loadImagesFromServer();
         }
       }
     })();
