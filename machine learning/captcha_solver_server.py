@@ -220,9 +220,9 @@ def get_labeler():
         <style>
             body { font-family: sans-serif; background: #111827; color: #fff; text-align: center; padding: 20px; }
             .container { max-width: 480px; margin: auto; background: #1f2937; padding: 24px; border-radius: 16px; }
-            .captcha-stage { position: relative; width: 300px; height: 300px; margin: 20px auto; display: flex; align-items: center; justify-content: center; }
+            .captcha-stage { position: relative; width: 300px; height: 300px; margin: 20px auto; overflow: hidden; border-radius: 50%; border: 2px solid rgba(255,255,255,0.1); }
             .img-outer { width: 300px; height: 300px; clip-path: circle(50%); display: block; object-fit: cover; }
-            .img-inner { position: absolute; width: 214px; height: 214px; clip-path: circle(50%); display: block; object-fit: cover; transform-origin: center center; transition: transform 0.05s linear; }
+            .img-inner { position: absolute; top: 50%; left: 50%; width: 165px; height: 165px; margin-top: -82.5px; margin-left: -82.5px; clip-path: circle(50%); display: block; object-fit: cover; transform-origin: center center; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
             input[type=range] { width: 90%; height: 12px; margin: 20px 0; accent-color: #ef4444; cursor: pointer; z-index: 100; position: relative; }
             button { background: #6366f1; color: white; border: none; padding: 10px 20px; font-size: 15px; font-weight: 600; border-radius: 8px; cursor: pointer; margin: 6px; }
             button:hover { background: #4f46e5; }

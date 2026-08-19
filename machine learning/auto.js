@@ -780,7 +780,6 @@
                 </div>
                 <div class="sb-autofill-actions" style="margin-top: 8px;">
                     <button id="sb-btn-share-vars" class="sb-btn sb-btn-primary" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border: none; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25); flex: 1;">🔄 Share Vars</button>
-                    <button id="sb-btn-load-server" class="sb-btn sb-btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25); flex: 1;">📂 Server Images</button>
                 </div>
                 <div class="sb-autofill-actions" style="margin-top: 8px;">
                     <button id="sb-btn-logout-tiktok" class="sb-btn" style="background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%); border: none; box-shadow: 0 4px 12px rgba(244, 63, 94, 0.25); flex: 1; color: white;">🔑 Logout TikTok</button>
@@ -824,6 +823,7 @@
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                             <div style="font-size: 8px; text-transform: uppercase; color: #9ca3af; font-weight: 600; letter-spacing: 0.05em; text-align: left;">Captcha Provider</div>
                             <select id="otp-captcha-provider" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.12); color: #818cf8; font-size: 9px; padding: 2px 4px; border-radius: 4px; font-weight: 600;">
+                                <option value="local">Local PyTorch Server (127.0.0.1:4782)</option>
                                 <option value="sadcaptcha">SadCaptcha (Default)</option>
                                 <option value="eulerstream">Eulerstream</option>
                                 <option value="auto">Auto (SadCaptcha ➔ Eulerstream)</option>
@@ -2523,6 +2523,71 @@
 
       let isSolvingCaptcha = false;
 
+      function attachHumanSolveTelemetry(captchaContainer, cleanBg, cleanSlide) {
+        if (!captchaContainer || captchaContainer.hasAttribute("data-telemetry-attached")) return;
+        captchaContainer.setAttribute("data-telemetry-attached", "true");
+
+        let isUserDragging = false;
+
+        function getDragPx() {
+          const handles = captchaContainer.querySelectorAll('.secsdk-captcha-drag-icon, [class*="secsdk-captcha-drag-icon"], [id*="slide_button"], button, [draggable="true"]');
+          for (const handle of handles) {
+            let curr = handle;
+            for (let depth = 0; depth < 4 && curr; depth++) {
+              const transform = curr.style ? (curr.style.transform || curr.style.webkitTransform || '') : '';
+              const match = transform.match(/translateX\(([\d.]+)px\)/);
+              if (match) {
+                return parseFloat(match[1]);
+              }
+              curr = curr.parentElement;
+            }
+          }
+          return 0;
+        }
+
+        function onDragStart() {
+          isUserDragging = true;
+        }
+
+        function onDragEnd() {
+          if (!isUserDragging) return;
+          isUserDragging = false;
+
+          setTimeout(() => {
+            const dragPx = getDragPx();
+            const trackBar = captchaContainer.querySelector('.captcha_verify_slide--slidebar, [class*="slide--bar"], [class*="slidebar"]') || captchaContainer.querySelector('.cap-rounded-full');
+            const dragHandle = captchaContainer.querySelector('.secsdk-captcha-drag-icon, [id*="slide_button"]');
+
+            const trackWidth = trackBar ? trackBar.clientWidth : 212;
+            const handleWidth = dragHandle ? dragHandle.offsetWidth : 44;
+            const effectiveTrackWidth = Math.max(trackWidth - handleWidth, 160);
+
+            if (dragPx > 5) {
+              const humanAngle = Math.min((dragPx / effectiveTrackWidth) * 360, 360);
+
+              GM_xmlhttpRequest({
+                method: "POST",
+                url: "http://127.0.0.1:4782/api/save_human_solve",
+                headers: { "Content-Type": "application/json" },
+                data: JSON.stringify({
+                  outerImageB64: cleanBg,
+                  innerImageB64: cleanSlide,
+                  true_angle: humanAngle
+                }),
+                onload: function(res) {
+                  console.log("[Human Telemetry] Successfully captured human solve! Angle: " + humanAngle.toFixed(1) + "°");
+                }
+              });
+            }
+          }, 400);
+        }
+
+        captchaContainer.addEventListener("mousedown", onDragStart, true);
+        captchaContainer.addEventListener("touchstart", onDragStart, true);
+        window.addEventListener("mouseup", onDragEnd, true);
+        window.addEventListener("touchend", onDragEnd, true);
+      }
+
       async function solveTikTokCaptchaClientSide() {
         if (isSolvingCaptcha) return;
 
@@ -2574,6 +2639,9 @@
           const cleanBg = bgSrc.replace(/^data:image\/[a-z]+;base64,/, "");
           const cleanSlide = slideSrc.replace(/^data:image\/[a-z]+;base64,/, "");
 
+          // Attach passive telemetry to auto-capture human solves if a human solves manually
+          attachHumanSolveTelemetry(captchaContainer, cleanBg, cleanSlide);
+
           let apiKey = GM_getValue("captcha_api_key", "b94b520aa4bb49b24e33996888c5be7e");
 
           const isPuzzleCaptcha = captchaContainer.querySelector('#captcha-verify-image, img.captcha_verify_img_slide') !== null;
@@ -2598,9 +2666,12 @@
           const provider = GM_getValue("captcha_provider", "sadcaptcha");
 
           async function solveRotate(apiProvider) {
-            const url = apiProvider === "eulerstream"
+            let url = apiProvider === "eulerstream"
               ? `https://tiktok.eulerstream.com/captcha/rotate?apiKey=${encodeURIComponent(apiKey)}`
               : `https://www.sadcaptcha.com/api/v1/rotate?licenseKey=${encodeURIComponent(apiKey)}`;
+            if (apiProvider === "local") {
+              url = "http://127.0.0.1:4782/captcha/rotate";
+            }
 
             console.log(`[OTP Link] Requesting Rotate solution from ${apiProvider.toUpperCase()}...`);
             setStatus(`Solving Rotate CAPTCHA (${apiProvider})...`, "running");
@@ -2629,9 +2700,12 @@
           }
 
           async function solvePuzzle(apiProvider) {
-            const url = apiProvider === "eulerstream"
+            let url = apiProvider === "eulerstream"
               ? `https://tiktok.eulerstream.com/captcha/puzzle?apiKey=${encodeURIComponent(apiKey)}`
               : `https://www.sadcaptcha.com/api/v1/puzzle?licenseKey=${encodeURIComponent(apiKey)}`;
+            if (apiProvider === "local") {
+              url = "http://127.0.0.1:4782/captcha/puzzle";
+            }
 
             console.log(`[OTP Link] Requesting Puzzle solution from ${apiProvider.toUpperCase()}...`);
             setStatus(`Solving Puzzle CAPTCHA (${apiProvider})...`, "running");
@@ -3486,7 +3560,6 @@
     const btnStop = shadow.getElementById("sb-btn-stop");
     const btnDeleteAll = shadow.getElementById("sb-btn-delete-all");
     const btnLogoutTiktok = shadow.getElementById("sb-btn-logout-tiktok");
-    const btnLoadServer = shadow.getElementById("sb-btn-load-server");
     const btnShareVars = shadow.getElementById("sb-btn-share-vars");
     const statusText = shadow.getElementById("sb-status-text");
     const statusDot = shadow.getElementById("sb-status-dot");
@@ -4374,85 +4447,7 @@
         window.open("https://www.tiktok.com/logout?auto_close=true", "_blank", "width=500,height=600");
       });
     }
-    if (btnLoadServer) btnLoadServer.addEventListener("click", loadImagesFromServer);
     if (btnShareVars) btnShareVars.addEventListener("click", shareVariationsAutomation);
-
-    function fetchBlobFromUrl(url) {
-      return new Promise((resolve, reject) => {
-        GM_xmlhttpRequest({
-          method: "GET",
-          url: url,
-          responseType: "blob",
-          onload: (res) => {
-            if (res.status >= 200 && res.status < 300) {
-              resolve({
-                blob: res.response,
-                filename: res.responseHeaders.match(/x-filename:\s*(.+)/i)?.[1]?.trim() || "image.png",
-              });
-            } else {
-              reject(new Error(`Failed to load image: ${res.statusText}`));
-            }
-          },
-          onerror: (err) => reject(err),
-        });
-      });
-    }
-
-    function fetchJsonFromUrl(url) {
-      return new Promise((resolve, reject) => {
-        GM_xmlhttpRequest({
-          method: "GET",
-          url: url,
-          responseType: "json",
-          onload: (res) => {
-            if (res.status >= 200 && res.status < 300) {
-              resolve(res.response);
-            } else {
-              reject(new Error(`Failed to load list: ${res.statusText}`));
-            }
-          },
-          onerror: (err) => reject(err),
-        });
-      });
-    }
-
-    async function loadImagesFromServer() {
-      try {
-        setStatus("Loading server images...", "running");
-        const list = await fetchJsonFromUrl(getServerUrl("/images/list"));
-
-        baseFiles = [];
-        var4Files = [];
-
-        if (list.var_1_3 && list.var_1_3.length > 0) {
-          for (const filename of list.var_1_3) {
-            const fileUrl = getServerUrl(`/images/file?folder=var_1_3&name=${encodeURIComponent(filename)}`);
-            const { blob, filename: serverName } = await fetchBlobFromUrl(fileUrl);
-            const file = new File([blob], serverName, { type: blob.type });
-            baseFiles.push(file);
-          }
-          saveFilesToGM("sb_base_files", baseFiles);
-        }
-
-        if (list.var_4_6 && list.var_4_6.length > 0) {
-          for (const filename of list.var_4_6) {
-            const fileUrl = getServerUrl(`/images/file?folder=var_4_6&name=${encodeURIComponent(filename)}`);
-            const { blob, filename: serverName } = await fetchBlobFromUrl(fileUrl);
-            const file = new File([blob], serverName, { type: blob.type });
-            var4Files.push(file);
-          }
-          saveFilesToGM("sb_var4_files", var4Files);
-        }
-
-        renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
-        renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
-
-        setStatus(`Loaded ${baseFiles.length} base & ${var4Files.length} var4-6 images from server.`, "success");
-      } catch (err) {
-        console.error("Failed to load server images:", err);
-        setStatus("Failed to load server images: " + err.message, "error");
-      }
-    }
 
     const storedBase = loadFilesFromGM("sb_base_files");
     const storedVar4 = loadFilesFromGM("sb_var4_files");
@@ -4462,8 +4457,6 @@
       renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
       renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
       setStatus("Restored saved images from local storage.", "success");
-    } else {
-      loadImagesFromServer();
     }
 
     async function shareVariationsAutomation() {

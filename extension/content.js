@@ -7,6 +7,8 @@
 // @match        https://*.tiktok.com/*
 // @match        https://app.socialbee.com/*
 // @match        https://app.socialbee.io/*
+// @match        https://*.vistasocial.com/*
+// @match        https://vistasocial.com/*
 // @match        https://*.kuku.lu/*
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -90,7 +92,7 @@
 
   function createUnifiedPanel() {
     const role = currentUrl.includes("kuku.lu") ? "Email Tab" : "Login Tab";
-    const isOnSocialBee = hostname.includes("socialbee.com") || hostname.includes("socialbee.io");
+    const isOnSocialBee = hostname.includes("socialbee.com") || hostname.includes("socialbee.io") || hostname.includes("vistasocial.com");
 
     const container = document.createElement("div");
     container.id = "sb-suite-root";
@@ -108,6 +110,10 @@
             bottom: 24px;
             right: 24px;
             width: 340px;
+            max-width: calc(100vw - 20px);
+            max-height: 480px;
+            display: flex;
+            flex-direction: column;
             background: rgba(15, 17, 26, 0.85);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
@@ -221,7 +227,7 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-            max-height: 500px;
+            max-height: 380px;
             overflow-y: auto;
         }
 
@@ -780,7 +786,6 @@
                 </div>
                 <div class="sb-autofill-actions" style="margin-top: 8px;">
                     <button id="sb-btn-share-vars" class="sb-btn sb-btn-primary" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border: none; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25); flex: 1;">🔄 Share Vars</button>
-                    <button id="sb-btn-load-server" class="sb-btn sb-btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25); flex: 1;">📂 Server Images</button>
                 </div>
                 <div class="sb-autofill-actions" style="margin-top: 8px;">
                     <button id="sb-btn-logout-tiktok" class="sb-btn" style="background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%); border: none; box-shadow: 0 4px 12px rgba(244, 63, 94, 0.25); flex: 1; color: white;">🔑 Logout TikTok</button>
@@ -832,26 +837,10 @@
                         <input type="password" id="otp-captcha-key" placeholder="Enter API Key (auto-saved)" style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; width: 100%; box-sizing: border-box;" />
                     </div>
                 </div>
-
-                <div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                        <div style="font-size: 8px; text-transform: uppercase; color: #818cf8; font-weight: 700; letter-spacing: 0.05em; text-align: left;">🔑 Multi-Account instaddr Keys (<span id="kuku-key-count">0</span>)</div>
-                    </div>
-                    <div id="kuku-keys-list" style="display: flex; flex-direction: column; gap: 4px; max-height: 80px; overflow-y: auto; margin-bottom: 6px;"></div>
-                    <div style="display: flex; gap: 6px; align-items: center;">
-                        <input type="text" id="kuku-key-input" placeholder="Paste sessionhash / cookie string" style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 9px; padding: 4px 6px; border-radius: 4px; flex: 1;" />
-                        <button id="kuku-add-key-btn" style="background: rgba(99, 102, 241, 0.25); border: 1px solid rgba(129, 140, 248, 0.4); color: #818cf8; font-size: 9px; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: 600;">+ Add</button>
-                    </div>
-                    <button id="kuku-autodetect-key-btn" style="margin-top: 6px; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(52, 211, 153, 0.4); color: #34d399; font-size: 9px; padding: 4px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: 600;">⚡ Save Active Tab's Account Key</button>
-                    <div style="display: flex; gap: 6px; margin-top: 6px;">
-                        <button id="kuku-export-keys-btn" style="flex: 1; background: rgba(139, 92, 246, 0.2); border: 1px solid rgba(167, 139, 250, 0.4); color: #c084fc; font-size: 9px; padding: 4px; border-radius: 4px; cursor: pointer; font-weight: 600;">📋 Export Keys</button>
-                        <button id="kuku-import-keys-btn" style="flex: 1; background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(96, 165, 250, 0.4); color: #60a5fa; font-size: 9px; padding: 4px; border-radius: 4px; cursor: pointer; font-weight: 600;">📥 Import Keys</button>
-                    </div>
-                </div>
             </div>
 
             <div style="margin: 8px 12px 0 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-                <button id="sb-btn-export-session" class="sb-btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); border: none; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); width: 100%; color: white;">📋 Copy All Cookies (Kuku + SocialBee)</button>
+                <button id="sb-btn-export-session" class="sb-btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); border: none; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); width: 100%; color: white;">📋 Copy All Cookies (SocialBee / Vista)</button>
             </div>
 
             <div class="suite-footer">
@@ -892,223 +881,7 @@
       shadow.getElementById("otp-login-only-controls").style.display = "block";
     }
 
-    // instaddr Multi-Account Keys panel setup
-    function renderKukuKeysList() {
-      const container = shadow.getElementById("kuku-keys-list");
-      const countEl = shadow.getElementById("kuku-key-count");
-      if (!container || !countEl) return;
 
-      const saved = GM_getValue("kuku_account_keys", []);
-      countEl.textContent = saved.length;
-
-      if (saved.length === 0) {
-        container.innerHTML = `<div style="font-size: 9px; color: #6b7280; font-style: italic;">No saved account keys. Add key or click 'Save Active Tab'.</div>`;
-        return;
-      }
-
-      container.innerHTML = "";
-      saved.forEach((acc, idx) => {
-        const item = document.createElement("div");
-        item.style.cssText = "display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.06); padding: 4px 6px; border-radius: 4px; font-size: 9px;";
-
-        const label = document.createElement("span");
-        label.style.cssText = "color: #e5e7eb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;";
-        label.textContent = acc.name || `Account #${idx + 1}`;
-        label.title = acc.key;
-
-        const delBtn = document.createElement("button");
-        delBtn.style.cssText = "background: none; border: none; color: #ef4444; cursor: pointer; font-size: 10px; padding: 0 4px;";
-        delBtn.textContent = "✕";
-        delBtn.title = "Delete key";
-        delBtn.addEventListener("click", () => {
-          saved.splice(idx, 1);
-          GM_setValue("kuku_account_keys", saved);
-          renderKukuKeysList();
-        });
-
-        item.appendChild(label);
-        item.appendChild(delBtn);
-        container.appendChild(item);
-      });
-    }
-
-    renderKukuKeysList();
-
-    const addKeyBtn = shadow.getElementById("kuku-add-key-btn");
-    const keyInput = shadow.getElementById("kuku-key-input");
-    if (addKeyBtn && keyInput) {
-      addKeyBtn.addEventListener("click", () => {
-        let val = keyInput.value.trim();
-        if (!val) {
-          alert("Please enter a sessionhash key or cookie string into the text box first.");
-          return;
-        }
-
-        if (!val.includes("=") && /^[a-zA-Z0-9_-]+$/.test(val)) {
-          val = "cookie_sessionhash=" + val;
-        }
-
-        const saved = GM_getValue("kuku_account_keys", []);
-
-        let hashVal = "";
-        if (val.includes("cookie_sessionhash=")) {
-          const match = val.match(/cookie_sessionhash=([^;]+)/);
-          if (match) hashVal = match[1];
-        } else if (/^[a-zA-Z0-9_-]+$/.test(val)) {
-          hashVal = val;
-        }
-
-        const isDuplicate = saved.some((a) => {
-          if (a.key === val) return true;
-          if (hashVal && a.key.includes(hashVal)) return true;
-          return false;
-        });
-
-        if (isDuplicate) {
-          alert("This account key is already saved in your list!");
-          return;
-        }
-
-        const cleanHash = hashVal.replace(/^SHASH(%3A|:)/i, "");
-        let name = cleanHash ? "Hash (" + cleanHash.slice(0, 8) + "...)" : "Key #" + (saved.length + 1);
-
-        saved.push({
-          id: "kuku_" + Date.now(),
-          name: name,
-          key: val,
-          addedAt: Date.now(),
-        });
-
-        GM_setValue("kuku_account_keys", saved);
-        keyInput.value = "";
-        renderKukuKeysList();
-        alert(`Successfully added new account key: ${name}`);
-      });
-    }
-
-    const autoDetectBtn = shadow.getElementById("kuku-autodetect-key-btn");
-    if (autoDetectBtn) {
-      autoDetectBtn.addEventListener("click", () => {
-        if (!window.location.hostname.includes("kuku.lu")) {
-          alert("Please click this button while on an m.kuku.lu tab to auto-detect its account key!");
-          return;
-        }
-
-        let activeEmail = "";
-        const emailEls = Array.from(document.querySelectorAll("#area_mailaddr, #area_recv_mailaddr, .mailaddr, td, span, div, b"));
-        for (const el of emailEls) {
-          const txt = (el.textContent || "").trim();
-          if (txt.includes("@kuku.lu") || txt.includes("@instaddr") || /[a-zA-Z0-9.*_%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(txt)) {
-            const match = txt.match(/[a-zA-Z0-9.*_%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-            if (match) {
-              activeEmail = match[0];
-              break;
-            }
-          }
-        }
-
-        const cookies = document.cookie;
-        let localHash = "";
-        try {
-          localHash = localStorage.getItem("cookie_sessionhash") || localStorage.getItem("sessionhash") || localStorage.getItem("nopsw") || "";
-        } catch (e) {}
-
-        const hashMatch = cookies ? cookies.match(/cookie_sessionhash=([^;]+)/) : null;
-        const hashVal = hashMatch ? hashMatch[1] : localHash;
-
-        if (!cookies && !hashVal) {
-          alert("No active session cookie or session hash found on this tab. Please refresh the page (F5) after switching accounts!");
-          return;
-        }
-
-        const keyData = cookies || ("cookie_sessionhash=" + hashVal);
-        const saved = GM_getValue("kuku_account_keys", []);
-
-        const cleanHash = hashVal.replace(/^SHASH(%3A|:)/i, "");
-        let name = activeEmail || (cleanHash ? "Hash (" + cleanHash.slice(0, 8) + "...)" : "Account #" + (saved.length + 1));
-        if (name.length > 45) name = name.slice(0, 45) + "...";
-
-        const existingIdx = saved.findIndex((a) => {
-          if (hashVal && a.key.includes(hashVal)) return true;
-          if (activeEmail && a.name === activeEmail) return true;
-          if (a.key === keyData) return true;
-          return false;
-        });
-
-        if (existingIdx >= 0) {
-          saved[existingIdx].key = keyData;
-          saved[existingIdx].name = name;
-          alert(`Updated key for account: ${name}\nSession Hash: ${cleanHash ? cleanHash.slice(0, 10) + "..." : "Saved"}`);
-        } else {
-          saved.push({
-            id: "kuku_" + Date.now(),
-            name: name,
-            key: keyData,
-            addedAt: Date.now(),
-          });
-          alert(`Saved new account key for: ${name}\nSession Hash: ${cleanHash ? cleanHash.slice(0, 10) + "..." : "Saved"}`);
-        }
-
-        GM_setValue("kuku_account_keys", saved);
-        renderKukuKeysList();
-      });
-    }
-
-    const exportKeysBtn = shadow.getElementById("kuku-export-keys-btn");
-    if (exportKeysBtn) {
-      exportKeysBtn.addEventListener("click", () => {
-        const saved = GM_getValue("kuku_account_keys", []);
-        if (saved.length === 0) {
-          alert("No saved instaddr account keys to export.");
-          return;
-        }
-        const jsonStr = JSON.stringify(saved, null, 2);
-        navigator.clipboard
-          .writeText(jsonStr)
-          .then(() => {
-            alert(`Successfully copied ${saved.length} instaddr account keys to your clipboard as JSON!`);
-          })
-          .catch((err) => {
-            prompt("Copy your instaddr account keys JSON manually:", jsonStr);
-          });
-      });
-    }
-
-    const importKeysBtn = shadow.getElementById("kuku-import-keys-btn");
-    if (importKeysBtn) {
-      importKeysBtn.addEventListener("click", () => {
-        const input = prompt("Paste your exported instaddr account keys JSON:");
-        if (!input) return;
-        try {
-          const parsed = JSON.parse(input);
-          if (!Array.isArray(parsed)) {
-            alert("Invalid format. Expected a JSON array of account keys.");
-            return;
-          }
-          const saved = GM_getValue("kuku_account_keys", []);
-          let addedCount = 0;
-          parsed.forEach((item) => {
-            if (item && item.key) {
-              const exists = saved.some((a) => a.key === item.key);
-              if (!exists) {
-                saved.push({
-                  id: item.id || "kuku_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
-                  name: item.name || "Imported Key",
-                  key: item.key,
-                  addedAt: item.addedAt || Date.now(),
-                });
-                addedCount++;
-              }
-            }
-          });
-          GM_setValue("kuku_account_keys", saved);
-          renderKukuKeysList();
-          alert(`Import successful! Added ${addedCount} new account keys.`);
-        } catch (e) {
-          alert("Failed to parse JSON. Please make sure you pasted valid JSON content.");
-        }
-      });
-    }
 
     // Toggle minimize
     const toggleBtn = shadow.getElementById("sb-suite-toggle-btn");
@@ -1391,7 +1164,7 @@
     }
 
     // Check for successful callback redirect
-    if (currentUrl.includes("socialbee.com") && (currentUrl.includes("signin/tiktok/callback") || currentUrl.includes("success") || (currentUrl.includes("profiles") && currentUrl.includes("code=")))) {
+    if ((currentUrl.includes("socialbee.com") || currentUrl.includes("vistasocial.com")) && (currentUrl.includes("signin/tiktok/callback") || currentUrl.includes("success") || (currentUrl.includes("profiles") && (currentUrl.includes("code=") || currentUrl.includes("connected"))))) {
       console.log("[OTP Link] Detected TikTok OAuth callback. Setting authorization flag.");
       GM_setValue("tiktok_authorized_flag", true);
 
@@ -2114,22 +1887,79 @@
     }
 
     function findTikTokReconnectButton() {
+      if (window.location.hostname.includes("vistasocial.com")) {
+        // Priority 1: Check for TikTok's SPECIFIC Connect button inside data-doc-anchor="connect-network-tiktok"
+        const tiktokTile = document.querySelector('[data-doc-anchor="connect-network-tiktok"], [data-doc-anchor*="connect-network-tiktok"]');
+        if (tiktokTile && tiktokTile.offsetWidth > 0) {
+          const tiktokBtn = tiktokTile.querySelector("button") || tiktokTile;
+          if (tiktokBtn && tiktokBtn.offsetWidth > 0) {
+            return tiktokBtn;
+          }
+        }
+
+        // Priority 2: Check for "Continue" step button (data-doc-anchor="add-profile-continue")
+        const continueBtn = document.querySelector('[data-doc-anchor="add-profile-continue"], button[data-doc-anchor="add-profile-continue"]');
+        if (continueBtn && continueBtn.offsetWidth > 0) {
+          return continueBtn;
+        }
+
+        // Priority 3: Check for "Add profile" initial button (data-doc-anchor="settings-profiles-add")
+        const addProfileBtn = document.querySelector('[data-doc-anchor="settings-profiles-add"], button[data-doc-anchor="settings-profiles-add"]');
+        if (addProfileBtn && addProfileBtn.offsetWidth > 0 && !document.querySelector('[class*="AddProfileModal"]')) {
+          return addProfileBtn;
+        }
+
+        // Priority 4: Search for any button inside a block with text "TikTok" or img src containing "tiktok"
+        const allNetworkWrappers = Array.from(document.querySelectorAll('[class*="AddProfileModal__StyledNetworkWrapper"]'));
+        for (const wrapper of allNetworkWrappers) {
+          if (wrapper.offsetWidth === 0 && wrapper.offsetHeight === 0) continue;
+          const wrapperText = (wrapper.textContent || "").toLowerCase();
+          const img = wrapper.querySelector("img");
+          const imgSrc = img ? (img.getAttribute("src") || "").toLowerCase() : "";
+          if (wrapperText.includes("tiktok") || imgSrc.includes("tiktok")) {
+            const btn = wrapper.querySelector("button") || wrapper;
+            if (btn && btn.offsetWidth > 0) return btn;
+          }
+        }
+      }
+
+      // 2. SocialBee specific form/class selectors:
       let btn = document.querySelector('form[action*="/signin/tiktok"] button, form[action="/signin/tiktok"] button, a[href*="/signin/tiktok"]');
-      if (btn) return btn;
+      if (btn && btn.offsetWidth > 0) return btn;
 
       btn = document.querySelector('.connect-social-tiktok button, [class*="connect-social-tiktok"] button');
-      if (btn) return btn;
+      if (btn && btn.offsetWidth > 0) return btn;
 
-      const allButtons = Array.from(document.querySelectorAll("button, a"));
+      // 3. Scan all buttons / links / clickable elements for TikTok connect/reconnect
+      const allButtons = Array.from(document.querySelectorAll("button, a, div[role='button']"));
+
       for (const element of allButtons) {
+        if (element.offsetWidth === 0 && element.offsetHeight === 0) continue;
+
         const text = (element.textContent || "").trim().toLowerCase();
         const parentForm = element.closest("form");
         const action = parentForm ? parentForm.getAttribute("action") || "" : "";
+        const href = element.getAttribute("href") || "";
+        const parentText = (element.parentElement ? element.parentElement.textContent || "" : "").toLowerCase();
+        const rowText = (element.closest("tr, div, li") ? element.closest("tr, div, li").textContent || "" : "").toLowerCase();
 
-        if ((text.includes("reconnect") || text.includes("connect")) && (text.includes("tiktok") || action.includes("tiktok") || element.getAttribute("href")?.includes("tiktok"))) {
+        const isTikTok = text.includes("tiktok") || action.includes("tiktok") || href.includes("tiktok") || parentText.includes("tiktok") || rowText.includes("tiktok");
+        const isConnectAction = text.includes("reconnect") || text.includes("connect") || text.includes("re-connect") || text.includes("re-authorize") || text.includes("authorize");
+
+        if (isTikTok && isConnectAction) {
           return element;
         }
       }
+
+      // Generic fallback: button whose text is reconnect or connect
+      for (const element of allButtons) {
+        if (element.offsetWidth === 0 && element.offsetHeight === 0) continue;
+        const text = (element.textContent || "").trim().toLowerCase();
+        if (text === "reconnect" || text.includes("reconnect tiktok") || text === "connect tiktok") {
+          return element;
+        }
+      }
+
       return null;
     }
 
@@ -2380,8 +2210,8 @@
         setStatus(`Requesting OTP for ${targetEmail}...`, "running");
 
         const staleResp = GM_getValue("otp_response");
-        if (staleResp && (!staleResp.email || !isEmailMatch(staleResp.email, targetEmail))) {
-          console.log(`[OTP Link] Clearing old/mismatched OTP response for ${staleResp?.email}`);
+        if (staleResp && (!staleResp.email || !isEmailMatch(staleResp.email, targetEmail) || (staleResp.timestamp && Date.now() - staleResp.timestamp > 120000))) {
+          console.log(`[OTP Link] Clearing old/mismatched/expired OTP response for ${staleResp?.email}`);
           GM_setValue("otp_response", null);
         }
 
@@ -2393,7 +2223,13 @@
 
         function handleOtpResponse(newValue) {
           if (newValue && newValue.email && isEmailMatch(newValue.email, targetEmail) && newValue.otp) {
-            console.log(`[OTP Link] Received matching OTP for ${newValue.email}: ${newValue.otp}`);
+            const age = Date.now() - (newValue.timestamp || 0);
+            if (age > 120000) {
+              console.log(`[OTP Link] Received OTP for ${newValue.email} but it is expired (${Math.round(age / 1000)}s old > 120s limit). Ignoring.`);
+              return;
+            }
+
+            console.log(`[OTP Link] Received matching valid OTP for ${newValue.email}: ${newValue.otp}`);
             setStatus(`Received OTP ${newValue.otp}! Filling...`, "success");
 
             let attempts = 0;
@@ -2451,18 +2287,29 @@
           window.otp_response_poll_interval = setInterval(() => {
             const currentResp = GM_getValue("otp_response");
             if (currentResp && currentResp.email && isEmailMatch(currentResp.email, targetEmail) && currentResp.otp) {
-              handleOtpResponse(currentResp);
-              clearInterval(window.otp_response_poll_interval);
-              window.otp_response_poll_interval = null;
+              const age = Date.now() - (currentResp.timestamp || 0);
+              if (age <= 120000) {
+                handleOtpResponse(currentResp);
+                clearInterval(window.otp_response_poll_interval);
+                window.otp_response_poll_interval = null;
+              } else {
+                GM_setValue("otp_response", null);
+              }
             }
           }, 1000);
         }
 
         const currentResp = GM_getValue("otp_response");
         if (currentResp && currentResp.email && isEmailMatch(currentResp.email, targetEmail) && currentResp.otp) {
-          console.log(`[OTP Link] Found existing matching OTP response for ${currentResp.email}: ${currentResp.otp}`);
-          fillOTP(currentResp.otp);
-          return;
+          const age = Date.now() - (currentResp.timestamp || 0);
+          if (age <= 120000) {
+            console.log(`[OTP Link] Found existing matching valid OTP response for ${currentResp.email}: ${currentResp.otp} (${Math.round(age / 1000)}s old)`);
+            fillOTP(currentResp.otp);
+            return;
+          } else {
+            console.log(`[OTP Link] Found expired OTP response for ${currentResp.email} (${Math.round(age / 1000)}s old > 120s limit). Clearing stale OTP.`);
+            GM_setValue("otp_response", null);
+          }
         }
 
         GM_setValue("otp_request", {
@@ -2471,20 +2318,6 @@
           timestamp: Date.now(),
           invalid_otp: window.last_invalid_otp || null,
         });
-
-        // Query saved instaddr keys directly from TikTok tab
-        fetchOTPFromMultiAccounts(targetEmail);
-        if (!window.multiAccountPollInterval) {
-          window.multiAccountPollInterval = setInterval(async () => {
-            const req = GM_getValue("otp_request");
-            if (req && req.status === "pending") {
-              await fetchOTPFromMultiAccounts(req.email);
-            } else {
-              clearInterval(window.multiAccountPollInterval);
-              window.multiAccountPollInterval = null;
-            }
-          }, 1500);
-        }
       }
 
       function checkForVerificationOption() {
@@ -2883,7 +2716,9 @@
       }
 
       function checkForSocialBeeReconnect() {
-        if (!window.location.hostname.includes("socialbee.com") && !window.location.hostname.includes("socialbee.io")) return;
+        const isSocialBee = window.location.hostname.includes("socialbee.com") || window.location.hostname.includes("socialbee.io");
+        const isVistaSocial = window.location.hostname.includes("vistasocial.com");
+        if (!isSocialBee && !isVistaSocial) return;
 
         const autoReconnectEnabled = GM_getValue("sb_auto_reconnect_tiktok", false);
         if (!autoReconnectEnabled) return;
@@ -2908,10 +2743,31 @@
 
         const reconnectBtn = findTikTokReconnectButton();
         if (reconnectBtn && reconnectBtn.offsetWidth > 0) {
-          window.hasClickedSocialBeeReconnect = true;
-          console.log(`[OTP Link] Found TikTok Reconnect button for ${savedEmail}. Clicking...`);
-          setStatus("Clicking TikTok Reconnect button...", "success");
-          clickElement(reconnectBtn, "[AutoClick] Clicked TikTok Reconnect button.");
+          const docAnchor = reconnectBtn.getAttribute("data-doc-anchor") || "";
+          const parentAnchor = (reconnectBtn.closest("[data-doc-anchor]") ? reconnectBtn.closest("[data-doc-anchor]").getAttribute("data-doc-anchor") : "") || "";
+          const className = reconnectBtn.className || "";
+          const text = (reconnectBtn.textContent || "").trim().toLowerCase();
+
+          const isTikTokConnect = docAnchor.includes("connect-network-tiktok") || parentAnchor.includes("connect-network-tiktok") || (className.includes("AddProfileModal__ConnectButton") && (docAnchor.includes("tiktok") || parentAnchor.includes("tiktok")));
+
+          const isIntermediateStep = !isTikTokConnect && (
+            docAnchor === "settings-profiles-add" ||
+            docAnchor === "add-profile-continue" ||
+            (docAnchor.includes("add-profile") && !docAnchor.includes("tiktok")) ||
+            text === "add profile" ||
+            text === "continue"
+          );
+
+          if (isIntermediateStep) {
+            console.log(`[OTP Link] Found step button (${docAnchor || text}). Clicking step...`);
+            setStatus(`Clicking step (${text || docAnchor})...`, "running");
+            clickElement(reconnectBtn, `[AutoClick] Clicked step button: ${docAnchor || text}`);
+          } else {
+            window.hasClickedSocialBeeReconnect = true;
+            console.log(`[OTP Link] Found TikTok Reconnect/Connect button for ${savedEmail}. Clicking...`);
+            setStatus("Clicking TikTok Reconnect button...", "success");
+            clickElement(reconnectBtn, "[AutoClick] Clicked TikTok Reconnect button.");
+          }
         }
       }
 
@@ -3078,18 +2934,16 @@
         if (isCheckingOTP) return;
         const request = GM_getValue("otp_request");
         if (request && request.status === "pending") {
+          const reqAge = Date.now() - (request.timestamp || 0);
+          if (reqAge > 120000) {
+            console.log(`[OTP Link] Pending OTP request for ${request.email} expired (${Math.round(reqAge / 1000)}s old > 120s limit). Clearing request.`);
+            GM_setValue("otp_request", null);
+            return;
+          }
+
           isCheckingOTP = true;
           try {
-            console.log("[OTP Link] Request is pending. Checking saved multi-account keys first...");
-            setStatus(`Checking saved instaddr keys for ${request.email}...`, "running");
-
-            const multiResult = await fetchOTPFromMultiAccounts(request.email);
-            if (multiResult) {
-              console.log("[OTP Link] Multi-account API fetch succeeded!");
-              return;
-            }
-
-            console.log("[OTP Link] Multi-account check completed without match. Refreshing open tab inbox...");
+            console.log("[OTP Link] Request is pending. Refreshing open tab inbox...");
             setStatus(`Refreshing inbox to find mail for ${request.email}...`, "running");
 
             triggerInboxRefresh();
@@ -3123,20 +2977,34 @@
         const secMatch = text.match(/(\d+)\s*(?:sec|s|秒)/i);
         if (secMatch) {
           const secs = parseInt(secMatch[1], 10);
-          return secs <= 300; // Allow up to 5 minutes
+          return secs <= 120; // Allow up to 120 seconds (2 minutes)
         }
 
         const minMatch = text.match(/(\d+)\s*(?:min|m|分)/i);
         if (minMatch) {
           const mins = parseInt(minMatch[1], 10);
-          return mins <= 5; // Allow up to 5 minutes
+          return mins <= 2; // Allow up to 2 minutes
+        }
+
+        const hourMatch = text.match(/(\d+)\s*(?:hour|hr|h|時間)/i);
+        if (hourMatch) {
+          return false; // Reject 1hr or older
+        }
+
+        const dayMatch = text.match(/(\d+)\s*(?:day|d|日)/i);
+        if (dayMatch) {
+          return false; // Reject days old
         }
 
         if (/just now|now|今|新着|less than/i.test(text)) {
           return true;
         }
 
-        return true; // Default to true so we don't reject valid emails without explicit time strings
+        if (/ago|past|前/i.test(text)) {
+          return false;
+        }
+
+        return true;
       }
 
       async function findAndSendOTP(targetEmail) {
@@ -3403,7 +3271,7 @@
       return `http://${host}:4782${path}`;
     }
 
-    if (!window.location.hostname.includes("socialbee.com") && !window.location.hostname.includes("socialbee.io")) {
+    if (!window.location.hostname.includes("socialbee.com") && !window.location.hostname.includes("socialbee.io") && !window.location.hostname.includes("vistasocial.com")) {
       return;
     }
 
@@ -3483,7 +3351,6 @@
     const btnStop = shadow.getElementById("sb-btn-stop");
     const btnDeleteAll = shadow.getElementById("sb-btn-delete-all");
     const btnLogoutTiktok = shadow.getElementById("sb-btn-logout-tiktok");
-    const btnLoadServer = shadow.getElementById("sb-btn-load-server");
     const btnShareVars = shadow.getElementById("sb-btn-share-vars");
     const statusText = shadow.getElementById("sb-status-text");
     const statusDot = shadow.getElementById("sb-status-dot");
@@ -4159,17 +4026,17 @@
     }
 
     function findDeleteButtonDirect() {
-      const elements = Array.from(document.querySelectorAll("button, a, i, span, div[role='button']"));
+      const elements = Array.from(document.querySelectorAll("button, a, i, span, div[role='button'], [class*='Item__StyledItem']"));
       const candidates = elements.filter((el) => {
         if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
 
         if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) return false;
 
-        if (el.dataset.sbDeleteAttempted === "true" || el.closest("button, a")?.dataset.sbDeleteAttempted === "true") {
+        if (el.dataset.sbDeleteAttempted === "true" || el.closest("button, a, [class*='Item__StyledItem']")?.dataset.sbDeleteAttempted === "true") {
           return false;
         }
 
-        if (el.closest(".modal, .modal-content, .modal-dialog, .modal-container, ngb-modal-window")) {
+        if (el.closest(".modal, .modal-content, .modal-dialog, .modal-container, ngb-modal-window") && !el.closest('[class*="Item__StyledItem"]')) {
           return false;
         }
 
@@ -4183,17 +4050,56 @@
         }
 
         const isTrashIcon = className.includes("trash") || className.includes("delete") || className.includes("remove") || className.includes("disconnect");
-        const isDeleteWord = text === "delete" || text === "remove" || text === "disconnect" || text.includes("remove account") || text.includes("delete account") || text.includes("disconnect profile") || text.includes("remove profile");
+        const isDeleteWord = text === "delete" || text === "remove" || text === "disconnect" || text === "remove profile" || text.includes("remove account") || text.includes("delete account") || text.includes("disconnect profile") || text.includes("remove profile");
         const isDeleteTitle = title.includes("delete") || title.includes("remove") || title.includes("disconnect") || title.includes("unlink") || title.includes("trash");
         const isDeleteId = id.includes("delete") || id.includes("remove") || id.includes("disconnect");
+        const isVistaItem = className.includes("item__styleditem") && (text.includes("remove") || text.includes("delete"));
 
-        return isTrashIcon || isDeleteWord || isDeleteTitle || isDeleteId;
+        return isTrashIcon || isDeleteWord || isDeleteTitle || isDeleteId || isVistaItem;
       });
 
       return candidates.length > 0 ? candidates[0] : null;
     }
 
     function findProfileSelector() {
+      if (window.location.hostname.includes("vistasocial.com")) {
+        const vistaActionBtns = Array.from(
+          document.querySelectorAll(
+            '[class*="TableItem__StyledImage"], [class*="TableItem__BodyCell"], button, div[role="button"], [class*="Dropdown"], [class*="Menu"], [class*="Options"], [class*="Actions"]'
+          )
+        ).filter((el) => {
+          if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
+          if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) return false;
+          if (el.dataset.sbProfileSelectAttempted === "true" || el.closest("td, tr, button, div")?.dataset.sbProfileSelectAttempted === "true") return false;
+
+          const text = (el.textContent || "").trim().toLowerCase();
+          const className = (el.className || "").toLowerCase();
+
+          const hasSvgDots = el.querySelector("svg") !== null || el.tagName.toLowerCase() === "svg";
+          const isTableBodyCell = className.includes("tableitem__bodycell") || className.includes("tableitem__styledimage");
+          const isActionMenu =
+            isTableBodyCell ||
+            className.includes("dots") ||
+            className.includes("option") ||
+            className.includes("action") ||
+            className.includes("dropdown") ||
+            className.includes("more") ||
+            className.includes("menu") ||
+            text === "..." ||
+            text === "…" ||
+            hasSvgDots;
+
+          const parentRow = el.closest('tr, [class*="Row"], [class*="Card"], [class*="Item"], [class*="Profile"]');
+          return (parentRow || isTableBodyCell) && isActionMenu;
+        });
+
+        if (vistaActionBtns.length > 0) {
+          const target = vistaActionBtns[0];
+          const innerIcon = target.querySelector('[class*="TableItem__StyledImage"], svg') || target;
+          return innerIcon;
+        }
+      }
+
       const elements = Array.from(document.querySelectorAll("a, button, div, li, tr, [role='tab']"));
       const items = elements.filter((el) => {
         if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
@@ -4208,7 +4114,6 @@
 
         const className = (el.className || "").toLowerCase();
         const id = (el.id || "").toLowerCase();
-        const text = (el.textContent || "").trim().toLowerCase();
 
         const isProfileClass = className.includes("profile-card") || className.includes("account-card") || className.includes("profile-item") || className.includes("account-item") || className.includes("connected-account") || className.includes("sidebar-profile");
         const isProfileId = id.includes("profile") || id.includes("account");
@@ -4272,15 +4177,21 @@
           if (!isRunning) break;
 
           if (!deleteBtn && profileItem) {
-            console.log("[SocialBee Autofill] Selecting profile item to reveal delete button:", profileItem);
+            console.log("[SocialBee Autofill] Selecting profile item/3-dots menu to reveal delete button:", profileItem);
             profileItem.dataset.sbProfileSelectAttempted = "true";
+            const parentCellOrRow = profileItem.closest("td, tr, div");
+            if (parentCellOrRow) parentCellOrRow.dataset.sbProfileSelectAttempted = "true";
 
             profileItem.scrollIntoView({ block: "center", behavior: "smooth" });
-            await sleep(400);
+            await sleep(300);
             profileItem.click();
+            try {
+              profileItem.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+              profileItem.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
+            } catch (e) {}
 
             // Poll for delete button to render after clicking profile item (up to 20 attempts ~ 8 seconds)
-            setStatus("Waiting for delete button after profile selection...", "running");
+            setStatus("Waiting for delete button after menu selection...", "running");
             for (let poll = 0; poll < 20; poll++) {
               if (!isRunning) break;
               deleteBtn = findDeleteButtonDirect();
@@ -4308,7 +4219,7 @@
 
           let clickTarget = deleteBtn;
           if (deleteBtn.tagName === "I" || deleteBtn.tagName === "SPAN") {
-            clickTarget = deleteBtn.closest("button, a") || deleteBtn;
+            clickTarget = deleteBtn.closest("button, a, div[role='button'], [class*='Item__StyledItem']") || deleteBtn;
           }
 
           clickTarget.dataset.sbDeleteAttempted = "true";
@@ -4323,14 +4234,25 @@
           await sleep(500);
           clickTarget.click();
 
-          // Poll for confirmation modal & button (up to 30 attempts ~ 9 seconds)
+          // Poll for confirmation modal & button (up to 20 attempts ~ 6 seconds)
           let clickedConfirm = false;
-          for (let attempt = 0; attempt < 30; attempt++) {
+          for (let attempt = 0; attempt < 20; attempt++) {
             if (!isRunning) break;
-            const confirmBtn = Array.from(document.querySelectorAll("button")).find((button) => {
+            const confirmBtn = Array.from(document.querySelectorAll("button, div[role='button'], [class*='Item__StyledItem']")).find((button) => {
+              if (button.offsetWidth === 0 || button.offsetHeight === 0) return false;
+              if (button.closest("#sb-suite-root") || button.closest("#sb-autofill-root")) return false;
               const txt = (button.textContent || "").trim().toLowerCase();
               const className = (button.className || "").toLowerCase();
-              return txt.includes("yes, remove social account") || txt.includes("yes, remove") || txt === "remove" || txt.includes("disconnect") || (className.includes("btn-primary-sb") && (txt.includes("remove") || txt.includes("disconnect")));
+              return (
+                txt.includes("yes, remove social account") ||
+                txt.includes("yes, remove") ||
+                txt === "remove" ||
+                txt === "remove profile" ||
+                txt === "delete" ||
+                txt.includes("confirm") ||
+                txt.includes("disconnect") ||
+                (className.includes("btn-primary-sb") && (txt.includes("remove") || txt.includes("disconnect")))
+              );
             });
 
             if (confirmBtn && confirmBtn.offsetWidth > 0) {
@@ -4344,9 +4266,15 @@
           }
 
           if (!clickedConfirm) {
-            console.warn("[SocialBee Autofill] Failed to find/click confirmation button for this item.");
-            setStatus("Could not confirm deletion of account.", "error");
-            break;
+            if (!document.body.contains(clickTarget) || clickTarget.offsetWidth === 0) {
+              console.log("[SocialBee Autofill] Target element removed/hidden after click. Counting as deleted.");
+              clickedConfirm = true;
+              deletedCount++;
+            } else {
+              console.warn("[SocialBee Autofill] Failed to find/click confirmation button for this item.");
+              setStatus("Could not confirm deletion of account.", "error");
+              break;
+            }
           }
 
           await sleep(stepDelay + 1500);
@@ -4371,85 +4299,7 @@
         window.open("https://www.tiktok.com/logout?auto_close=true", "_blank", "width=500,height=600");
       });
     }
-    if (btnLoadServer) btnLoadServer.addEventListener("click", loadImagesFromServer);
     if (btnShareVars) btnShareVars.addEventListener("click", shareVariationsAutomation);
-
-    function fetchBlobFromUrl(url) {
-      return new Promise((resolve, reject) => {
-        GM_xmlhttpRequest({
-          method: "GET",
-          url: url,
-          responseType: "blob",
-          onload: (res) => {
-            if (res.status >= 200 && res.status < 300) {
-              resolve({
-                blob: res.response,
-                filename: res.responseHeaders.match(/x-filename:\s*(.+)/i)?.[1]?.trim() || "image.png",
-              });
-            } else {
-              reject(new Error(`Failed to load image: ${res.statusText}`));
-            }
-          },
-          onerror: (err) => reject(err),
-        });
-      });
-    }
-
-    function fetchJsonFromUrl(url) {
-      return new Promise((resolve, reject) => {
-        GM_xmlhttpRequest({
-          method: "GET",
-          url: url,
-          responseType: "json",
-          onload: (res) => {
-            if (res.status >= 200 && res.status < 300) {
-              resolve(res.response);
-            } else {
-              reject(new Error(`Failed to load list: ${res.statusText}`));
-            }
-          },
-          onerror: (err) => reject(err),
-        });
-      });
-    }
-
-    async function loadImagesFromServer() {
-      try {
-        setStatus("Loading server images...", "running");
-        const list = await fetchJsonFromUrl(getServerUrl("/images/list"));
-
-        baseFiles = [];
-        var4Files = [];
-
-        if (list.var_1_3 && list.var_1_3.length > 0) {
-          for (const filename of list.var_1_3) {
-            const fileUrl = getServerUrl(`/images/file?folder=var_1_3&name=${encodeURIComponent(filename)}`);
-            const { blob, filename: serverName } = await fetchBlobFromUrl(fileUrl);
-            const file = new File([blob], serverName, { type: blob.type });
-            baseFiles.push(file);
-          }
-          saveFilesToGM("sb_base_files", baseFiles);
-        }
-
-        if (list.var_4_6 && list.var_4_6.length > 0) {
-          for (const filename of list.var_4_6) {
-            const fileUrl = getServerUrl(`/images/file?folder=var_4_6&name=${encodeURIComponent(filename)}`);
-            const { blob, filename: serverName } = await fetchBlobFromUrl(fileUrl);
-            const file = new File([blob], serverName, { type: blob.type });
-            var4Files.push(file);
-          }
-          saveFilesToGM("sb_var4_files", var4Files);
-        }
-
-        renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
-        renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
-
-        setStatus(`Loaded ${baseFiles.length} base & ${var4Files.length} var4-6 images from server.`, "success");
-      } catch (err) {
-        console.error("Failed to load server images:", err);
-        setStatus("Failed to load server images: " + err.message, "error");
-      }
-    }
 
     const storedBase = loadFilesFromGM("sb_base_files");
     const storedVar4 = loadFilesFromGM("sb_var4_files");
@@ -4459,8 +4309,6 @@
       renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
       renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
       setStatus("Restored saved images from local storage.", "success");
-    } else {
-      loadImagesFromServer();
     }
 
     async function shareVariationsAutomation() {
@@ -4676,7 +4524,7 @@
   createUnifiedPanel();
 
   // Dispatch modules based on matched domains/pages
-  if (hostname.includes("tiktok.com") || hostname.includes("kuku.lu") || hostname.includes("socialbee.com") || hostname.includes("socialbee.io")) {
+  if (hostname.includes("tiktok.com") || hostname.includes("kuku.lu") || hostname.includes("socialbee.com") || hostname.includes("socialbee.io") || hostname.includes("vistasocial.com")) {
     try {
       runOtpLinker(suiteShadow);
     } catch (e) {
@@ -4684,7 +4532,7 @@
     }
   }
 
-  if (hostname.includes("socialbee.com") || hostname.includes("socialbee.io")) {
+  if (hostname.includes("socialbee.com") || hostname.includes("socialbee.io") || hostname.includes("vistasocial.com")) {
     try {
       runSocialBeeManager(suiteShadow);
     } catch (e) {

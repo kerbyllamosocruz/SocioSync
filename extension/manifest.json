@@ -17,6 +17,8 @@
     "https://*.tiktok.com/*",
     "https://app.socialbee.com/*",
     "https://app.socialbee.io/*",
+    "https://*.vistasocial.com/*",
+    "https://vistasocial.com/*",
     "https://*.kuku.lu/*",
     "http://localhost/*",
     "http://127.0.0.1/*"
@@ -30,6 +32,8 @@
         "https://*.tiktok.com/*",
         "https://app.socialbee.com/*",
         "https://app.socialbee.io/*",
+        "https://*.vistasocial.com/*",
+        "https://vistasocial.com/*",
         "https://*.kuku.lu/*"
       ],
       "js": ["content.js"],

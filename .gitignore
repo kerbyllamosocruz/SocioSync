@@ -14,3 +14,17 @@ drive-download*
 create_dolphin_profiles.js
 node_modules/
 build_extension.js
+
+# Machine Learning datasets, models & Python cache
+machine learning/dataset/
+machine learning/dataset_cleaned/
+*.pth
+*.pt
+*.onnx
+*.h5
+*.bin
+*.pkl
+__pycache__/
+.venv/
+venv/
+env/
