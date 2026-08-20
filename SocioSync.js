@@ -4252,10 +4252,8 @@
     }, 1500);
   }
 
-  // Create unified UI panel
   createUnifiedPanel();
 
-  // Dispatch modules based on matched domains/pages
   if (hostname.includes("tiktok.com") || hostname.includes("kuku.lu") || hostname.includes("socialbee.com") || hostname.includes("socialbee.io") || hostname.includes("vistasocial.com")) {
     try {
       runOtpLinker(suiteShadow);

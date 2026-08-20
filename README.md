@@ -1,17 +1,17 @@
 # SocioSync v5.0
 
-A powerful, all-in-one Userscript for **Tampermonkey / Violentmonkey** designed to streamline social media account management, automated account deletion, and cross-tab OTP verification across **TikTok**, **SocialBee**, **Vista Social**, and **kuku.lu / m.kuku.lu**.
+A Userscript for Tampermonkey and Violentmonkey designed to streamline social media account management, automated account deletion, and cross-tab OTP verification across TikTok, SocialBee, Vista Social, and kuku.lu / m.kuku.lu.
 
 ---
 
-## 🌟 Key Features
+## Key Features
 
-### 1. 🤖 Cross-Tab OTP & Login Automation (TikTok)
+### 1. Cross-Tab OTP & Login Automation (TikTok)
 - **Human-like Credential Autofill**: Simulates realistic typing delays (15ms per character) for usernames and passwords on TikTok login pages.
 - **Cross-Tab Temporary Email Sync**: Automatically listens for OTP verification codes sent to `m.kuku.lu` / `kuku.lu` temporary mailboxes and inputs them into TikTok's 6-digit OTP fields.
 - **Auto-Submit & Reconnect Flow**: Triggers submission after OTP entry and auto-clicks authorization/reconnect buttons.
 
-### 2. ⚠️ Automatic Error Detection & Account Status Tracking
+### 2. Automatic Error Detection & Account Status Tracking
 - **Smart Credential Validation**: Monitors TikTok login response messages for known failure states:
   - *"Account doesn't exist"*
   - *"Username or password doesn't match our records"*
@@ -19,18 +19,18 @@ A powerful, all-in-one Userscript for **Tampermonkey / Violentmonkey** designed 
 - **Automatic Status Tagging**: Automatically updates local account records to `Wrong` when login fails, preventing redundant attempts.
 - **Filtered Account List**: Ignores accounts marked as `Done`, `Banned`, or `Wrong` when cycling through the CSV account queue.
 
-### 3. 🗑️ Automated Batch Account Deletion (SocialBee & Vista Social)
+### 3. Automated Batch Account Deletion (SocialBee & Vista Social)
 - **Heuristic UI Scanner**: Locates profile row action menus (3-dot icons) and context dropdowns dynamically.
 - **Synthetic Event Dispatcher**: Simulates full pointer and mouse event chains (`pointerdown`, `mousedown`, `pointerup`, `mouseup`, `click`) to reliably interact with React-based UIs.
 - **Automated Modal Confirmation**: Confirms "Remove profile" modal dialogs automatically in batch operations.
 
-### 4. 🍪 Frictionless Session & Cookie Export/Import
-- **One-Click Session Backup**: Captures HttpOnly authentication tokens (e.g. `connect.sid`, `jwt`) for supported domains.
+### 4. Frictionless Session & Cookie Export/Import
+- **One-Click Session Backup**: Captures HttpOnly authentication tokens (e.g., `connect.sid`, `jwt`) for supported domains.
 - **Domain-Scoped Security**: Restricts cookie operations specifically to `m.kuku.lu` and target platforms to ensure session safety.
 
 ---
 
-## 🚀 Quick Start & Installation
+## Quick Start & Installation
 
 ### Prerequisites
 1. Install a Userscript Manager browser extension:
@@ -43,9 +43,9 @@ A powerful, all-in-one Userscript for **Tampermonkey / Violentmonkey** designed 
 
 ---
 
-## 📊 CSV File Format
+## CSV File Format
 
-You can load account lists into the suite using the **TikTok & OTP** tab. CSV data is stored securely in Tampermonkey's local storage (`GM_setValue`).
+You can load account lists into the suite using the **TikTok & OTP** tab. CSV data is stored securely in local storage via `GM_setValue`.
 
 ### Format Example
 ```csv
@@ -64,7 +64,7 @@ user4@m.kuku.lu,WrongPass!,Wrong
 
 ---
 
-## 🛡️ Architecture & Technical Design
+## Architecture & Technical Design
 
 - **Shadow DOM Encapsulation**: Renders the complete suite UI inside `#sb-suite-root` shadow root to prevent CSS style leaks or DOM conflicts with target websites.
 - **Pure Local Persistence**: Operates entirely offline without needing an external local server by using native GM storage APIs (`GM_getValue`, `GM_setValue`, `GM_addValueChangeListener`).
@@ -72,7 +72,7 @@ user4@m.kuku.lu,WrongPass!,Wrong
 
 ---
 
-## 📜 File Structure
+## File Structure
 
 ```
 automation/
