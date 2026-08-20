@@ -53,10 +53,10 @@
     if (!target) return;
     try {
       if (typeof target.focus === "function") target.focus();
-      target.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, view: window }));
-      target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
-      target.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true, view: window }));
-      target.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
+      target.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+      target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+      target.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true }));
+      target.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
       target.click();
     } catch (e) {
       try {
@@ -3784,11 +3784,7 @@
         threeDotsBtn.scrollIntoView({ block: "center", behavior: "smooth" });
         await sleep(400);
 
-        threeDotsBtn.click();
-        try {
-          threeDotsBtn.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-          threeDotsBtn.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
-        } catch (e) {}
+        triggerFullClick(threeDotsBtn);
 
         // Step 2: Poll for 'Remove profile' menu button
         setStatus("Waiting for 'Remove profile' menu option...", "running");
@@ -3919,11 +3915,7 @@
 
             profileItem.scrollIntoView({ block: "center", behavior: "smooth" });
             await sleep(300);
-            profileItem.click();
-            try {
-              profileItem.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-              profileItem.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
-            } catch (e) {}
+            triggerFullClick(profileItem);
 
             // Poll for delete button to render after clicking profile item (up to 20 attempts ~ 8 seconds)
             setStatus("Waiting for delete button after menu selection...", "running");
@@ -3953,21 +3945,29 @@
           consecutiveFailures = 0;
 
           let clickTarget = deleteBtn;
-          if (deleteBtn.tagName === "I" || deleteBtn.tagName === "SPAN") {
-            clickTarget = deleteBtn.closest("button, a, div[role='button'], [class*='Item__StyledItem']") || deleteBtn;
+          if (["I", "SPAN", "P", "DIV", "SVG", "PATH"].includes(deleteBtn.tagName)) {
+            clickTarget = deleteBtn.closest("button, a, li, div[role='button'], [class*='Item__StyledItem'], [class*='dropdown-item'], [class*='menu-item']") || deleteBtn;
           }
 
+          deleteBtn.dataset.sbDeleteAttempted = "true";
           clickTarget.dataset.sbDeleteAttempted = "true";
 
-          console.log("[SocialBee Autofill] Clicking delete target:", clickTarget);
+          console.log("[SocialBee Autofill] Clicking delete target:", clickTarget, "and deleteBtn:", deleteBtn);
 
           const remaining = currentCount !== null ? currentCount : initialCount !== null ? Math.max(0, initialCount - deletedCount) : null;
           const remMessage = remaining !== null ? ` (${remaining} remaining)` : "";
           setStatus(`Deleting account...${remMessage}`, "running");
 
-          clickTarget.scrollIntoView({ block: "center", behavior: "smooth" });
-          await sleep(500);
-          clickTarget.click();
+          try {
+            clickTarget.scrollIntoView({ block: "center", behavior: "instant" });
+            deleteBtn.scrollIntoView({ block: "center", behavior: "instant" });
+          } catch (e) {}
+          await sleep(300);
+
+          triggerFullClick(deleteBtn);
+          if (clickTarget && clickTarget !== deleteBtn) {
+            triggerFullClick(clickTarget);
+          }
 
           // Poll for confirmation modal & button (up to 20 attempts ~ 6 seconds)
           let clickedConfirm = false;
@@ -3982,8 +3982,8 @@
             });
 
             if (confirmBtn && confirmBtn.offsetWidth > 0) {
-              console.log("[SocialBee Autofill] Found confirm button in modal. Clicking...");
-              confirmBtn.click();
+              console.log("[SocialBee Autofill] Found confirm button in modal. Clicking:", confirmBtn);
+              triggerFullClick(confirmBtn);
               clickedConfirm = true;
               deletedCount++;
               break;
