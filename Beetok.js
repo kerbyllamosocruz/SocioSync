@@ -1373,8 +1373,8 @@
       }
     } catch (e) {}
 
-    // Helper to mark an account as done locally (update GM storage CSV text)
-    function markAccountAsDoneLocal(username) {
+    // Helper to mark an account with a status locally (update GM storage CSV text)
+    function markAccountAsStatusLocal(username, statusName = "Done") {
       if (!username) return;
       username = username.trim();
       const rawText = GM_getValue("otp_csv_raw_text", "");
@@ -1423,18 +1423,26 @@
           parts.push("");
         }
 
-        // Clean legacy " - Done" from password if present
+        // Clean legacy suffixes from password if present
         let pass = parts[passIndex] ? parts[passIndex].trim() : "";
         if (pass.endsWith(" - Done")) {
           pass = pass.replace(" - Done", "").trim();
           parts[passIndex] = pass;
           parts[statusIndex] = "Done";
+        } else if (pass.endsWith(" - Banned")) {
+          pass = pass.replace(" - Banned", "").trim();
+          parts[passIndex] = pass;
+          parts[statusIndex] = "Banned";
+        } else if (pass.endsWith(" - Wrong")) {
+          pass = pass.replace(" - Wrong", "").trim();
+          parts[passIndex] = pass;
+          parts[statusIndex] = "Wrong";
         }
 
         if (email.toLowerCase() === username.toLowerCase()) {
-          if (parts[statusIndex].toLowerCase() !== "done") {
+          if (parts[statusIndex].toLowerCase() !== statusName.toLowerCase()) {
             updated = true;
-            parts[statusIndex] = "Done";
+            parts[statusIndex] = statusName;
           }
         }
 
@@ -1444,8 +1452,12 @@
       if (updated) {
         const newText = updatedLines.join("\n");
         GM_setValue("otp_csv_raw_text", newText);
-        console.log(`[OTP Link] Marked ${username} as done in local GM storage CSV`);
+        console.log(`[OTP Link] Marked ${username} as ${statusName} in local GM storage CSV`);
       }
+    }
+
+    function markAccountAsDoneLocal(username) {
+      markAccountAsStatusLocal(username, "Done");
     }
 
     // Wrapper function to mark done locally and optionally send to server
@@ -1467,6 +1479,24 @@
         },
         onerror: function (err) {
           console.log("[OTP Link] Local server offline, mark-done not updated on server.");
+        },
+      });
+    }
+
+    function markAccountWrong(username) {
+      if (!username) return;
+      console.log(`[OTP Link] Marking account wrong: ${username}`);
+      markAccountAsStatusLocal(username, "Wrong");
+      GM_xmlhttpRequest({
+        method: "POST",
+        url: "http://localhost:4782/mark-wrong",
+        data: JSON.stringify({ username: username }),
+        headers: { "Content-Type": "application/json" },
+        onload: function (res) {
+          console.log(`[OTP Link] Server mark-wrong response status: ${res.status}`);
+        },
+        onerror: function (err) {
+          console.log("[OTP Link] Local server offline, mark-wrong not updated on server.");
         },
       });
     }
@@ -1568,7 +1598,13 @@
             const status = statusIndex !== -1 && cols[statusIndex] ? cols[statusIndex].trim() : "";
 
             const statusLower = status.toLowerCase();
-            if (statusLower === "done" || statusLower === "banned" || statusLower.includes("banned")) {
+            if (
+              statusLower === "done" ||
+              statusLower === "banned" ||
+              statusLower.includes("banned") ||
+              statusLower === "wrong" ||
+              statusLower.includes("wrong")
+            ) {
               continue;
             }
 
@@ -1903,6 +1939,13 @@
           let loginOutcomeDetected = false;
 
           while (Date.now() - startTime < timeoutMs) {
+            checkForWrongAccountErrors();
+            if (window.lastMarkedWrongEmail === email) {
+              console.log("[OTP Link] Account marked as wrong. Stopping login wait.");
+              loginOutcomeDetected = true;
+              break;
+            }
+
             const isAuthorized = GM_getValue("tiktok_authorized_flag", false);
             const currentHref = window.location.href;
             const isCallback = currentHref.includes("callback") || currentHref.includes("profiles") || currentHref.includes("success");
@@ -2808,6 +2851,56 @@
         }
       }
 
+      function checkForWrongAccountErrors() {
+        if (!window.location.hostname.includes("tiktok.com")) return;
+
+        const errorSelectors = [
+          'span[role="status"]',
+          '[role="status"]',
+          '[type="error"]',
+          '[class*="DivTextContainer"]',
+          '[class*="DivError"]',
+          '[class*="error-message"]',
+          '[class*="error"]',
+          '[role="alert"]'
+        ];
+
+        let foundWrongText = null;
+        for (const selector of errorSelectors) {
+          const elements = Array.from(document.querySelectorAll(selector));
+          for (const el of elements) {
+            const text = (el.textContent || "").trim();
+            if (text && text.length > 2 && text.length < 200) {
+              const lower = text.toLowerCase();
+              if (
+                lower.includes("account doesn't exist") ||
+                lower.includes("account doesnt exist") ||
+                lower.includes("username or password doesn't match") ||
+                lower.includes("username or password doesnt match") ||
+                lower.includes("incorrect account or password") ||
+                lower.includes("doesn't match our records") ||
+                lower.includes("doesnt match our records")
+              ) {
+                foundWrongText = text;
+                break;
+              }
+            }
+          }
+          if (foundWrongText) break;
+        }
+
+        if (foundWrongText) {
+          const currentEmail = GM_getValue("otp_csv_selected_email", "") || GM_getValue("lastAttemptedUsername", "");
+          if (currentEmail && window.lastMarkedWrongEmail !== currentEmail) {
+            window.lastMarkedWrongEmail = currentEmail;
+            console.warn(`[OTP Link] Detected TikTok login error ("${foundWrongText}"). Marking ${currentEmail} as Wrong!`);
+            markAccountWrong(currentEmail);
+            setStatus(`Account Wrong (${currentEmail})`, "error");
+            GM_setValue("otp_csv_selected_email", "");
+          }
+        }
+      }
+
       function runChecks() {
         checkCaptchaAndToggleSuite();
         checkForOTPRequirement();
@@ -2815,6 +2908,7 @@
         solveTikTokCaptchaClientSide();
         checkForSocialBeeReconnect();
         autoClickResendCode();
+        checkForWrongAccountErrors();
 
         try {
           const possibleErrorSelectors = ['[class*="DivError"]', '[class*="error-message"]', '[class*="error"]', '[class*="DivTip"]', '[class*="Tip"]', '[role="alert"]'];
