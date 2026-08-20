@@ -45,6 +45,26 @@
   // Shared shadow root and helper functions
   let suiteShadow = null;
 
+  function isVisible(el) {
+    return !!(el && el.offsetWidth > 0 && el.offsetHeight > 0);
+  }
+
+  function triggerFullClick(target) {
+    if (!target) return;
+    try {
+      if (typeof target.focus === "function") target.focus();
+      target.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, view: window }));
+      target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
+      target.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true, view: window }));
+      target.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
+      target.click();
+    } catch (e) {
+      try {
+        target.click();
+      } catch (err) {}
+    }
+  }
+
   function makeElementDraggable(element, dragHeader) {
     let pos1 = 0,
       pos2 = 0,
@@ -172,606 +192,75 @@
     const shadow = suiteShadow;
 
     const style = document.createElement("style");
-    style.textContent = `
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-        #sb-suite-panel {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            width: 340px;
-            max-width: calc(100vw - 20px);
-            max-height: 480px;
-            display: flex;
-            flex-direction: column;
-            background: rgba(15, 17, 26, 0.85);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.1);
-            color: #f3f4f6;
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            z-index: 999999999;
-            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), height 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.3s ease;
-            overflow: hidden;
-            user-select: none;
-        }
-
-        #sb-suite-panel.minimized {
-            width: 52px;
-            height: 52px;
-            border-radius: 50%;
-            cursor: move;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-            box-shadow: 0 0 20px rgba(99, 102, 241, 0.6);
-            border: none;
-            touch-action: none;
-        }
-
-        #sb-suite-panel.minimized #sb-suite-content,
-        #sb-suite-panel.minimized #sb-suite-tabs {
-            display: none;
-        }
-
-        #sb-suite-panel.minimized #sb-suite-header {
-            border: none;
-            background: none;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        #sb-suite-panel.minimized #sb-suite-title {
-            display: none;
-        }
-
-        #sb-suite-panel.minimized #sb-suite-toggle-btn {
-            font-size: 22px;
-            color: #ffffff;
-            background: none;
-            border: none;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        #sb-suite-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 14px 18px;
-            background: rgba(255, 255, 255, 0.03);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            cursor: move;
-        }
-
-        #sb-suite-title {
-            font-weight: 700;
-            font-size: 13px;
-            letter-spacing: 0.5px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            text-transform: uppercase;
-        }
-
-        #sb-suite-title span {
-            background: linear-gradient(90deg, #818cf8, #c084fc);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        #sb-suite-toggle-btn {
-            cursor: pointer;
-            background: none;
-            border: none;
-            color: #9ca3af;
-            font-size: 16px;
-            padding: 4px;
-            border-radius: 6px;
-            transition: background 0.2s, color 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 24px;
-            height: 24px;
-        }
-
-        #sb-suite-toggle-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-            color: #ffffff;
-        }
-
-        #sb-suite-content {
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            max-height: 380px;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        #sb-suite-content::-webkit-scrollbar {
-            width: 6px;
-        }
-        #sb-suite-content::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.1);
-        }
-        #sb-suite-content::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 3px;
-        }
-
-        #sb-suite-tabs {
-            display: flex;
-            background: rgba(0, 0, 0, 0.25);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .tab-btn {
-            flex: 1;
-            padding: 10px;
-            background: none;
-            border: none;
-            color: #9ca3af;
-            font-size: 11px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            text-align: center;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-        }
-
-        .tab-btn:hover {
-            color: #ffffff;
-            background: rgba(255, 255, 255, 0.02);
-        }
-
-        .tab-btn.active {
-            color: #818cf8;
-            background: rgba(255, 255, 255, 0.05);
-            border-bottom: 2px solid #6366f1;
-        }
-
-        .tab-content {
-            display: none;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .tab-content.active {
-            display: flex;
-        }
-
-        .sb-autofill-field {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .sb-autofill-label {
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: #9ca3af;
-            font-weight: 600;
-            text-align: left;
-        }
-
-        .sb-autofill-input {
-            background: rgba(0, 0, 0, 0.25);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 8px;
-            color: #ffffff;
-            padding: 8px 12px;
-            font-size: 12px;
-            font-family: inherit;
-            transition: border-color 0.2s, box-shadow 0.2s;
-            user-select: text;
-        }
-
-        .sb-autofill-input:focus {
-            border-color: #6366f1;
-            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
-            outline: none;
-        }
-
-        .sb-autofill-textarea {
-            resize: vertical;
-            height: 48px;
-            line-height: 1.4;
-        }
-
-        .sb-autofill-select {
-            appearance: none;
-            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'><path d='M1 1L5 5L9 1' stroke='%239ca3af' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
-            background-repeat: no-repeat;
-            background-position: right 12px center;
-            padding-right: 32px;
-            cursor: pointer;
-        }
-
-        .sb-autofill-file-dropzone {
-            border: 2px dashed rgba(255, 255, 255, 0.15);
-            border-radius: 8px;
-            padding: 14px;
-            text-align: center;
-            background: rgba(0, 0, 0, 0.2);
-            cursor: pointer;
-            transition: border-color 0.2s, background-color 0.2s;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-        }
-
-        .sb-autofill-file-dropzone:hover {
-            border-color: #6366f1;
-            background: rgba(99, 102, 241, 0.05);
-        }
-
-        .sb-file-dropzone-text {
-            font-size: 11px;
-            color: #9ca3af;
-            font-weight: 500;
-        }
-
-        .sb-file-dropzone-subtext {
-            font-size: 9px;
-            color: #6b7280;
-        }
-
-        .sb-file-preview-container {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            margin-top: 4px;
-        }
-
-        .sb-file-preview-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .sb-file-preview-count {
-            font-size: 9px;
-            font-weight: 600;
-            color: #a855f7;
-            text-transform: uppercase;
-        }
-
-        .sb-file-clear-btn {
-            font-size: 9px;
-            font-weight: 600;
-            color: #ef4444;
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 0;
-            text-transform: uppercase;
-        }
-
-        .sb-file-clear-btn:hover {
-            text-decoration: underline;
-        }
-
-        .sb-file-preview-list {
-            display: flex;
-            gap: 6px;
-            overflow-x: auto;
-            padding: 4px 0;
-        }
-
-        .sb-file-preview-item {
-            position: relative;
-            width: 44px;
-            height: 44px;
-            border-radius: 6px;
-            overflow: hidden;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            flex-shrink: 0;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-        }
-
-        .sb-file-preview-item img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        /* OTP Linker styles */
-        .otp-info {
-            font-size: 11px;
-            color: #9ca3af;
-            margin-bottom: 2px;
-            text-align: left;
-        }
-
-        #otp-status {
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 11px;
-            font-weight: 500;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .status-info {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            display: inline-block;
-            transition: background-color 0.3s, box-shadow 0.3s;
-        }
-
-        .status-dot.idle {
-            background-color: #9ca3af;
-            box-shadow: 0 0 6px rgba(156, 163, 175, 0.4);
-        }
-
-        .status-dot.running {
-            background-color: #3b82f6;
-            box-shadow: 0 0 10px #3b82f6;
-            animation: otp-pulse 1.5s infinite;
-        }
-
-        .status-dot.success {
-            background-color: #10b981;
-            box-shadow: 0 0 10px #10b981;
-        }
-
-        .status-dot.error {
-            background-color: #ef4444;
-            box-shadow: 0 0 10px #ef4444;
-        }
-
-        @keyframes otp-pulse {
-            0% { transform: scale(0.95); opacity: 0.5; }
-            50% { transform: scale(1.15); opacity: 1; }
-            100% { transform: scale(0.95); opacity: 0.5; }
-        }
-
-        /* SocialBee Status block */
-        #sb-autofill-status {
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 11px;
-            font-weight: 500;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .sb-status-info {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .sb-status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: #9ca3af;
-            display: inline-block;
-            transition: background-color 0.3s, box-shadow 0.3s;
-        }
-
-        .sb-status-dot.idle {
-            background-color: #9ca3af;
-            box-shadow: 0 0 6px rgba(156, 163, 175, 0.4);
-        }
-
-        .sb-status-dot.running {
-            background-color: #3b82f6;
-            box-shadow: 0 0 10px #3b82f6;
-            animation: sb-pulse 1.5s infinite;
-        }
-
-        .sb-status-dot.success {
-            background-color: #10b981;
-            box-shadow: 0 0 10px #10b981;
-        }
-
-        .sb-status-dot.error {
-            background-color: #ef4444;
-            box-shadow: 0 0 10px #ef4444;
-        }
-
-        @keyframes sb-pulse {
-            0% { transform: scale(0.95); opacity: 0.5; }
-            50% { transform: scale(1.15); opacity: 1; }
-            100% { transform: scale(0.95); opacity: 0.5; }
-        }
-
-        /* Actions/Buttons styles */
-        .sb-autofill-actions {
-            display: flex;
-            gap: 8px;
-            margin-top: 4px;
-        }
-
-        .sb-btn {
-            flex: 1;
-            padding: 10px 16px;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 12px;
-            cursor: pointer;
-            transition: transform 0.1s, opacity 0.2s, box-shadow 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-        }
-
-        .sb-btn:active {
-            transform: scale(0.98);
-        }
-
-        .sb-btn-primary {
-            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-            color: #ffffff;
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
-        }
-
-        .sb-btn-primary:hover:not(:disabled) {
-            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
-            opacity: 0.95;
-        }
-
-        .sb-btn-secondary {
-            background: rgba(255, 255, 255, 0.08);
-            color: #ffffff;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        .sb-btn-secondary:hover:not(:disabled) {
-            background: rgba(255, 255, 255, 0.12);
-        }
-
-        .sb-btn-danger {
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-            color: #ffffff;
-            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
-        }
-
-        .sb-btn-danger:hover:not(:disabled) {
-            box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
-            opacity: 0.95;
-        }
-
-        .sb-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-
-        .sb-autofill-checkbox-container {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-            font-size: 11px;
-            color: #9ca3af;
-            font-weight: 500;
-            user-select: none;
-        }
-
-        .sb-autofill-checkbox {
-            appearance: none;
-            -webkit-appearance: none;
-            width: 16px;
-            height: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 4px;
-            background: rgba(0, 0, 0, 0.25);
-            cursor: pointer;
-            position: relative;
-            outline: none;
-            transition: background-color 0.2s, border-color 0.2s;
-            margin: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .sb-autofill-checkbox:checked {
-            background-color: #6366f1;
-            border-color: #6366f1;
-        }
-
-        .sb-autofill-checkbox:checked::after {
-            content: '✓';
-            color: #ffffff;
-            font-size: 10px;
-            font-weight: 700;
-            position: absolute;
-        }
-
-        /* Footer and branding */
-        .suite-footer {
-            text-align: center;
-            margin-top: 14px;
-            padding-top: 10px;
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
-            font-size: 9px;
-            color: #6b7280;
-            font-weight: 500;
-            letter-spacing: 0.03em;
-        }
-
-        .author-gradient {
-            background: linear-gradient(90deg, #818cf8, #c084fc);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            font-weight: 700;
-        }
-
-        .discord-username {
-            color: #9ca3af;
-            font-weight: 600;
-        }
-
-        @media (max-width: 480px) {
-            #sb-suite-panel:not(.minimized) {
-                width: calc(100vw - 20px) !important;
-                right: 10px !important;
-                left: 10px !important;
-                bottom: 10px !important;
-                max-height: calc(100vh - 20px) !important;
-                border-radius: 12px !important;
-            }
-            #sb-suite-content {
-                padding: 12px !important;
-                gap: 10px !important;
-                max-height: calc(100vh - 110px) !important;
-            }
-            .sb-autofill-actions {
-                flex-wrap: wrap !important;
-                gap: 6px !important;
-            }
-            .sb-btn {
-                padding: 8px 12px !important;
-                font-size: 11px !important;
-            }
-        }
-
-        @media (max-height: 600px) {
-            #sb-suite-content {
-                max-height: calc(100vh - 80px) !important;
-            }
-        }
-    `;
+    style.textContent = `@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+#sb-suite-panel{position:fixed;bottom:24px;right:24px;width:340px;max-width:calc(100vw - 20px);max-height:480px;display:flex;flex-direction:column;background:rgba(15,17,26,0.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,0.4),inset 0 1px 1px rgba(255,255,255,0.1);color:#f3f4f6;font-family:'Inter',system-ui,-apple-system,sans-serif;z-index:999999999;transition:width 0.3s cubic-bezier(0.4,0,0.2,1),height 0.3s cubic-bezier(0.4,0,0.2,1),border-radius 0.3s ease;overflow:hidden;user-select:none}
+#sb-suite-panel.minimized{width:52px;height:52px;border-radius:50%;cursor:move;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#6366f1 0%,#a855f7 100%);box-shadow:0 0 20px rgba(99,102,241,0.6);border:none;touch-action:none}
+#sb-suite-panel.minimized #sb-suite-content,#sb-suite-panel.minimized #sb-suite-tabs{display:none}
+#sb-suite-panel.minimized #sb-suite-header{border:none;background:none;padding:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+#sb-suite-panel.minimized #sb-suite-title{display:none}
+#sb-suite-panel.minimized #sb-suite-toggle-btn{font-size:22px;color:#fff;background:none;border:none;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+#sb-suite-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:rgba(255,255,255,0.03);border-bottom:1px solid rgba(255,255,255,0.08);cursor:move}
+#sb-suite-title{font-weight:700;font-size:13px;letter-spacing:0.5px;display:flex;align-items:center;gap:8px;text-transform:uppercase}
+#sb-suite-title span{background:linear-gradient(90deg,#818cf8,#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+#sb-suite-toggle-btn{cursor:pointer;background:none;border:none;color:#9ca3af;font-size:16px;padding:4px;border-radius:6px;transition:background 0.2s,color 0.2s;display:flex;align-items:center;justify-content:center;width:24px;height:24px}
+#sb-suite-toggle-btn:hover{background:rgba(255,255,255,0.1);color:#fff}
+#sb-suite-content{padding:16px;display:flex;flex-direction:column;gap:12px;max-height:380px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#sb-suite-content::-webkit-scrollbar{width:6px}
+#sb-suite-content::-webkit-scrollbar-track{background:rgba(0,0,0,0.1)}
+#sb-suite-content::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:3px}
+#sb-suite-tabs{display:flex;background:rgba(0,0,0,0.25);border-bottom:1px solid rgba(255,255,255,0.08)}
+.tab-btn{flex:1;padding:10px;background:none;border:none;color:#9ca3af;font-size:11px;font-weight:600;cursor:pointer;transition:all 0.2s;text-transform:uppercase;letter-spacing:0.05em;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px}
+.tab-btn:hover{color:#fff;background:rgba(255,255,255,0.02)}
+.tab-btn.active{color:#818cf8;background:rgba(255,255,255,0.05);border-bottom:2px solid #6366f1}
+.tab-content{display:none;flex-direction:column;gap:12px}
+.tab-content.active{display:flex}
+.sb-autofill-field{display:flex;flex-direction:column;gap:6px}
+.sb-autofill-label{font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#9ca3af;font-weight:600;text-align:left}
+.sb-autofill-input{background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:#fff;padding:8px 12px;font-size:12px;font-family:inherit;transition:border-color 0.2s,box-shadow 0.2s;user-select:text}
+.sb-autofill-input:focus{border-color:#6366f1;box-shadow:0 0 0 2px rgba(99,102,241,0.25);outline:none}
+.sb-autofill-textarea{resize:vertical;height:48px;line-height:1.4}
+.sb-autofill-select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'><path d='M1 1L5 5L9 1' stroke='%239ca3af' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;cursor:pointer}
+.sb-autofill-file-dropzone{border:2px dashed rgba(255,255,255,0.15);border-radius:8px;padding:14px;text-align:center;background:rgba(0,0,0,0.2);cursor:pointer;transition:border-color 0.2s,background-color 0.2s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.sb-autofill-file-dropzone:hover{border-color:#6366f1;background:rgba(99,102,241,0.05)}
+.sb-file-dropzone-text{font-size:11px;color:#9ca3af;font-weight:500}
+.sb-file-dropzone-subtext{font-size:9px;color:#6b7280}
+.sb-file-preview-container{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.sb-file-preview-header{display:flex;justify-content:space-between;align-items:center}
+.sb-file-preview-count{font-size:9px;font-weight:600;color:#a855f7;text-transform:uppercase}
+.sb-file-clear-btn{font-size:9px;font-weight:600;color:#ef4444;background:none;border:none;cursor:pointer;padding:0;text-transform:uppercase}
+.sb-file-clear-btn:hover{text-decoration:underline}
+.sb-file-preview-list{display:flex;gap:6px;overflow-x:auto;padding:4px 0}
+.sb-file-preview-item{position:relative;width:44px;height:44px;border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,0.2)}
+.sb-file-preview-item img{width:100%;height:100%;object-fit:cover}
+.otp-info{font-size:11px;color:#9ca3af;margin-bottom:2px;text-align:left}
+#otp-status,#sb-autofill-status{padding:10px 14px;border-radius:8px;font-size:11px;font-weight:500;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:space-between}
+.status-info,.sb-status-info{display:flex;align-items:center;gap:8px}
+.status-dot,.sb-status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;transition:background-color 0.3s,box-shadow 0.3s}
+.status-dot.idle,.sb-status-dot.idle{background-color:#9ca3af;box-shadow:0 0 6px rgba(156,163,175,0.4)}
+.status-dot.running,.sb-status-dot.running{background-color:#3b82f6;box-shadow:0 0 10px #3b82f6;animation:otp-pulse 1.5s infinite}
+.status-dot.success,.sb-status-dot.success{background-color:#10b981;box-shadow:0 0 10px #10b981}
+.status-dot.error,.sb-status-dot.error{background-color:#ef4444;box-shadow:0 0 10px #ef4444}
+@keyframes otp-pulse{0%{transform:scale(0.95);opacity:0.5}50%{transform:scale(1.15);opacity:1}100%{transform:scale(0.95);opacity:0.5}}
+@keyframes sb-pulse{0%{transform:scale(0.95);opacity:0.5}50%{transform:scale(1.15);opacity:1}100%{transform:scale(0.95);opacity:0.5}}
+.sb-autofill-actions{display:flex;gap:8px;margin-top:4px}
+.sb-btn{flex:1;padding:10px 16px;border:none;border-radius:8px;font-weight:600;font-size:12px;cursor:pointer;transition:transform 0.1s,opacity 0.2s,box-shadow 0.2s;display:flex;align-items:center;justify-content:center;gap:6px}
+.sb-btn:active{transform:scale(0.98)}
+.sb-btn-primary{background:linear-gradient(135deg,#6366f1 0%,#a855f7 100%);color:#fff;box-shadow:0 4px 12px rgba(99,102,241,0.25)}
+.sb-btn-primary:hover:not(:disabled){box-shadow:0 4px 16px rgba(99,102,241,0.4);opacity:0.95}
+.sb-btn-secondary{background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.05)}
+.sb-btn-secondary:hover:not(:disabled){background:rgba(255,255,255,0.12)}
+.sb-btn-danger{background:linear-gradient(135deg,#ef4444 0%,#dc2626 100%);color:#fff;box-shadow:0 4px 12px rgba(239,68,68,0.25)}
+.sb-btn-danger:hover:not(:disabled){box-shadow:0 4px 16px rgba(239,68,68,0.4);opacity:0.95}
+.sb-btn:disabled{opacity:0.5;cursor:not-allowed;box-shadow:none}
+.sb-autofill-checkbox-container{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#9ca3af;font-weight:500;user-select:none}
+.sb-autofill-checkbox{appearance:none;-webkit-appearance:none;width:16px;height:16px;border:1px solid rgba(255,255,255,0.12);border-radius:4px;background:rgba(0,0,0,0.25);cursor:pointer;position:relative;outline:none;transition:background-color 0.2s,border-color 0.2s;margin:0;display:flex;align-items:center;justify-content:center}
+.sb-autofill-checkbox:checked{background-color:#6366f1;border-color:#6366f1}
+.sb-autofill-checkbox:checked::after{content:'✓';color:#fff;font-size:10px;font-weight:700;position:absolute}
+.suite-footer{text-align:center;margin-top:14px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.05);font-size:9px;color:#6b7280;font-weight:500;letter-spacing:0.03em}
+.author-gradient{background:linear-gradient(90deg,#818cf8,#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700}
+.discord-username{color:#9ca3af;font-weight:600}
+@media (max-width:480px){#sb-suite-panel:not(.minimized){width:calc(100vw - 20px) !important;right:10px !important;left:10px !important;bottom:10px !important;max-height:calc(100vh - 20px) !important;border-radius:12px !important}#sb-suite-content{padding:12px !important;gap:10px !important;max-height:calc(100vh - 110px) !important}.sb-autofill-actions{flex-wrap:wrap !important;gap:6px !important}.sb-btn{padding:8px 12px !important;font-size:11px !important}}
+@media (max-height:600px){#sb-suite-content{max-height:calc(100vh - 80px) !important}}`;
     suiteShadow.appendChild(style);
 
     const panel = document.createElement("div");
@@ -1460,45 +949,16 @@
       markAccountAsStatusLocal(username, "Done");
     }
 
-    // Wrapper function to mark done locally and optionally send to server
     function markAccountDone(username) {
       if (!username) return;
       console.log(`[OTP Link] Marking account done: ${username}`);
-
-      // 1. Mark done locally in GM storage CSV
       markAccountAsDoneLocal(username);
-
-      // 2. Try to mark done on local server (optional)
-      GM_xmlhttpRequest({
-        method: "POST",
-        url: "http://localhost:4782/mark-done",
-        data: JSON.stringify({ username: username }),
-        headers: { "Content-Type": "application/json" },
-        onload: function (res) {
-          console.log(`[OTP Link] Server mark-done response status: ${res.status}`);
-        },
-        onerror: function (err) {
-          console.log("[OTP Link] Local server offline, mark-done not updated on server.");
-        },
-      });
     }
 
     function markAccountWrong(username) {
       if (!username) return;
       console.log(`[OTP Link] Marking account wrong: ${username}`);
       markAccountAsStatusLocal(username, "Wrong");
-      GM_xmlhttpRequest({
-        method: "POST",
-        url: "http://localhost:4782/mark-wrong",
-        data: JSON.stringify({ username: username }),
-        headers: { "Content-Type": "application/json" },
-        onload: function (res) {
-          console.log(`[OTP Link] Server mark-wrong response status: ${res.status}`);
-        },
-        onerror: function (err) {
-          console.log("[OTP Link] Local server offline, mark-wrong not updated on server.");
-        },
-      });
     }
 
     // Map to keep track of elements we've clicked and the timestamp of the click
@@ -1598,13 +1058,7 @@
             const status = statusIndex !== -1 && cols[statusIndex] ? cols[statusIndex].trim() : "";
 
             const statusLower = status.toLowerCase();
-            if (
-              statusLower === "done" ||
-              statusLower === "banned" ||
-              statusLower.includes("banned") ||
-              statusLower === "wrong" ||
-              statusLower.includes("wrong")
-            ) {
+            if (statusLower === "done" || statusLower === "banned" || statusLower.includes("banned") || statusLower === "wrong" || statusLower.includes("wrong")) {
               continue;
             }
 
@@ -1787,29 +1241,6 @@
         selectEl.dispatchEvent(new Event("change", { bubbles: true }));
       });
 
-      GM_xmlhttpRequest({
-        method: "GET",
-        url: "http://localhost:4782/accounts",
-        onload: function (response) {
-          if (response.status === 200) {
-            const text = response.responseText;
-            csvTextarea.value = text;
-            GM_setValue("otp_csv_raw_text", text);
-            const accounts = parseCSVText(text);
-            if (accounts.length > 0) {
-              populateSelect(accounts);
-              setStatus(`Auto-loaded ${accounts.length} accounts`, "success");
-              console.log(`[OTP Link] Auto-loaded accounts from CSV server.`);
-            }
-          } else {
-            console.log("[OTP Link] Local CSV server returned status: " + response.status);
-          }
-        },
-        onerror: function (err) {
-          console.log("[OTP Link] Local CSV server not running/accessible, waiting for manual upload.");
-        },
-      });
-
       const captchaKeyInput = shadow.getElementById("otp-captcha-key");
       let savedKey = GM_getValue("captcha_api_key", "");
       if (!savedKey) {
@@ -1821,28 +1252,6 @@
       captchaKeyInput.addEventListener("input", () => {
         GM_setValue("captcha_api_key", captchaKeyInput.value.trim());
       });
-
-      if (!savedKey) {
-        GM_xmlhttpRequest({
-          method: "GET",
-          url: "http://localhost:4782/config",
-          onload: function (response) {
-            if (response.status === 200) {
-              try {
-                const config = JSON.parse(response.responseText);
-                if (config && config.apiKey) {
-                  captchaKeyInput.value = config.apiKey;
-                  GM_setValue("captcha_api_key", config.apiKey);
-                  console.log("[OTP Link] Auto-fetched and saved CAPTCHA API Key from local server.");
-                }
-              } catch (e) {
-                console.warn("[OTP Link] Error parsing config response:", e);
-              }
-            }
-          },
-          onerror: function (err) {},
-        });
-      }
     }
 
     async function humanType(element, text, delayMs = 15) {
@@ -2854,16 +2263,7 @@
       function checkForWrongAccountErrors() {
         if (!window.location.hostname.includes("tiktok.com")) return;
 
-        const errorSelectors = [
-          'span[role="status"]',
-          '[role="status"]',
-          '[type="error"]',
-          '[class*="DivTextContainer"]',
-          '[class*="DivError"]',
-          '[class*="error-message"]',
-          '[class*="error"]',
-          '[role="alert"]'
-        ];
+        const errorSelectors = ['span[role="status"]', '[role="status"]', '[type="error"]', '[class*="DivTextContainer"]', '[class*="DivError"]', '[class*="error-message"]', '[class*="error"]', '[role="alert"]'];
 
         let foundWrongText = null;
         for (const selector of errorSelectors) {
@@ -2872,15 +2272,7 @@
             const text = (el.textContent || "").trim();
             if (text && text.length > 2 && text.length < 200) {
               const lower = text.toLowerCase();
-              if (
-                lower.includes("account doesn't exist") ||
-                lower.includes("account doesnt exist") ||
-                lower.includes("username or password doesn't match") ||
-                lower.includes("username or password doesnt match") ||
-                lower.includes("incorrect account or password") ||
-                lower.includes("doesn't match our records") ||
-                lower.includes("doesnt match our records")
-              ) {
+              if (lower.includes("account doesn't exist") || lower.includes("account doesnt exist") || lower.includes("username or password doesn't match") || lower.includes("username or password doesnt match") || lower.includes("incorrect account or password") || lower.includes("doesn't match our records") || lower.includes("doesnt match our records")) {
                 foundWrongText = text;
                 break;
               }
@@ -4244,22 +3636,7 @@
       return null;
     }
 
-    function triggerClick(target) {
-      if (!target) return;
-      try {
-        if (typeof target.focus === "function") target.focus();
-        const opts = { bubbles: true, cancelable: true, view: window };
-        target.dispatchEvent(new PointerEvent("pointerdown", opts));
-        target.dispatchEvent(new MouseEvent("mousedown", opts));
-        target.dispatchEvent(new PointerEvent("pointerup", opts));
-        target.dispatchEvent(new MouseEvent("mouseup", opts));
-        target.click();
-      } catch (e) {
-        try {
-          target.click();
-        } catch (err) {}
-      }
-    }
+    const triggerClick = triggerFullClick;
 
     function findDeleteButtonDirect() {
       const elements = Array.from(document.querySelectorAll("button, a, i, span, div[role='button'], [class*='Item__StyledItem']"));
@@ -4443,17 +3820,6 @@
         setStatus(`Clicking 'Remove profile' for account ${deletedCount + 1}...`, "running");
         removeProfileBtn.scrollIntoView({ block: "center", behavior: "instant" });
         await sleep(300);
-
-        const triggerClick = (target) => {
-          try {
-            if (typeof target.focus === "function") target.focus();
-            target.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
-            target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-            target.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true }));
-            target.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
-            target.click();
-          } catch (e) {}
-        };
 
         triggerClick(removeProfileTarget);
         if (removeProfileBtn !== removeProfileTarget) {
