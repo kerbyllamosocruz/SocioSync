@@ -1,30 +1,28 @@
 // ==UserScript==
-// @name         SocialBee & TikTok Automation Suite
+// @name         Beetok
 // @namespace    http://tampermonkey.net/
-// @version      4.2
+// @version      4.5
 // @description  All-in-one automation: caption filler, image manager, OTP synchronization, and TikTok captcha solver.
 // @author       Kerby (Discord: buchinyan)
 // @match        https://*.tiktok.com/*
 // @match        https://app.socialbee.com/*
 // @match        https://app.socialbee.io/*
+// @match        https://*.vistasocial.com/*
+// @match        https://vistasocial.com/*
 // @match        https://*.kuku.lu/*
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_addValueChangeListener
 // @grant        GM_xmlhttpRequest
 // @grant        GM_openInTab
-// @grant        GM_cookie
-// @grant        GM_setClipboard
-// @grant        GM_getClipboard
 // @connect      localhost
 // @connect      127.0.0.1
 // @connect      10.0.2.2
 // @connect      tiktok.eulerstream.com
 // @connect      www.sadcaptcha.com
 // @connect      sadcaptcha.com
-// @connect      m.kuku.lu
-// @connect      kuku.lu
-// @connect      *.kuku.lu
+// @connect      us.tiktok.com
+// @connect      *.tiktok.com
 // @run-at       document-end
 // ==/UserScript==
 
@@ -49,51 +47,119 @@
       pos2 = 0,
       pos3 = 0,
       pos4 = 0;
-    dragHeader.onmousedown = dragMouseDown;
+    let isDragging = false;
+    let hasDragged = false;
+    let startX = 0;
+    let startY = 0;
 
-    function dragMouseDown(e) {
-      const targetTag = e.target.tagName;
-      if (targetTag === "BUTTON" || targetTag === "INPUT" || targetTag === "TEXTAREA" || targetTag === "SELECT") {
-        return;
+    function getEventCoords(e) {
+      if (e.touches && e.touches.length > 0) {
+        return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
       }
-      if (element.classList.contains("minimized")) {
-        return;
+      if (e.changedTouches && e.changedTouches.length > 0) {
+        return { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY };
       }
-
-      e = e || window.event;
-      e.preventDefault();
-
-      pos3 = e.clientX;
-      pos4 = e.clientY;
-
-      document.onmouseup = closeDragElement;
-      document.onmousemove = elementDrag;
+      return { clientX: e.clientX, clientY: e.clientY };
     }
 
-    function elementDrag(e) {
-      e = e || window.event;
-      e.preventDefault();
+    function dragStart(e) {
+      const targetTag = (e.target.tagName || "").toUpperCase();
+      if (!element.classList.contains("minimized")) {
+        if (targetTag === "BUTTON" || targetTag === "INPUT" || targetTag === "TEXTAREA" || targetTag === "SELECT") {
+          return;
+        }
+      }
 
-      pos1 = pos3 - e.clientX;
-      pos2 = pos4 - e.clientY;
-      pos3 = e.clientX;
-      pos4 = e.clientY;
+      const coords = getEventCoords(e);
+      pos3 = coords.clientX;
+      pos4 = coords.clientY;
+      startX = coords.clientX;
+      startY = coords.clientY;
+      hasDragged = false;
+      isDragging = true;
 
-      element.style.top = element.offsetTop - pos2 + "px";
-      element.style.left = element.offsetLeft - pos1 + "px";
+      document.addEventListener("mousemove", dragMove, { passive: false });
+      document.addEventListener("mouseup", dragEnd);
+      document.addEventListener("touchmove", dragMove, { passive: false });
+      document.addEventListener("touchend", dragEnd);
+    }
+
+    function dragMove(e) {
+      if (!isDragging) return;
+
+      const coords = getEventCoords(e);
+      const dx = coords.clientX - startX;
+      const dy = coords.clientY - startY;
+
+      if (Math.hypot(dx, dy) > 5) {
+        hasDragged = true;
+      }
+
+      if (!hasDragged) return;
+
+      if (e.cancelable) e.preventDefault();
+
+      pos1 = pos3 - coords.clientX;
+      pos2 = pos4 - coords.clientY;
+      pos3 = coords.clientX;
+      pos4 = coords.clientY;
+
+      let newTop = element.offsetTop - pos2;
+      let newLeft = element.offsetLeft - pos1;
+
+      const maxTop = Math.max(5, window.innerHeight - element.offsetHeight - 5);
+      const maxLeft = Math.max(5, window.innerWidth - element.offsetWidth - 5);
+      newTop = Math.max(5, Math.min(maxTop, newTop));
+      newLeft = Math.max(5, Math.min(maxLeft, newLeft));
+
+      element.style.top = newTop + "px";
+      element.style.left = newLeft + "px";
       element.style.bottom = "auto";
       element.style.right = "auto";
     }
 
-    function closeDragElement() {
-      document.onmouseup = null;
-      document.onmousemove = null;
+    function dragEnd(e) {
+      isDragging = false;
+      document.removeEventListener("mousemove", dragMove);
+      document.removeEventListener("mouseup", dragEnd);
+      document.removeEventListener("touchmove", dragMove);
+      document.removeEventListener("touchend", dragEnd);
     }
+
+    dragHeader.addEventListener("mousedown", dragStart);
+    dragHeader.addEventListener("touchstart", dragStart, { passive: true });
+
+    element.addEventListener("mousedown", (e) => {
+      if (element.classList.contains("minimized")) {
+        dragStart(e);
+      }
+    });
+    element.addEventListener(
+      "touchstart",
+      (e) => {
+        if (element.classList.contains("minimized")) {
+          dragStart(e);
+        }
+      },
+      { passive: true },
+    );
+
+    element.addEventListener(
+      "click",
+      (e) => {
+        if (hasDragged) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+          hasDragged = false;
+        }
+      },
+      true,
+    );
   }
 
   function createUnifiedPanel() {
     const role = currentUrl.includes("kuku.lu") ? "Email Tab" : "Login Tab";
-    const isOnSocialBee = hostname.includes("socialbee.com") || hostname.includes("socialbee.io");
+    const isOnSocialBee = hostname.includes("socialbee.com") || hostname.includes("socialbee.io") || hostname.includes("vistasocial.com");
 
     const container = document.createElement("div");
     container.id = "sb-suite-root";
@@ -111,6 +177,10 @@
             bottom: 24px;
             right: 24px;
             width: 340px;
+            max-width: calc(100vw - 20px);
+            max-height: 480px;
+            display: flex;
+            flex-direction: column;
             background: rgba(15, 17, 26, 0.85);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
@@ -120,7 +190,7 @@
             color: #f3f4f6;
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
             z-index: 999999999;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), height 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.3s ease;
             overflow: hidden;
             user-select: none;
         }
@@ -129,13 +199,14 @@
             width: 52px;
             height: 52px;
             border-radius: 50%;
-            cursor: pointer;
+            cursor: move;
             display: flex;
             align-items: center;
             justify-content: center;
             background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
             box-shadow: 0 0 20px rgba(99, 102, 241, 0.6);
             border: none;
+            touch-action: none;
         }
 
         #sb-suite-panel.minimized #sb-suite-content,
@@ -168,6 +239,11 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 0;
+        }
+
+        #sb-suite-panel.minimized #sb-suite-toggle-btn::before {
+            content: var(--suite-icon, '🤖');
         }
 
         #sb-suite-header {
@@ -184,16 +260,13 @@
             font-weight: 700;
             font-size: 13px;
             letter-spacing: 0.5px;
+            background: linear-gradient(90deg, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
             display: flex;
             align-items: center;
             gap: 8px;
             text-transform: uppercase;
-        }
-
-        #sb-suite-title span {
-            background: linear-gradient(90deg, #818cf8, #c084fc);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
         }
 
         #sb-suite-toggle-btn {
@@ -222,8 +295,9 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-            max-height: 500px;
+            max-height: 380px;
             overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         #sb-suite-content::-webkit-scrollbar {
@@ -256,10 +330,6 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
             text-align: center;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
         }
 
         .tab-btn:hover {
@@ -666,6 +736,36 @@
             color: #9ca3af;
             font-weight: 600;
         }
+
+        @media (max-width: 480px) {
+            #sb-suite-panel:not(.minimized) {
+                width: calc(100vw - 20px) !important;
+                right: 10px !important;
+                left: 10px !important;
+                bottom: 10px !important;
+                max-height: calc(100vh - 20px) !important;
+                border-radius: 12px !important;
+            }
+            #sb-suite-content {
+                padding: 12px !important;
+                gap: 10px !important;
+                max-height: calc(100vh - 110px) !important;
+            }
+            .sb-autofill-actions {
+                flex-wrap: wrap !important;
+                gap: 6px !important;
+            }
+            .sb-btn {
+                padding: 8px 12px !important;
+                font-size: 11px !important;
+            }
+        }
+
+        @media (max-height: 600px) {
+            #sb-suite-content {
+                max-height: calc(100vh - 80px) !important;
+            }
+        }
     `;
     suiteShadow.appendChild(style);
 
@@ -673,23 +773,12 @@
     panel.id = "sb-suite-panel";
     panel.innerHTML = `
         <div id="sb-suite-header">
-            <div id="sb-suite-title">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-                <span>Automation Suite v4.3</span>
-            </div>
-            <button id="sb-suite-toggle-btn" title="Minimize Panel">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
+            <div id="sb-suite-title">⚡ Automation Suite v4.3</div>
+            <button id="sb-suite-toggle-btn" title="Minimize Panel">✕</button>
         </div>
         <div id="sb-suite-tabs">
-            <button id="tab-btn-sb" class="tab-btn active">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-                <span>Social Publisher</span>
-            </button>
-            <button id="tab-btn-otp" class="tab-btn">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                <span>TikTok &amp; OTP</span>
-            </button>
+            <button id="tab-btn-sb" class="tab-btn active">🐝 SocialBee</button>
+            <button id="tab-btn-otp" class="tab-btn">🔑 TikTok & OTP</button>
         </div>
         <div id="sb-suite-content">
             <!-- SocialBee Content -->
@@ -716,14 +805,14 @@
                 </div>
 
                 <div class="sb-autofill-field">
-                    <label class="sb-autofill-label">Var 1-3 Images (Base)</label>
+                    <label class="sb-autofill-label">Var 1-3 Media (Base)</label>
                     <div id="sb-dropzone-base" class="sb-autofill-file-dropzone">
-                        <span class="sb-file-dropzone-text">Click or Drop Var 1-3 Image(s)</span>
-                        <input type="file" id="sb-images-base" accept="image/*" multiple style="display: none;">
+                        <span class="sb-file-dropzone-text">Click or Drop Var 1-3 Media (Image/MOV/Video)</span>
+                        <input type="file" id="sb-images-base" accept="image/*,video/*,.mov,.mp4,.webm,.mkv,.avi,.flv,.wmv,.3gp,.heic" multiple style="display: none;">
                     </div>
                     <div id="sb-preview-base" class="sb-file-preview-container" style="display: none;">
                         <div class="sb-file-preview-header">
-                            <span id="sb-count-base" class="sb-file-preview-count">0 images</span>
+                            <span id="sb-count-base" class="sb-file-preview-count">0 files</span>
                             <button id="sb-clear-base" class="sb-file-clear-btn">Clear</button>
                         </div>
                         <div id="sb-list-base" class="sb-file-preview-list"></div>
@@ -731,14 +820,14 @@
                 </div>
 
                 <div class="sb-autofill-field" style="margin-top: 6px;">
-                    <label class="sb-autofill-label">Var 4-6 Images</label>
+                    <label class="sb-autofill-label">Var 4-6 Media</label>
                     <div id="sb-dropzone-var4" class="sb-autofill-file-dropzone">
-                        <span class="sb-file-dropzone-text">Click or Drop Var 4-6 Image(s)</span>
-                        <input type="file" id="sb-images-var4" accept="image/*" multiple style="display: none;">
+                        <span class="sb-file-dropzone-text">Click or Drop Var 4-6 Media (Image/MOV/Video)</span>
+                        <input type="file" id="sb-images-var4" accept="image/*,video/*,.mov,.mp4,.webm,.mkv,.avi,.flv,.wmv,.3gp,.heic" multiple style="display: none;">
                     </div>
                     <div id="sb-preview-var4" class="sb-file-preview-container" style="display: none;">
                         <div class="sb-file-preview-header">
-                            <span id="sb-count-var4" class="sb-file-preview-count">0 images</span>
+                            <span id="sb-count-var4" class="sb-file-preview-count">0 files</span>
                             <button id="sb-clear-var4" class="sb-file-clear-btn">Clear</button>
                         </div>
                         <div id="sb-list-var4" class="sb-file-preview-list"></div>
@@ -746,9 +835,8 @@
                 </div>
 
                 <details id="sb-delays-config" style="margin-top: 4px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; background: rgba(255, 255, 255, 0.02);">
-                    <summary style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #9ca3af; padding: 10px 12px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px;">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                        <span>Delay Configurations</span>
+                    <summary style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #9ca3af; padding: 10px 12px; cursor: pointer; user-select: none;">
+                        ⚙️ Delay Configurations
                     </summary>
                     <div style="padding: 0 12px 12px 12px; display: flex; flex-direction: column; gap: 10px;">
                         <div class="sb-autofill-field">
@@ -792,30 +880,16 @@
                 </div>
 
                 <div class="sb-autofill-actions">
-                    <button id="sb-btn-start" class="sb-btn sb-btn-primary">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                        <span>Start Fill</span>
-                    </button>
-                    <button id="sb-btn-stop" class="sb-btn sb-btn-secondary" disabled>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-                        <span>Stop</span>
-                    </button>
+                    <button id="sb-btn-start" class="sb-btn sb-btn-primary">Start Fill</button>
+                    <button id="sb-btn-stop" class="sb-btn sb-btn-secondary" disabled>Stop</button>
                 </div>
                 <div class="sb-autofill-actions" style="margin-top: 8px;">
-                    <button id="sb-btn-share-vars" class="sb-btn sb-btn-primary" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border: none; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25); flex: 1;">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-                        <span>Share Vars</span>
-                    </button>
+                    <button id="sb-btn-share-vars" class="sb-btn sb-btn-primary" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border: none; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25); flex: 1;">🔄 Share Vars</button>
+                    <button id="sb-btn-load-server" class="sb-btn sb-btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25); flex: 1;">📂 Server Images</button>
                 </div>
                 <div class="sb-autofill-actions" style="margin-top: 8px;">
-                    <button id="sb-btn-logout-tiktok" class="sb-btn" style="background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%); border: none; box-shadow: 0 4px 12px rgba(244, 63, 94, 0.25); flex: 1; color: white;">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                        <span>Logout TikTok</span>
-                    </button>
-                    <button id="sb-btn-delete-all" class="sb-btn sb-btn-danger" style="flex: 1;">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-                        <span>Delete Accounts</span>
-                    </button>
+                    <button id="sb-btn-logout-tiktok" class="sb-btn" style="background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%); border: none; box-shadow: 0 4px 12px rgba(244, 63, 94, 0.25); flex: 1; color: white;">🔑 Logout TikTok</button>
+                    <button id="sb-btn-delete-all" class="sb-btn sb-btn-danger" style="flex: 1;">🗑️ Delete Accounts</button>
                 </div>
             </div>
 
@@ -833,26 +907,18 @@
                     <div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                             <div style="font-size: 8px; text-transform: uppercase; color: #9ca3af; font-weight: 600; letter-spacing: 0.05em; text-align: left;">Autofill from CSV</div>
-                            <button id="otp-csv-toggle-btn" style="background: none; border: none; color: #818cf8; font-size: 8px; cursor: pointer; padding: 2px 4px; border-radius: 3px; font-weight: 600; transition: background 0.2s; display: inline-flex; align-items: center; gap: 3px;">
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit CSV
-                            </button>
+                            <button id="otp-csv-toggle-btn" style="background: none; border: none; color: #818cf8; font-size: 8px; cursor: pointer; padding: 2px 4px; border-radius: 3px; font-weight: 600; transition: background 0.2s;">📝 Edit CSV</button>
                         </div>
                         <div style="display: flex; gap: 6px; align-items: center;">
                             <input type="file" id="otp-csv-file" accept=".csv" style="display: none;" />
-                            <button id="otp-csv-upload-btn" style="background: rgba(255, 255, 255, 0.06); border: 1px dashed rgba(255, 255, 255, 0.2); color: #e5e7eb; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Load
-                            </button>
+                            <button id="otp-csv-upload-btn" style="background: rgba(255, 255, 255, 0.06); border: 1px dashed rgba(255, 255, 255, 0.2); color: #e5e7eb; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1;">📂 Load</button>
                             <select id="otp-csv-select" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 10px; padding: 4px 6px; border-radius: 4px; flex: 2; display: none; width: 100%;">
                                 <option value="">-- Choose Account --</option>
                             </select>
                         </div>
                         <div id="otp-csv-nav-container" style="display: none; gap: 6px; margin-top: 6px;">
-                            <button id="otp-csv-btn-prev" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; text-align: center; border-style: solid; display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> Prev
-                            </button>
-                            <button id="otp-csv-btn-next" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; text-align: center; border-style: solid; display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
-                                Next <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                            </button>
+                            <button id="otp-csv-btn-prev" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; text-align: center; border-style: solid;">◀ Prev</button>
+                            <button id="otp-csv-btn-next" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; text-align: center; border-style: solid;">Next ▶</button>
                         </div>
                         <div id="otp-csv-editor-container" style="display: none; margin-top: 6px; flex-direction: column; gap: 6px;">
                             <textarea id="otp-csv-textarea" placeholder="username,password,status&#10;user1,pass1,&#10;user2,pass2,Done" style="background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 9px; font-family: monospace; width: 100%; height: 90px; box-sizing: border-box; resize: vertical; padding: 6px; border-radius: 4px;"></textarea>
@@ -860,47 +926,14 @@
                         </div>
                     </div>
                     <div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                            <div style="font-size: 8px; text-transform: uppercase; color: #9ca3af; font-weight: 600; letter-spacing: 0.05em; text-align: left;">Captcha Provider</div>
-                            <select id="otp-captcha-provider" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.12); color: #818cf8; font-size: 9px; padding: 2px 4px; border-radius: 4px; font-weight: 600;">
-                                <option value="local">Local PyTorch Server (127.0.0.1:4782)</option>
-                                <option value="sadcaptcha">SadCaptcha (Default)</option>
-                                <option value="eulerstream">Eulerstream</option>
-                                <option value="auto">Auto (SadCaptcha ➔ Eulerstream)</option>
-                            </select>
-                        </div>
+                        <div style="font-size: 8px; text-transform: uppercase; color: #9ca3af; font-weight: 600; margin-bottom: 4px; letter-spacing: 0.05em; text-align: left;">Captcha API Key (SadCaptcha)</div>
                         <input type="password" id="otp-captcha-key" placeholder="Enter API Key (auto-saved)" style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; width: 100%; box-sizing: border-box;" />
-                    </div>
-                </div>
-
-                <div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                        <div style="font-size: 8px; text-transform: uppercase; color: #818cf8; font-weight: 700; letter-spacing: 0.05em; text-align: left;">🔑 Multi-Account instaddr Keys (<span id="kuku-key-count">0</span>)</div>
-                    </div>
-                    <div id="kuku-keys-list" style="display: flex; flex-direction: column; gap: 4px; max-height: 80px; overflow-y: auto; margin-bottom: 6px;"></div>
-                    <div style="display: flex; gap: 6px; align-items: center;">
-                        <input type="text" id="kuku-key-input" placeholder="Paste sessionhash / cookie string" style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 9px; padding: 4px 6px; border-radius: 4px; flex: 1;" />
-                        <button id="kuku-add-key-btn" style="background: rgba(99, 102, 241, 0.25); border: 1px solid rgba(129, 140, 248, 0.4); color: #818cf8; font-size: 9px; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: 600;">+ Add</button>
-                    </div>
-                    <button id="kuku-autodetect-key-btn" style="margin-top: 6px; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(52, 211, 153, 0.4); color: #34d399; font-size: 9px; padding: 4px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: 600;">⚡ Save Active Tab's Account Key</button>
-                    <div style="display: flex; gap: 6px; margin-top: 6px;">
-                        <button id="kuku-export-keys-btn" style="flex: 1; background: rgba(139, 92, 246, 0.2); border: 1px solid rgba(167, 139, 250, 0.4); color: #c084fc; font-size: 9px; padding: 4px; border-radius: 4px; cursor: pointer; font-weight: 600;">📋 Export Keys</button>
-                        <button id="kuku-import-keys-btn" style="flex: 1; background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(96, 165, 250, 0.4); color: #60a5fa; font-size: 9px; padding: 4px; border-radius: 4px; cursor: pointer; font-weight: 600;">📥 Import Keys</button>
                     </div>
                 </div>
             </div>
 
             <div style="margin: 8px 12px 0 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-                <div style="display: flex; gap: 6px;">
-                    <button id="sb-btn-export-session" class="sb-btn" style="flex: 1; background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); border: none; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); color: white;">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                        <span>Export Cookies</span>
-                    </button>
-                    <button id="sb-btn-import-cookie" class="sb-btn" style="flex: 1; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25); color: white;">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        <span>Import &amp; Reload</span>
-                    </button>
-                </div>
+                <button id="sb-btn-export-session" class="sb-btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); border: none; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); width: 100%; color: white;">📋 Copy All Cookies (SocialBee / Vista)</button>
             </div>
 
             <div class="suite-footer">
@@ -941,438 +974,16 @@
       shadow.getElementById("otp-login-only-controls").style.display = "block";
     }
 
-    async function getClipboardData() {
-      // 1. Try Tampermonkey GM_getClipboard callback (extension level - reads OS clipboard without browser DOM prompt)
-      if (typeof GM_getClipboard === "function") {
-        try {
-          const gmData = await new Promise((resolve) => {
-            let resolved = false;
-            const timer = setTimeout(() => {
-              if (!resolved) { resolved = true; resolve(null); }
-            }, 500);
-
-            try {
-              GM_getClipboard((data) => {
-                if (!resolved) {
-                  resolved = true;
-                  clearTimeout(timer);
-                  resolve(data);
-                }
-              });
-            } catch (e) {
-              if (!resolved) { resolved = true; clearTimeout(timer); resolve(null); }
-            }
-          });
-          if (gmData && typeof gmData === "string" && gmData.trim().startsWith("[")) {
-            return gmData.trim();
-          }
-        } catch (e) {}
-      }
-
-      // 2. Try GM.getClipboard if available
-      if (typeof GM !== "undefined" && typeof GM.getClipboard === "function") {
-        try {
-          const gm2Data = await GM.getClipboard();
-          if (gm2Data && typeof gm2Data === "string" && gm2Data.trim().startsWith("[")) {
-            return gm2Data.trim();
-          }
-        } catch (e) {}
-      }
-
-      // 3. Try standard Web Navigator Clipboard API
-      try {
-        if (navigator.clipboard && navigator.clipboard.readText) {
-          const navData = await navigator.clipboard.readText();
-          if (navData && navData.trim().startsWith("[")) return navData.trim();
-        }
-      } catch (e) {}
-
-      // 4. Try internal Tampermonkey global memory cache
-      try {
-        const cached = GM_getValue("last_exported_cookies", "");
-        if (cached && cached.trim().startsWith("[")) return cached.trim();
-      } catch (e) {}
-
-      return null;
-    }
-
-    // Instant 1-Click Cookie Import (Zero Clipboard Permission Popup)
-    const btnImportCookie = shadow.getElementById("sb-btn-import-cookie");
-    if (btnImportCookie) {
-      btnImportCookie.addEventListener("click", async (e) => {
-        let rawText = "";
-
-        if (!e.shiftKey) {
-          rawText = await getClipboardData();
-        }
-
-        // Fallback prompt only if auto retrieval finds no valid JSON array or user held Shift
-        if (!rawText || !rawText.trim().startsWith("[")) {
-          rawText = prompt("Paste your Cookie-Editor JSON array here:");
-        }
-
-        if (!rawText || !rawText.trim()) return;
-
-        let cookieArray = [];
-        try {
-          const parsed = JSON.parse(rawText.trim());
-          cookieArray = Array.isArray(parsed) ? parsed : [parsed];
-        } catch (e) {
-          alert("Failed to parse JSON. Please ensure you copied a valid Cookie-Editor JSON array.");
-          return;
-        }
-
-        btnImportCookie.disabled = true;
-        btnImportCookie.style.background = "linear-gradient(135deg, #059669 0%, #047857 100%)";
-        btnImportCookie.innerHTML = `<span>⏳ Applying ${cookieArray.length} Cookies...</span>`;
-
-        let successCount = 0;
-        for (const cookieItem of cookieArray) {
-          if (!cookieItem.name || cookieItem.value === undefined) continue;
-
-          const domain = cookieItem.domain || window.location.hostname;
-          const cleanDomain = domain.replace(/^\./, "");
-          const path = cookieItem.path || "/";
-          const isSecure = cookieItem.secure ?? (window.location.protocol === "https:");
-          const cookieUrl = `http${isSecure ? "s" : ""}://${cleanDomain}${path}`;
-
-          if (typeof GM_cookie !== "undefined" && typeof GM_cookie.set === "function") {
-            await new Promise((resolve) => {
-              const setObj = {
-                url: cookieUrl,
-                name: cookieItem.name,
-                value: String(cookieItem.value),
-                path: path,
-                secure: isSecure,
-                httpOnly: cookieItem.httpOnly ?? false,
-              };
-
-              if (!cookieItem.hostOnly && domain) {
-                setObj.domain = domain;
-              }
-
-              if (cookieItem.expirationDate) setObj.expirationDate = cookieItem.expirationDate;
-              if (cookieItem.sameSite && cookieItem.sameSite !== "unspecified") {
-                setObj.sameSite = cookieItem.sameSite;
-              }
-
-              GM_cookie.set(setObj, (err) => {
-                if (!err) {
-                  successCount++;
-                  resolve();
-                } else {
-                  const fallbackObj = { ...setObj };
-                  if (fallbackObj.domain) {
-                    delete fallbackObj.domain;
-                  } else if (domain) {
-                    fallbackObj.domain = domain;
-                  }
-                  GM_cookie.set(fallbackObj, (err2) => {
-                    if (!err2) successCount++;
-                    resolve();
-                  });
-                }
-              });
-            });
-          } else {
-            try {
-              let cookieStr = `${cookieItem.name}=${encodeURIComponent(cookieItem.value)}; path=${path}`;
-              if (domain && !window.location.hostname.includes("localhost")) {
-                cookieStr += `; domain=${domain}`;
-              }
-              if (isSecure) cookieStr += `; secure`;
-              if (cookieItem.expirationDate) {
-                cookieStr += `; expires=${new Date(cookieItem.expirationDate * 1000).toUTCString()}`;
-              }
-              document.cookie = cookieStr;
-              successCount++;
-            } catch (e) {}
-          }
-        }
-
-        btnImportCookie.innerHTML = `<span>✅ Applied ${successCount} Cookies! Reloading...</span>`;
-        setTimeout(() => {
-          window.location.reload();
-        }, 800);
-      });
-    }
-
-    async function getCurrentDomainCookies() {
-      const isHttps = window.location.protocol === "https:";
-      if (typeof GM_cookie !== "undefined" && typeof GM_cookie.list === "function") {
-        try {
-          const list = await new Promise((resolve) => {
-            GM_cookie.list({}, (cookies, error) => {
-              if (!error && cookies && cookies.length > 0) {
-                resolve(cookies);
-              } else {
-                resolve(null);
-              }
-            });
-          });
-          if (list && list.length > 0) {
-            const currentHost = window.location.hostname;
-            const relevantList = list.filter((c) => {
-              const d = (c.domain || "").toLowerCase();
-              return (
-                d.includes("vistasocial") ||
-                d.includes("socialbee") ||
-                d.includes("kuku.lu") ||
-                d.includes("tiktok") ||
-                d.includes(currentHost)
-              );
-            });
-            return (relevantList.length > 0 ? relevantList : list).map((c) => ({
-              domain: c.domain,
-              expirationDate: c.expirationDate || (Math.floor(Date.now() / 1000) + 31536000),
-              hostOnly: c.hostOnly ?? false,
-              httpOnly: c.httpOnly ?? false,
-              name: c.name,
-              path: c.path || "/",
-              sameSite: c.sameSite || "unspecified",
-              secure: c.secure ?? isHttps,
-              session: c.session ?? false,
-              storeId: c.storeId || null,
-              value: c.value,
-            }));
-          }
-        } catch (e) {}
-      }
-      return null;
-    }
-
-    function renderKukuKeysList() {
-      const container = shadow.getElementById("kuku-keys-list");
-      const countEl = shadow.getElementById("kuku-key-count");
-      if (!container || !countEl) return;
-
-      const saved = GM_getValue("kuku_account_keys", []);
-      countEl.textContent = saved.length;
-
-      if (saved.length === 0) {
-        container.innerHTML = `<div style="font-size: 9px; color: #6b7280; font-style: italic;">No saved account keys. Add key or click 'Save Active Tab'.</div>`;
-        return;
-      }
-
-      container.innerHTML = "";
-      saved.forEach((acc, idx) => {
-        const item = document.createElement("div");
-        item.style.cssText = "display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.06); padding: 4px 6px; border-radius: 4px; font-size: 9px;";
-
-        const label = document.createElement("span");
-        label.style.cssText = "color: #e5e7eb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;";
-        label.textContent = acc.name || `Account #${idx + 1}`;
-        label.title = acc.key;
-
-        const delBtn = document.createElement("button");
-        delBtn.style.cssText = "background: none; border: none; color: #ef4444; cursor: pointer; font-size: 10px; padding: 0 4px;";
-        delBtn.textContent = "✕";
-        delBtn.title = "Delete key";
-        delBtn.addEventListener("click", () => {
-          saved.splice(idx, 1);
-          GM_setValue("kuku_account_keys", saved);
-          renderKukuKeysList();
-        });
-
-        item.appendChild(label);
-        item.appendChild(delBtn);
-        container.appendChild(item);
-      });
-    }
-
-    renderKukuKeysList();
-
-    const addKeyBtn = shadow.getElementById("kuku-add-key-btn");
-    const keyInput = shadow.getElementById("kuku-key-input");
-    if (addKeyBtn && keyInput) {
-      addKeyBtn.addEventListener("click", () => {
-        let val = keyInput.value.trim();
-        if (!val) {
-          alert("Please enter a sessionhash key or cookie string into the text box first.");
-          return;
-        }
-
-        if (!val.includes("=") && /^[a-zA-Z0-9_-]+$/.test(val)) {
-          val = "cookie_sessionhash=" + val;
-        }
-
-        const saved = GM_getValue("kuku_account_keys", []);
-
-        let hashVal = "";
-        if (val.includes("cookie_sessionhash=")) {
-          const match = val.match(/cookie_sessionhash=([^;]+)/);
-          if (match) hashVal = match[1];
-        } else if (/^[a-zA-Z0-9_-]+$/.test(val)) {
-          hashVal = val;
-        }
-
-        const isDuplicate = saved.some((a) => {
-          if (a.key === val) return true;
-          if (hashVal && a.key.includes(hashVal)) return true;
-          return false;
-        });
-
-        if (isDuplicate) {
-          alert("This account key is already saved in your list!");
-          return;
-        }
-
-        const cleanHash = hashVal.replace(/^SHASH(%3A|:)/i, "");
-        let name = cleanHash ? "Hash (" + cleanHash.slice(0, 8) + "...)" : "Key #" + (saved.length + 1);
-
-        saved.push({
-          id: "kuku_" + Date.now(),
-          name: name,
-          key: val,
-          addedAt: Date.now(),
-        });
-
-        GM_setValue("kuku_account_keys", saved);
-        keyInput.value = "";
-        renderKukuKeysList();
-        alert(`Successfully added new account key: ${name}`);
-      });
-    }
-
-    const autoDetectBtn = shadow.getElementById("kuku-autodetect-key-btn");
-    if (autoDetectBtn) {
-      autoDetectBtn.addEventListener("click", () => {
-        if (!window.location.hostname.includes("kuku.lu")) {
-          alert("Please click this button while on an m.kuku.lu tab to auto-detect its account key!");
-          return;
-        }
-
-        let activeEmail = "";
-        const emailEls = Array.from(document.querySelectorAll("#area_mailaddr, #area_recv_mailaddr, .mailaddr, td, span, div, b"));
-        for (const el of emailEls) {
-          const txt = (el.textContent || "").trim();
-          if (txt.includes("@kuku.lu") || txt.includes("@instaddr") || /[a-zA-Z0-9.*_%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(txt)) {
-            const match = txt.match(/[a-zA-Z0-9.*_%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-            if (match) {
-              activeEmail = match[0];
-              break;
-            }
-          }
-        }
-
-        const cookies = document.cookie;
-        let localHash = "";
-        try {
-          localHash = localStorage.getItem("cookie_sessionhash") || localStorage.getItem("sessionhash") || localStorage.getItem("nopsw") || "";
-        } catch (e) {}
-
-        const hashMatch = cookies ? cookies.match(/cookie_sessionhash=([^;]+)/) : null;
-        const hashVal = hashMatch ? hashMatch[1] : localHash;
-
-        if (!cookies && !hashVal) {
-          alert("No active session cookie or session hash found on this tab. Please refresh the page (F5) after switching accounts!");
-          return;
-        }
-
-        const keyData = cookies || ("cookie_sessionhash=" + hashVal);
-        const saved = GM_getValue("kuku_account_keys", []);
-
-        const cleanHash = hashVal.replace(/^SHASH(%3A|:)/i, "");
-        let name = activeEmail || (cleanHash ? "Hash (" + cleanHash.slice(0, 8) + "...)" : "Account #" + (saved.length + 1));
-        if (name.length > 45) name = name.slice(0, 45) + "...";
-
-        const existingIdx = saved.findIndex((a) => {
-          if (hashVal && a.key.includes(hashVal)) return true;
-          if (activeEmail && a.name === activeEmail) return true;
-          if (a.key === keyData) return true;
-          return false;
-        });
-
-        if (existingIdx >= 0) {
-          saved[existingIdx].key = keyData;
-          saved[existingIdx].name = name;
-          alert(`Updated key for account: ${name}\nSession Hash: ${cleanHash ? cleanHash.slice(0, 10) + "..." : "Saved"}`);
-        } else {
-          saved.push({
-            id: "kuku_" + Date.now(),
-            name: name,
-            key: keyData,
-            addedAt: Date.now(),
-          });
-          alert(`Saved new account key for: ${name}\nSession Hash: ${cleanHash ? cleanHash.slice(0, 10) + "..." : "Saved"}`);
-        }
-
-        GM_setValue("kuku_account_keys", saved);
-        renderKukuKeysList();
-      });
-    }
-
-    const exportKeysBtn = shadow.getElementById("kuku-export-keys-btn");
-    if (exportKeysBtn) {
-      exportKeysBtn.addEventListener("click", () => {
-        const saved = GM_getValue("kuku_account_keys", []);
-        if (saved.length === 0) {
-          alert("No saved instaddr account keys to export.");
-          return;
-        }
-        const jsonStr = JSON.stringify(saved, null, 2);
-        navigator.clipboard
-          .writeText(jsonStr)
-          .then(() => {
-            alert(`Successfully copied ${saved.length} instaddr account keys to your clipboard as JSON!`);
-          })
-          .catch((err) => {
-            prompt("Copy your instaddr account keys JSON manually:", jsonStr);
-          });
-      });
-    }
-
-    const importKeysBtn = shadow.getElementById("kuku-import-keys-btn");
-    if (importKeysBtn) {
-      importKeysBtn.addEventListener("click", () => {
-        const input = prompt("Paste your exported instaddr account keys JSON:");
-        if (!input) return;
-        try {
-          const parsed = JSON.parse(input);
-          if (!Array.isArray(parsed)) {
-            alert("Invalid format. Expected a JSON array of account keys.");
-            return;
-          }
-          const saved = GM_getValue("kuku_account_keys", []);
-          let addedCount = 0;
-          parsed.forEach((item) => {
-            if (item && item.key) {
-              const exists = saved.some((a) => a.key === item.key);
-              if (!exists) {
-                saved.push({
-                  id: item.id || "kuku_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
-                  name: item.name || "Imported Key",
-                  key: item.key,
-                  addedAt: item.addedAt || Date.now(),
-                });
-                addedCount++;
-              }
-            }
-          });
-          GM_setValue("kuku_account_keys", saved);
-          renderKukuKeysList();
-          alert(`Import successful! Added ${addedCount} new account keys.`);
-        } catch (e) {
-          alert("Failed to parse JSON. Please make sure you pasted valid JSON content.");
-        }
-      });
-    }
-
     // Toggle minimize
     const toggleBtn = shadow.getElementById("sb-suite-toggle-btn");
-    const publisherSvgIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>`;
-    const otpSvgIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
-    const closeSvgIcon = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
-
     toggleBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       panel.classList.toggle("minimized");
       if (panel.classList.contains("minimized")) {
-        const activeTab = shadow.querySelector(".tab-btn.active");
-        toggleBtn.innerHTML = (activeTab && activeTab.id === "tab-btn-otp") ? otpSvgIcon : publisherSvgIcon;
+        toggleBtn.innerHTML = panel.style.getPropertyValue("--suite-icon").replace(/"/g, "") || "🤖";
         toggleBtn.title = "Maximize Panel";
       } else {
-        toggleBtn.innerHTML = closeSvgIcon;
+        toggleBtn.innerHTML = "✕";
         toggleBtn.title = "Minimize Panel";
       }
     });
@@ -1380,48 +991,16 @@
     panel.addEventListener("click", (e) => {
       if (panel.classList.contains("minimized")) {
         panel.classList.remove("minimized");
-        toggleBtn.innerHTML = closeSvgIcon;
+        toggleBtn.innerHTML = "✕";
         toggleBtn.title = "Minimize Panel";
       }
     });
 
-    async function getCurrentDomainCookies() {
-      const isHttps = window.location.protocol === "https:";
-
-      // Use GM_cookie.list if available to read HttpOnly authentication cookies
-      if (typeof GM_cookie !== "undefined" && typeof GM_cookie.list === "function") {
-        try {
-          const list = await new Promise((resolve) => {
-            GM_cookie.list({ url: window.location.origin }, (cookies, error) => {
-              if (!error && cookies && cookies.length > 0) {
-                resolve(cookies);
-              } else {
-                resolve(null);
-              }
-            });
-          });
-          if (list && list.length > 0) {
-            return list.map((c) => ({
-              domain: c.domain,
-              expirationDate: c.expirationDate || (Math.floor(Date.now() / 1000) + 31536000),
-              hostOnly: c.hostOnly ?? false,
-              httpOnly: c.httpOnly ?? false,
-              name: c.name,
-              path: c.path || "/",
-              sameSite: c.sameSite || "unspecified",
-              secure: c.secure ?? isHttps,
-              session: c.session ?? false,
-              storeId: c.storeId || null,
-              value: c.value,
-            }));
-          }
-        } catch (e) {}
-      }
-
-      // Fallback to document.cookie if GM_cookie.list is not available
+    function getCurrentDomainCookies() {
       const cookiesList = [];
       const currentHost = window.location.hostname;
       const domainName = currentHost.startsWith(".") ? currentHost : "." + currentHost;
+      const isHttps = window.location.protocol === "https:";
 
       if (document.cookie) {
         document.cookie.split(";").forEach((pair) => {
@@ -1448,9 +1027,9 @@
       return cookiesList;
     }
 
-    async function cacheCurrentDomainCookies() {
+    function cacheCurrentDomainCookies() {
       const host = window.location.hostname;
-      const currentCookies = await getCurrentDomainCookies();
+      const currentCookies = getCurrentDomainCookies();
       if (host.includes("kuku.lu")) {
         GM_setValue("cached_cookies_kuku", currentCookies);
       } else if (host.includes("socialbee.com") || host.includes("socialbee.io")) {
@@ -1463,14 +1042,14 @@
     cacheCurrentDomainCookies();
 
     async function exportCombinedCookiesJSON() {
-      await cacheCurrentDomainCookies();
+      cacheCurrentDomainCookies();
 
       const kukuCookies = GM_getValue("cached_cookies_kuku", []);
       const sbCookies = GM_getValue("cached_cookies_socialbee", []);
       const vistaCookies = GM_getValue("cached_cookies_vistasocial", []);
 
       const host = window.location.hostname;
-      const liveCookies = await getCurrentDomainCookies();
+      const liveCookies = getCurrentDomainCookies();
 
       let mergedList = [];
       if (host.includes("kuku.lu")) {
@@ -1487,10 +1066,8 @@
         uniqueMap.set(key, c);
       });
       const combinedCookies = Array.from(uniqueMap.values());
-      const jsonString = JSON.stringify(combinedCookies, null, 2);
 
-      // Save to internal Tampermonkey global memory for zero-prompt instant import
-      GM_setValue("last_exported_cookies", jsonString);
+      const jsonString = JSON.stringify(combinedCookies, null, 2);
 
       let copied = false;
       try {
@@ -1667,10 +1244,8 @@
         console.log(`${logMessage} (Attempt: ${lastClickTime ? "Retry" : "First"})`);
         clickedElements.set(el, now);
 
-        try {
-          el.click();
-          el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-        } catch (e) {}
+        el.click();
+        el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
       }
     }
 
@@ -1681,7 +1256,7 @@
     }
 
     // Check for successful callback redirect
-    if (currentUrl.includes("socialbee.com") && (currentUrl.includes("signin/tiktok/callback") || currentUrl.includes("success") || (currentUrl.includes("profiles") && currentUrl.includes("code=")))) {
+    if ((currentUrl.includes("socialbee.com") || currentUrl.includes("vistasocial.com")) && (currentUrl.includes("signin/tiktok/callback") || currentUrl.includes("success") || (currentUrl.includes("profiles") && (currentUrl.includes("code=") || currentUrl.includes("connected"))))) {
       console.log("[OTP Link] Detected TikTok OAuth callback. Setting authorization flag.");
       GM_setValue("tiktok_authorized_flag", true);
 
@@ -1701,7 +1276,7 @@
 
     function determineRole() {
       if (currentUrl.includes("kuku.lu")) return "Email Tab";
-      if (currentUrl.includes("tiktok.com") || currentUrl.includes("socialbee.com") || currentUrl.includes("socialbee.io")) return "Login Tab";
+      if (currentUrl.includes("tiktok.com") || currentUrl.includes("socialbee.com") || currentUrl.includes("socialbee.io") || currentUrl.includes("vistasocial.com")) return "Login Tab";
       return null;
     }
 
@@ -1712,153 +1287,6 @@
     let statusDotEl = shadow.getElementById("otp-status-dot");
     statusText = statusTextEl;
     statusDot = statusDotEl;
-
-    async function fetchOTPFromMultiAccounts(targetEmail) {
-      if (!targetEmail) return null;
-      const savedAccounts = GM_getValue("kuku_account_keys", []);
-      if (!Array.isArray(savedAccounts) || savedAccounts.length === 0) {
-        return null;
-      }
-
-      const activeReq = GM_getValue("otp_request");
-      if (!activeReq || activeReq.status !== "pending") {
-        return null;
-      }
-
-      const invalidOtp = activeReq.invalid_otp || window.last_invalid_otp || null;
-
-      for (let idx = 0; idx < savedAccounts.length; idx++) {
-        const acc = savedAccounts[idx];
-        if (!acc || !acc.key) continue;
-        try {
-          console.log(`[OTP Link Multi-Account] Checking saved key ${idx + 1}/${savedAccounts.length} (${acc.name})...`);
-          setStatus(`Checking key ${idx + 1}/${savedAccounts.length}: ${acc.name}...`, "running");
-
-          const cookieStr = typeof acc.key === "string" ? acc.key : (acc.cookieStr || "");
-
-          // 1. Try AJAX endpoint
-          let resText = await new Promise((resolve) => {
-            GM_xmlhttpRequest({
-              method: "GET",
-              url: "https://m.kuku.lu/recv._ajax.php?action=recv_update&t=" + Date.now(),
-              headers: {
-                "Cookie": cookieStr,
-                "User-Agent": navigator.userAgent,
-                "X-Requested-With": "XMLHttpRequest"
-              },
-              timeout: 5000,
-              onload: (res) => resolve(res.responseText || ""),
-              onerror: () => resolve(""),
-              ontimeout: () => resolve("")
-            });
-          });
-
-          // 2. Fallback to recv.php if AJAX is empty
-          if (!resText || resText.length < 50) {
-            resText = await new Promise((resolve) => {
-              GM_xmlhttpRequest({
-                method: "GET",
-                url: "https://m.kuku.lu/recv.php?t=" + Date.now(),
-                headers: {
-                  "Cookie": cookieStr,
-                  "User-Agent": navigator.userAgent,
-                  "Referer": "https://m.kuku.lu/index.php"
-                },
-                timeout: 5000,
-                onload: (res) => resolve(res.responseText || ""),
-                onerror: () => resolve(""),
-                ontimeout: () => resolve("")
-              });
-            });
-          }
-
-          if (!resText) continue;
-
-          // Direct check for 6-digit OTP code in response text
-          const otpMatches = resText.match(/\b\d{6}\b/g) || resText.match(/\b\d{4}\b/g);
-          if (otpMatches && otpMatches.length > 0) {
-            for (const otpCode of otpMatches) {
-              if (invalidOtp && invalidOtp === otpCode) continue;
-
-              console.log(`[OTP Link Multi-Account] Found OTP ${otpCode} for ${targetEmail} from account key: ${acc.name || acc.id}!`);
-              setStatus(`Found OTP ${otpCode} via saved key (${acc.name})!`, "success");
-
-              GM_setValue("otp_response", {
-                email: targetEmail,
-                otp: otpCode,
-                timestamp: Date.now(),
-                source: acc.name || "multi-account-key"
-              });
-
-              GM_setValue("otp_request", {
-                email: targetEmail,
-                status: "completed",
-                timestamp: Date.now()
-              });
-
-              return { otp: otpCode, email: targetEmail, account: acc.name };
-            }
-          }
-
-          // Extract mail ID (num) to fetch full body via sm_number.php
-          const numMatches = resText.match(/(?:num|mail_id|openMailData|openMailRecv|sm_number\.php\?num=)\s*['"]?(\d+)['"]?/g) || resText.match(/num=(\d+)/g) || resText.match(/\b\d{5,10}\b/g);
-          if (numMatches && numMatches.length > 0) {
-            const uniqueNums = Array.from(new Set(numMatches.map(m => {
-              const digits = m.match(/\d+/);
-              return digits ? digits[0] : null;
-            }))).filter(Boolean).slice(0, 4);
-
-            for (const num of uniqueNums) {
-              const bodyText = await new Promise((resolve) => {
-                GM_xmlhttpRequest({
-                  method: "GET",
-                  url: `https://m.kuku.lu/sm_number.php?num=${num}&t=` + Date.now(),
-                  headers: {
-                    "Cookie": cookieStr,
-                    "User-Agent": navigator.userAgent,
-                    "Referer": "https://m.kuku.lu/recv.php"
-                  },
-                  timeout: 4000,
-                  onload: (res) => resolve(res.responseText || ""),
-                  onerror: () => resolve(""),
-                  ontimeout: () => resolve("")
-                });
-              });
-
-              if (bodyText) {
-                const bodyOtp = bodyText.match(/\b\d{6}\b/g) || bodyText.match(/\b\d{4}\b/g);
-                if (bodyOtp && bodyOtp.length > 0) {
-                  for (const otpCode of bodyOtp) {
-                    if (invalidOtp && invalidOtp === otpCode) continue;
-
-                    console.log(`[OTP Link Multi-Account Body] Found OTP ${otpCode} inside mail #${num} for ${targetEmail} from account key: ${acc.name || acc.id}!`);
-                    setStatus(`Found OTP ${otpCode} in mail body (${acc.name})!`, "success");
-
-                    GM_setValue("otp_response", {
-                      email: targetEmail,
-                      otp: otpCode,
-                      timestamp: Date.now(),
-                      source: acc.name || "multi-account-key"
-                    });
-
-                    GM_setValue("otp_request", {
-                      email: targetEmail,
-                      status: "completed",
-                      timestamp: Date.now()
-                    });
-
-                    return { otp: otpCode, email: targetEmail, account: acc.name };
-                  }
-                }
-              }
-            }
-          }
-        } catch (err) {
-          console.warn(`[OTP Link Multi-Account] Error checking account (${acc.name}):`, err);
-        }
-      }
-      return null;
-    }
 
     // CSV logic if Login Tab
     if (role === "Login Tab") {
@@ -2118,15 +1546,6 @@
         GM_setValue("captcha_api_key", captchaKeyInput.value.trim());
       });
 
-      const captchaProviderSelect = shadow.getElementById("otp-captcha-provider");
-      if (captchaProviderSelect) {
-        captchaProviderSelect.value = GM_getValue("captcha_provider", "sadcaptcha");
-        captchaProviderSelect.addEventListener("change", (e) => {
-          GM_setValue("captcha_provider", e.target.value);
-          console.log("[OTP Link] CAPTCHA provider changed to:", e.target.value);
-        });
-      }
-
       if (!savedKey) {
         GM_xmlhttpRequest({
           method: "GET",
@@ -2235,24 +1654,8 @@
           }) || document.querySelector('button[type="submit"], button[data-e2e="login-button"]');
 
         if (loginBtn) {
-          console.log("[OTP Link] Clicking login button with event sequence:", loginBtn);
-          try {
-            loginBtn.focus();
-            const rect = loginBtn.getBoundingClientRect();
-            const clientX = rect.left + rect.width / 2;
-            const clientY = rect.top + rect.height / 2;
-            const opts = { bubbles: true, cancelable: true, clientX, clientY };
-
-            loginBtn.dispatchEvent(new PointerEvent("pointerdown", opts));
-            loginBtn.dispatchEvent(new MouseEvent("mousedown", opts));
-            await sleep(60);
-            loginBtn.dispatchEvent(new PointerEvent("pointerup", opts));
-            loginBtn.dispatchEvent(new MouseEvent("mouseup", opts));
-            loginBtn.dispatchEvent(new MouseEvent("click", opts));
-            loginBtn.click();
-          } catch (e) {
-            loginBtn.click();
-          }
+          console.log("[OTP Link] Clicking login button:", loginBtn);
+          loginBtn.click();
           setStatus("Login clicked! Awaiting OTP or Callback...", "running");
 
           const startTime = Date.now();
@@ -2404,26 +1807,84 @@
     }
 
     function findTikTokReconnectButton() {
+      if (window.location.hostname.includes("vistasocial.com")) {
+        // Step 1: Check for "Add profile" initial button first (if modal is not open yet)
+        const addProfileBtn = document.querySelector('[data-doc-anchor="settings-profiles-add"], button[data-doc-anchor="settings-profiles-add"]');
+        if (addProfileBtn && addProfileBtn.offsetWidth > 0 && !document.querySelector('[class*="AddProfileModal"]')) {
+          return addProfileBtn;
+        }
+
+        // Step 2a: Check for "Continue" step button (data-doc-anchor="add-profile-continue")
+        const continueBtn = document.querySelector('[data-doc-anchor="add-profile-continue"], button[data-doc-anchor="add-profile-continue"]');
+        if (continueBtn && continueBtn.offsetWidth > 0) {
+          return continueBtn;
+        }
+
+        // Step 2b / Step 3: Scoped strictly to TikTok container (data-doc-anchor="connect-network-tiktok")
+        const vistaTikTokContainer = document.querySelector('[data-doc-anchor="connect-network-tiktok"], [data-doc-anchor*="connect-network-tiktok"]');
+        if (vistaTikTokContainer && vistaTikTokContainer.offsetWidth > 0) {
+          // Look for the Connect button specifically INSIDE the TikTok container
+          const tiktokConnectBtn = vistaTikTokContainer.querySelector('button[class*="AddProfileModal__ConnectButton"], button, [role="button"]');
+          if (tiktokConnectBtn && tiktokConnectBtn.offsetWidth > 0) {
+            return tiktokConnectBtn;
+          }
+          return vistaTikTokContainer;
+        }
+
+        // Fallback: If modal is open, search for buttons specifically inside TikTok wrappers
+        const modalButtons = Array.from(document.querySelectorAll('[class*="AddProfileModal"] button, [class*="AddProfileModal"] div[role="button"]'));
+        for (const btn of modalButtons) {
+          if (btn.offsetWidth === 0 && btn.offsetHeight === 0) continue;
+          const parent = btn.closest('[data-doc-anchor*="tiktok"], [class*="NetworkWrapper"]');
+          const parentText = (parent ? parent.textContent || "" : "").toLowerCase();
+          const docAnchor = (parent ? parent.getAttribute("data-doc-anchor") || "" : "").toLowerCase();
+          if (docAnchor.includes("tiktok") || parentText.includes("tiktok")) {
+            return btn;
+          }
+        }
+      }
+
+      // 2. SocialBee specific form/class selectors:
       let btn = document.querySelector('form[action*="/signin/tiktok"] button, form[action="/signin/tiktok"] button, a[href*="/signin/tiktok"]');
-      if (btn) return btn;
+      if (btn && btn.offsetWidth > 0) return btn;
 
       btn = document.querySelector('.connect-social-tiktok button, [class*="connect-social-tiktok"] button');
-      if (btn) return btn;
+      if (btn && btn.offsetWidth > 0) return btn;
 
-      const allButtons = Array.from(document.querySelectorAll("button, a"));
+      // 3. Scan all buttons / links / clickable elements for TikTok connect/reconnect
+      const allButtons = Array.from(document.querySelectorAll("button, a, div[role='button']"));
+
       for (const element of allButtons) {
+        if (element.offsetWidth === 0 && element.offsetHeight === 0) continue;
+
         const text = (element.textContent || "").trim().toLowerCase();
         const parentForm = element.closest("form");
         const action = parentForm ? parentForm.getAttribute("action") || "" : "";
+        const href = element.getAttribute("href") || "";
+        const parentText = (element.parentElement ? element.parentElement.textContent || "" : "").toLowerCase();
+        const rowText = (element.closest("tr, div, li") ? element.closest("tr, div, li").textContent || "" : "").toLowerCase();
 
-        if ((text.includes("reconnect") || text.includes("connect")) && (text.includes("tiktok") || action.includes("tiktok") || element.getAttribute("href")?.includes("tiktok"))) {
+        const isTikTok = text.includes("tiktok") || action.includes("tiktok") || href.includes("tiktok") || parentText.includes("tiktok") || rowText.includes("tiktok");
+        const isConnectAction = text.includes("reconnect") || text.includes("connect") || text.includes("re-connect") || text.includes("re-authorize") || text.includes("authorize");
+
+        if (isTikTok && isConnectAction) {
           return element;
         }
       }
+
+      // Generic fallback: button whose text is reconnect or connect
+      for (const element of allButtons) {
+        if (element.offsetWidth === 0 && element.offsetHeight === 0) continue;
+        const text = (element.textContent || "").trim().toLowerCase();
+        if (text === "reconnect" || text.includes("reconnect tiktok") || text === "connect tiktok") {
+          return element;
+        }
+      }
+
       return null;
     }
 
-    if (currentUrl.includes("tiktok.com") || currentUrl.includes("socialbee.com") || currentUrl.includes("socialbee.io")) {
+    if (currentUrl.includes("tiktok.com") || currentUrl.includes("socialbee.com") || currentUrl.includes("socialbee.io") || currentUrl.includes("vistasocial.com")) {
       console.log("[OTP Link] Login tab active.");
       setStatus("Listening for OTP fields...", "idle");
 
@@ -2527,7 +1988,7 @@
               const cleaned = cleanExtractedEmail(email);
               if (cleaned) {
                 const emailLower = cleaned.toLowerCase();
-                if (!emailLower.includes("tiktok.com") && !emailLower.includes("socialbee.com") && !emailLower.includes("example.com")) {
+                if (!emailLower.includes("tiktok.com") && !emailLower.includes("socialbee.com") && !emailLower.includes("vistasocial.com") && !emailLower.includes("example.com")) {
                   return cleaned;
                 }
               }
@@ -2541,7 +2002,7 @@
             const cleaned = cleanExtractedEmail(email);
             if (cleaned) {
               const emailLower = cleaned.toLowerCase();
-              if (!emailLower.includes("tiktok.com") && !emailLower.includes("socialbee.com") && !emailLower.includes("example.com")) {
+              if (!emailLower.includes("tiktok.com") && !emailLower.includes("socialbee.com") && !emailLower.includes("vistasocial.com") && !emailLower.includes("example.com")) {
                 return cleaned;
               }
             }
@@ -2670,20 +2131,24 @@
         setStatus(`Requesting OTP for ${targetEmail}...`, "running");
 
         const staleResp = GM_getValue("otp_response");
-        if (staleResp && (!staleResp.email || !isEmailMatch(staleResp.email, targetEmail))) {
-          console.log(`[OTP Link] Clearing old/mismatched OTP response for ${staleResp?.email}`);
+        if (staleResp && (!staleResp.email || !isEmailMatch(staleResp.email, targetEmail) || (staleResp.timestamp && Date.now() - staleResp.timestamp > 120000))) {
+          console.log(`[OTP Link] Clearing old/mismatched/expired OTP response for ${staleResp?.email}`);
           GM_setValue("otp_response", null);
         }
 
-        if (window.otp_response_listener_id && typeof GM_removeValueChangeListener === "function") {
-          try {
-            GM_removeValueChangeListener(window.otp_response_listener_id);
-          } catch (e) {}
+        if (window.otp_response_listener_id) {
+          GM_removeValueChangeListener(window.otp_response_listener_id);
         }
 
-        function handleOtpResponse(newValue) {
+        const responseListenerId = GM_addValueChangeListener("otp_response", function (key, oldValue, newValue, remote) {
           if (newValue && newValue.email && isEmailMatch(newValue.email, targetEmail) && newValue.otp) {
-            console.log(`[OTP Link] Received matching OTP for ${newValue.email}: ${newValue.otp}`);
+            const age = Date.now() - (newValue.timestamp || 0);
+            if (age > 120000) {
+              console.log(`[OTP Link] Received OTP for ${newValue.email} but it is expired (${Math.round(age / 1000)}s old > 120s limit). Ignoring.`);
+              return;
+            }
+
+            console.log(`[OTP Link] Received matching valid OTP for ${newValue.email}: ${newValue.otp}`);
             setStatus(`Received OTP ${newValue.otp}! Filling...`, "success");
 
             let attempts = 0;
@@ -2720,39 +2185,25 @@
               }
             }, 150);
 
-            if (window.otp_response_listener_id && typeof GM_removeValueChangeListener === "function") {
-              try {
-                GM_removeValueChangeListener(window.otp_response_listener_id);
-              } catch (e) {}
+            GM_removeValueChangeListener(responseListenerId);
+            if (window.otp_response_listener_id === responseListenerId) {
               window.otp_response_listener_id = null;
             }
           }
-        }
-
-        if (typeof GM_addValueChangeListener === "function") {
-          try {
-            window.otp_response_listener_id = GM_addValueChangeListener("otp_response", function (key, oldValue, newValue, remote) {
-              handleOtpResponse(newValue);
-            });
-          } catch (e) {}
-        }
-
-        if (!window.otp_response_poll_interval) {
-          window.otp_response_poll_interval = setInterval(() => {
-            const currentResp = GM_getValue("otp_response");
-            if (currentResp && currentResp.email && isEmailMatch(currentResp.email, targetEmail) && currentResp.otp) {
-              handleOtpResponse(currentResp);
-              clearInterval(window.otp_response_poll_interval);
-              window.otp_response_poll_interval = null;
-            }
-          }, 1000);
-        }
+        });
+        window.otp_response_listener_id = responseListenerId;
 
         const currentResp = GM_getValue("otp_response");
         if (currentResp && currentResp.email && isEmailMatch(currentResp.email, targetEmail) && currentResp.otp) {
-          console.log(`[OTP Link] Found existing matching OTP response for ${currentResp.email}: ${currentResp.otp}`);
-          fillOTP(currentResp.otp);
-          return;
+          const age = Date.now() - (currentResp.timestamp || 0);
+          if (age <= 120000) {
+            console.log(`[OTP Link] Found existing matching valid OTP response for ${currentResp.email}: ${currentResp.otp} (${Math.round(age / 1000)}s old)`);
+            fillOTP(currentResp.otp);
+            return;
+          } else {
+            console.log(`[OTP Link] Found expired OTP response for ${currentResp.email} (${Math.round(age / 1000)}s old > 120s limit). Clearing stale OTP.`);
+            GM_setValue("otp_response", null);
+          }
         }
 
         GM_setValue("otp_request", {
@@ -2761,20 +2212,6 @@
           timestamp: Date.now(),
           invalid_otp: window.last_invalid_otp || null,
         });
-
-        // Query saved instaddr keys directly from TikTok tab
-        fetchOTPFromMultiAccounts(targetEmail);
-        if (!window.multiAccountPollInterval) {
-          window.multiAccountPollInterval = setInterval(async () => {
-            const req = GM_getValue("otp_request");
-            if (req && req.status === "pending") {
-              await fetchOTPFromMultiAccounts(req.email);
-            } else {
-              clearInterval(window.multiAccountPollInterval);
-              window.multiAccountPollInterval = null;
-            }
-          }, 1500);
-        }
       }
 
       function checkForVerificationOption() {
@@ -2813,71 +2250,6 @@
 
       let isSolvingCaptcha = false;
 
-      function attachHumanSolveTelemetry(captchaContainer, cleanBg, cleanSlide) {
-        if (!captchaContainer || captchaContainer.hasAttribute("data-telemetry-attached")) return;
-        captchaContainer.setAttribute("data-telemetry-attached", "true");
-
-        let isUserDragging = false;
-
-        function getDragPx() {
-          const handles = captchaContainer.querySelectorAll('.secsdk-captcha-drag-icon, [class*="secsdk-captcha-drag-icon"], [id*="slide_button"], button, [draggable="true"]');
-          for (const handle of handles) {
-            let curr = handle;
-            for (let depth = 0; depth < 4 && curr; depth++) {
-              const transform = curr.style ? (curr.style.transform || curr.style.webkitTransform || '') : '';
-              const match = transform.match(/translateX\(([\d.]+)px\)/);
-              if (match) {
-                return parseFloat(match[1]);
-              }
-              curr = curr.parentElement;
-            }
-          }
-          return 0;
-        }
-
-        function onDragStart() {
-          isUserDragging = true;
-        }
-
-        function onDragEnd() {
-          if (!isUserDragging) return;
-          isUserDragging = false;
-
-          setTimeout(() => {
-            const dragPx = getDragPx();
-            const trackBar = captchaContainer.querySelector('.captcha_verify_slide--slidebar, [class*="slide--bar"], [class*="slidebar"]') || captchaContainer.querySelector('.cap-rounded-full');
-            const dragHandle = captchaContainer.querySelector('.secsdk-captcha-drag-icon, [id*="slide_button"]');
-
-            const trackWidth = trackBar ? trackBar.clientWidth : 212;
-            const handleWidth = dragHandle ? dragHandle.offsetWidth : 44;
-            const effectiveTrackWidth = Math.max(trackWidth - handleWidth, 160);
-
-            if (dragPx > 5) {
-              const humanAngle = Math.min((dragPx / effectiveTrackWidth) * 360, 360);
-
-              GM_xmlhttpRequest({
-                method: "POST",
-                url: "http://127.0.0.1:4782/api/save_human_solve",
-                headers: { "Content-Type": "application/json" },
-                data: JSON.stringify({
-                  outerImageB64: cleanBg,
-                  innerImageB64: cleanSlide,
-                  true_angle: humanAngle
-                }),
-                onload: function(res) {
-                  console.log("[Human Telemetry] Successfully captured human solve! Angle: " + humanAngle.toFixed(1) + "°");
-                }
-              });
-            }
-          }, 400);
-        }
-
-        captchaContainer.addEventListener("mousedown", onDragStart, true);
-        captchaContainer.addEventListener("touchstart", onDragStart, true);
-        window.addEventListener("mouseup", onDragEnd, true);
-        window.addEventListener("touchend", onDragEnd, true);
-      }
-
       async function solveTikTokCaptchaClientSide() {
         if (isSolvingCaptcha) return;
 
@@ -2896,12 +2268,17 @@
             return;
           }
 
-          let bgImg = captchaContainer.querySelector('[data-testid="whirl-outer-img"], .captcha-verify-container > div > div > div > img:first-child, #captcha-verify-image') || images[0];
-          let slideImg = captchaContainer.querySelector('[data-testid="whirl-inner-img"], img.cap-absolute, .captcha-verify-container > div > div > div > img.cap-absolute, img.captcha_verify_img_slide') || (images.length > 1 ? images[1] : null);
+          let slideImg = null;
+          let bgImg = null;
 
-          if (!slideImg || !bgImg) {
-            bgImg = images[0];
-            slideImg = images.length > 1 ? images[1] : null;
+          for (const img of images) {
+            const style = window.getComputedStyle(img);
+            const isAbsolute = img.classList.contains("cap-absolute") || style.position === "absolute" || img.className.includes("slide");
+            if (isAbsolute) {
+              slideImg = img;
+            } else {
+              bgImg = img;
+            }
           }
 
           if (!slideImg || !bgImg) {
@@ -2929,287 +2306,117 @@
           const cleanBg = bgSrc.replace(/^data:image\/[a-z]+;base64,/, "");
           const cleanSlide = slideSrc.replace(/^data:image\/[a-z]+;base64,/, "");
 
-          // Attach passive telemetry to auto-capture human solves if a human solves manually
-          attachHumanSolveTelemetry(captchaContainer, cleanBg, cleanSlide);
-
           let apiKey = GM_getValue("captcha_api_key", "b94b520aa4bb49b24e33996888c5be7e");
 
-          const isPuzzleCaptcha = captchaContainer.querySelector('#captcha-verify-image, img.captcha_verify_img_slide') !== null;
           const containerText = (captchaContainer.textContent || "").toLowerCase();
-          const isRotateCaptcha = !isPuzzleCaptcha || captchaContainer.querySelector('[data-testid*="whirl"], img.cap-absolute, img[class*="whirl"]') !== null ||
-            (slideImg && (
-              (slideImg.className || "").includes("whirl") ||
-              (slideImg.className || "").includes("cap-absolute") ||
-              (slideImg.className || "").includes("rounded") ||
-              (slideImg.className || "").includes("circle") ||
-              window.getComputedStyle(slideImg).borderRadius === "50%" ||
-              window.getComputedStyle(slideImg).borderRadius === "9999px"
-            )) ||
-            containerText.includes("rotate") || containerText.includes("spin") || containerText.includes("right side up") || containerText.includes("orientation");
+          const isRotateCaptcha = containerText.includes("rotate") || containerText.includes("spin") || containerText.includes("right side up") || containerText.includes("orientation") || captchaContainer.querySelector('[class*="rotate"], [class*="whirl"], [class*="circle"]') !== null;
 
           let dragDistance = 0;
-          const trackElem = dragHandle.parentElement || captchaContainer.querySelector('[class*="captcha_verify_slide--bar"], [class*="drag-bar"], [class*="slider-bar"], [class*="captcha-drag-bar"], [class*="secsdk_captcha_slider_bar"]');
-          const containerWidth = (trackElem && trackElem.clientWidth > 100) ? trackElem.clientWidth : (bgImg.clientWidth || bgImg.offsetWidth || 270);
-          const handleWidth = dragHandle.offsetWidth || 44;
-          const effectiveTrackWidth = Math.max(containerWidth - handleWidth, 180);
-
-          const provider = GM_getValue("captcha_provider", "sadcaptcha");
-
-          async function solveRotate(apiProvider) {
-            let url = apiProvider === "eulerstream"
-              ? `https://tiktok.eulerstream.com/captcha/rotate?apiKey=${encodeURIComponent(apiKey)}`
-              : `https://www.sadcaptcha.com/api/v1/rotate?licenseKey=${encodeURIComponent(apiKey)}`;
-            if (apiProvider === "local") {
-              url = "http://127.0.0.1:4782/captcha/rotate";
-            }
-
-            console.log(`[OTP Link] Requesting Rotate solution from ${apiProvider.toUpperCase()}...`);
-            setStatus(`Solving Rotate CAPTCHA (${apiProvider})...`, "running");
-
-            const res = await new Promise((resolve, reject) => {
-              GM_xmlhttpRequest({
-                method: "POST",
-                url: url,
-                headers: { "Content-Type": "application/json" },
-                data: JSON.stringify({ outerImageB64: cleanBg, innerImageB64: cleanSlide, outer_b64: cleanBg, inner_b64: cleanSlide }),
-                responseType: "json",
-                onload: (r) => resolve(r.response),
-                onerror: (e) => reject(e),
-              });
-            });
-
-            let angle = res && (res.angle !== undefined ? res.angle : (res.rotation !== undefined ? res.rotation : res.rotate_angle));
-            if (angle === undefined && res && (res.slideXProportion !== undefined || res.slide_x_proportion !== undefined || res.x !== undefined)) {
-              const prop = res.slideXProportion !== undefined ? res.slideXProportion : (res.slide_x_proportion !== undefined ? res.slide_x_proportion : res.x);
-              angle = prop <= 1 ? prop * 360 : prop;
-            }
-            if (angle === undefined) {
-              throw new Error(`${apiProvider} response did not contain angle: ` + JSON.stringify(res));
-            }
-            return angle;
-          }
-
-          async function solvePuzzle(apiProvider) {
-            let url = apiProvider === "eulerstream"
-              ? `https://tiktok.eulerstream.com/captcha/puzzle?apiKey=${encodeURIComponent(apiKey)}`
-              : `https://www.sadcaptcha.com/api/v1/puzzle?licenseKey=${encodeURIComponent(apiKey)}`;
-            if (apiProvider === "local") {
-              url = "http://127.0.0.1:4782/captcha/puzzle";
-            }
-
-            console.log(`[OTP Link] Requesting Puzzle solution from ${apiProvider.toUpperCase()}...`);
-            setStatus(`Solving Puzzle CAPTCHA (${apiProvider})...`, "running");
-
-            const res = await new Promise((resolve, reject) => {
-              GM_xmlhttpRequest({
-                method: "POST",
-                url: url,
-                headers: { "Content-Type": "application/json" },
-                data: JSON.stringify({ puzzleImageB64: cleanBg, pieceImageB64: cleanSlide, puzzle_b64: cleanBg, piece_b64: cleanSlide }),
-                responseType: "json",
-                onload: (r) => resolve(r.response),
-                onerror: (e) => reject(e),
-              });
-            });
-
-            let prop = res && (res.slideXProportion !== undefined ? res.slideXProportion : (res.slide_x_proportion !== undefined ? res.slide_x_proportion : (res.proportion !== undefined ? res.proportion : res.x)));
-            if (prop === undefined && res && res.angle !== undefined) {
-              prop = res.angle / 360;
-            }
-            if (prop === undefined) {
-              throw new Error(`${apiProvider} response did not contain proportion: ` + JSON.stringify(res));
-            }
-            if (prop > 1) prop = prop / containerWidth;
-            if (prop > 1) prop = 1.0;
-            return Math.max(0, Math.min(1.0, prop));
-          }
+          const clientWidth = bgImg.clientWidth || bgImg.offsetWidth || 340;
 
           if (isRotateCaptcha) {
-            let angle;
-            try {
-              angle = await solveRotate(provider === "auto" ? "sadcaptcha" : provider);
-            } catch (primaryErr) {
-              if (provider === "auto" || provider === "sadcaptcha") {
-                console.warn("[OTP Link] Primary solver failed, attempting Eulerstream fallback...", primaryErr);
-                angle = await solveRotate("eulerstream");
-              } else {
-                throw primaryErr;
-              }
+            console.log("[OTP Link] Detected Rotate CAPTCHA. Requesting solution from SadCaptcha...");
+            setStatus("Solving Rotate CAPTCHA...", "running");
+
+            const rotateRes = await new Promise((resolve, reject) => {
+              GM_xmlhttpRequest({
+                method: "POST",
+                url: `https://www.sadcaptcha.com/api/v1/rotate?licenseKey=${encodeURIComponent(apiKey)}`,
+                headers: { "Content-Type": "application/json" },
+                data: JSON.stringify({
+                  outerImageB64: cleanBg,
+                  innerImageB64: cleanSlide,
+                }),
+                responseType: "json",
+                onload: (res) => resolve(res.response),
+                onerror: (err) => reject(err),
+              });
+            });
+
+            const angle = rotateRes && (rotateRes.angle !== undefined ? rotateRes.angle : rotateRes.rotation);
+            if (angle === undefined) {
+              throw new Error("SadCaptcha rotate response did not contain angle: " + JSON.stringify(rotateRes));
             }
-            dragDistance = Math.round((effectiveTrackWidth * angle) / 360);
-            dragDistance = Math.max(0, Math.min(dragDistance, effectiveTrackWidth));
-            console.log(`[OTP Link] Solved Rotate CAPTCHA! Calculated Angle: ${angle}°, Drag Distance: ${dragDistance}px`);
-            setStatus(`Rotate CAPTCHA Solved (${angle}°)! Dragging ${dragDistance}px...`, "success");
+
+            console.log("[OTP Link] Solved Rotate CAPTCHA! Calculated Angle: " + angle);
+            setStatus(`Rotate CAPTCHA Solved (${angle}°)! Simulating drag...`, "success");
+
+            const trackWidth = (dragHandle.parentElement?.clientWidth || clientWidth) - (dragHandle.offsetWidth || 40);
+            dragDistance = Math.round((trackWidth * angle) / 360);
           } else {
-            let prop;
-            try {
-              prop = await solvePuzzle(provider === "auto" ? "sadcaptcha" : provider);
-            } catch (primaryErr) {
-              if (provider === "auto" || provider === "sadcaptcha") {
-                console.warn("[OTP Link] Primary solver failed, attempting Eulerstream fallback...", primaryErr);
-                prop = await solvePuzzle("eulerstream");
-              } else {
-                throw primaryErr;
-              }
+            console.log("[OTP Link] Requesting puzzle solution from SadCaptcha...");
+            const solveRes = await new Promise((resolve, reject) => {
+              GM_xmlhttpRequest({
+                method: "POST",
+                url: `https://www.sadcaptcha.com/api/v1/puzzle?licenseKey=${encodeURIComponent(apiKey)}`,
+                headers: { "Content-Type": "application/json" },
+                data: JSON.stringify({
+                  puzzleImageB64: cleanBg,
+                  pieceImageB64: cleanSlide,
+                }),
+                responseType: "json",
+                onload: (res) => resolve(res.response),
+                onerror: (err) => reject(err),
+              });
+            });
+
+            let slideXProportion = solveRes && (solveRes.slideXProportion !== undefined ? solveRes.slideXProportion : solveRes.slide_x_proportion);
+
+            if (slideXProportion === undefined && solveRes && solveRes.angle !== undefined) {
+              const angle = solveRes.angle;
+              const trackWidth = (dragHandle.parentElement?.clientWidth || clientWidth) - (dragHandle.offsetWidth || 40);
+              dragDistance = Math.round((trackWidth * angle) / 360);
+            } else if (slideXProportion === undefined) {
+              throw new Error("SadCaptcha response did not contain slideXProportion: " + JSON.stringify(solveRes));
+            } else {
+              dragDistance = Math.round(slideXProportion * clientWidth);
             }
-            dragDistance = Math.round(prop * effectiveTrackWidth);
-            dragDistance = Math.max(0, Math.min(dragDistance, effectiveTrackWidth));
-            console.log(`[OTP Link] Solved Puzzle CAPTCHA! Target drag distance: ${dragDistance}px`);
-            setStatus(`Puzzle CAPTCHA Solved! Dragging ${dragDistance}px...`, "success");
+
+            console.log("[OTP Link] Solved Puzzle CAPTCHA! Target drag distance: " + dragDistance);
+            setStatus("Puzzle CAPTCHA Solved! Simulating drag...", "success");
           }
 
-          const handle = dragHandle.closest('div[draggable="true"]') || dragHandle;
-          const box = handle.getBoundingClientRect();
-          const startX = box.x + box.width / 2 + window.scrollX;
-          const startY = box.y + box.height / 2 + window.scrollY;
-          const endX = startX + dragDistance;
+          const rect = dragHandle.getBoundingClientRect();
+          const startX = rect.left + rect.width / 2 + window.scrollX;
+          const startY = rect.top + rect.height / 2 + window.scrollY;
 
-          console.log(`[OTP Link] Dragging handle via SadCaptcha DragEvent algorithm across ${dragDistance}px...`);
-
-          try {
-            handle.dispatchEvent(new PointerEvent("mousedown", {
-              pointerType: "mouse",
-              width: 1,
-              height: 1,
-              cancelable: true,
+          function fireMouseEvent(type, x, y) {
+            const evt = new MouseEvent(type, {
               bubbles: true,
-              view: window,
-              clientX: startX,
-              clientY: startY
-            }));
-          } catch (e) {}
-
-          try {
-            handle.dispatchEvent(new MouseEvent("mousedown", {
               cancelable: true,
-              bubbles: true,
               view: window,
-              clientX: startX,
-              clientY: startY
-            }));
-          } catch (e) {}
+              clientX: x,
+              clientY: y,
+              screenX: x,
+              screenY: y,
+            });
+            dragHandle.dispatchEvent(evt);
+            document.dispatchEvent(evt);
+          }
 
-          try {
-            handle.dispatchEvent(new DragEvent("dragstart", {
-              cancelable: true,
-              bubbles: true,
-              view: window,
-              clientX: startX,
-              clientY: startY
-            }));
-          } catch (e) {}
+          fireMouseEvent("mousedown", startX, startY);
+          await sleep(100);
 
-          await sleep(150);
-
-          const steps = 30;
+          const steps = 15;
           for (let i = 1; i <= steps; i++) {
             const progress = i / steps;
-            const easeProgress = progress < 0.5 ? 2 * progress * progress : -1 + (4 - 2 * progress) * progress;
+            const easeProgress = progress * (2 - progress);
             const currentX = startX + dragDistance * easeProgress;
-            const currentY = startY + (Math.random() * 1.2 - 0.6);
-
-            try {
-              captchaContainer.dispatchEvent(new MouseEvent("mousemove", {
-                bubbles: true,
-                cancelable: true,
-                view: window,
-                clientX: currentX,
-                clientY: currentY
-              }));
-            } catch (e) {}
-
-            try {
-              handle.dispatchEvent(new DragEvent("drag", {
-                cancelable: true,
-                bubbles: true,
-                view: window,
-                clientX: currentX,
-                clientY: currentY
-              }));
-            } catch (e) {}
-
-            const currentOffset = currentX - startX;
-            if (handle && currentOffset >= 0) {
-              try {
-                handle.style.transform = `translateX(${currentOffset}px)`;
-                const btnChild = handle.querySelector('#captcha_slide_button, .secsdk-captcha-drag-icon');
-                if (btnChild) {
-                  btnChild.style.transform = `translateX(${currentOffset}px)`;
-                }
-
-                if (slideImg && !isRotateCaptcha) {
-                  slideImg.style.transform = `translateX(${currentOffset}px)`;
-                  if (slideImg.parentElement && slideImg.parentElement !== captchaContainer && (slideImg.parentElement.className || "").includes("cap-")) {
-                    slideImg.parentElement.style.transform = `translateX(${currentOffset}px)`;
-                  }
-                } else if (slideImg && isRotateCaptcha) {
-                  const currentAngle = (currentOffset / effectiveTrackWidth) * 360;
-                  slideImg.style.transform = `rotate(${currentAngle}deg)`;
-                  if (slideImg.parentElement && slideImg.parentElement !== captchaContainer && (slideImg.parentElement.className || "").includes("cap-")) {
-                    slideImg.parentElement.style.transform = `rotate(${currentAngle}deg)`;
-                  }
-                }
-              } catch (e) {}
-            }
-
-            await sleep(15 + Math.floor(Math.random() * 15));
+            const currentY = startY + (Math.random() * 4 - 2);
+            fireMouseEvent("mousemove", currentX, currentY);
+            await sleep(20 + Math.random() * 15);
           }
 
           await sleep(150);
+          const endX = startX + dragDistance;
+          fireMouseEvent("mouseup", endX, startY);
 
-          // Force final position transform at endX
-          try {
-            handle.style.transform = `translateX(${dragDistance}px)`;
-            const btnChild = handle.querySelector('#captcha_slide_button, .secsdk-captcha-drag-icon');
-            if (btnChild) btnChild.style.transform = `translateX(${dragDistance}px)`;
-            if (slideImg && !isRotateCaptcha) {
-              slideImg.style.transform = `translateX(${dragDistance}px)`;
-            } else if (slideImg && isRotateCaptcha) {
-              const finalAngle = (dragDistance / effectiveTrackWidth) * 360;
-              slideImg.style.transform = `rotate(${finalAngle}deg)`;
-              if (slideImg.parentElement && slideImg.parentElement !== captchaContainer) {
-                slideImg.parentElement.style.transform = `rotate(${finalAngle}deg)`;
-              }
-            }
-          } catch (e) {}
-
-          const releaseOpts = {
-            bubbles: true,
-            cancelable: true,
-            view: window,
-            clientX: endX,
-            clientY: startY,
-            button: 0,
-            buttons: 0,
-            pointerId: 1,
-            pointerType: "mouse",
-            isPrimary: true
-          };
-
-          const releaseTargets = [handle, handle.querySelector('#captcha_slide_button, .secsdk-captcha-drag-icon'), captchaContainer, document, window].filter(Boolean);
-
-          for (const target of releaseTargets) {
-            try { target.dispatchEvent(new PointerEvent("pointerup", releaseOpts)); } catch (e) {}
-            try { target.dispatchEvent(new PointerEvent("mouseup", releaseOpts)); } catch (e) {}
-            try { target.dispatchEvent(new MouseEvent("mouseup", releaseOpts)); } catch (e) {}
-            try { target.dispatchEvent(new DragEvent("dragend", releaseOpts)); } catch (e) {}
-            try {
-              if (typeof TouchEvent !== "undefined") {
-                target.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true, changedTouches: [] }));
-              }
-            } catch (e) {}
-          }
-
-          console.log(`[OTP Link] Drag simulated successfully across ${dragDistance}px.`);
+          console.log("[OTP Link] Drag simulated successfully.");
           setStatus("Drag complete. Checking CAPTCHA status...", "success");
           await sleep(3000);
         } catch (err) {
           console.error("[OTP Link] CAPTCHA solving failed:", err);
-          if (err.message && err.message.includes("licenseKey is invalid")) {
-            setStatus("SadCaptcha API Key Invalid! Please update key in panel.", "error");
-          } else {
-            setStatus("CAPTCHA solving failed: " + err.message, "error");
-          }
+          setStatus("CAPTCHA solving failed: " + err.message, "error");
         } finally {
           isSolvingCaptcha = false;
         }
@@ -3250,7 +2457,9 @@
       }
 
       function checkForSocialBeeReconnect() {
-        if (!window.location.hostname.includes("socialbee.com") && !window.location.hostname.includes("socialbee.io")) return;
+        const isSocialBee = window.location.hostname.includes("socialbee.com") || window.location.hostname.includes("socialbee.io");
+        const isVistaSocial = window.location.hostname.includes("vistasocial.com");
+        if (!isSocialBee && !isVistaSocial) return;
 
         const autoReconnectEnabled = GM_getValue("sb_auto_reconnect_tiktok", false);
         if (!autoReconnectEnabled) return;
@@ -3275,26 +2484,31 @@
 
         const reconnectBtn = findTikTokReconnectButton();
         if (reconnectBtn && reconnectBtn.offsetWidth > 0) {
-          window.hasClickedSocialBeeReconnect = true;
-          console.log(`[OTP Link] Found TikTok Reconnect button for ${savedEmail}. Clicking...`);
-          setStatus("Clicking TikTok Reconnect button...", "success");
-          clickElement(reconnectBtn, "[AutoClick] Clicked TikTok Reconnect button.");
+          const docAnchor = reconnectBtn.getAttribute("data-doc-anchor") || "";
+          const parentAnchor = (reconnectBtn.closest("[data-doc-anchor]") ? reconnectBtn.closest("[data-doc-anchor]").getAttribute("data-doc-anchor") : "") || "";
+          const className = reconnectBtn.className || "";
+          const text = (reconnectBtn.textContent || "").trim().toLowerCase();
+
+          const isTikTokConnect = docAnchor.includes("connect-network-tiktok") || parentAnchor.includes("connect-network-tiktok") || (className.includes("AddProfileModal__ConnectButton") && (docAnchor.includes("tiktok") || parentAnchor.includes("tiktok")));
+
+          const isIntermediateStep = !isTikTokConnect && (docAnchor === "settings-profiles-add" || docAnchor === "add-profile-continue" || (docAnchor.includes("add-profile") && !docAnchor.includes("tiktok")) || text === "add profile" || text === "continue");
+
+          if (isIntermediateStep) {
+            console.log(`[OTP Link] Found step button (${docAnchor || text}). Clicking step...`);
+            setStatus(`Clicking step (${text || docAnchor})...`, "running");
+            clickElement(reconnectBtn, `[AutoClick] Clicked step button: ${docAnchor || text}`);
+          } else {
+            window.hasClickedSocialBeeReconnect = true;
+            console.log(`[OTP Link] Found TikTok Reconnect/Connect button for ${savedEmail}. Clicking...`);
+            setStatus("Clicking TikTok Reconnect button...", "success");
+            clickElement(reconnectBtn, "[AutoClick] Clicked TikTok Reconnect button.");
+          }
         }
       }
 
       function autoClickResendCode() {
         const isTikTok = window.location.hostname.includes("tiktok.com");
         if (!isTikTok) return;
-
-        const req = GM_getValue("otp_request");
-        if (req && req.status === "pending" && Date.now() - (req.timestamp || 0) < 45000) {
-          return;
-        }
-
-        const now = Date.now();
-        if (window.lastAutoResendClickTime && now - window.lastAutoResendClickTime < 30000) {
-          return;
-        }
 
         const resendElements = Array.from(document.querySelectorAll('[class*="pc-email-otp-resend"], [data-testid="tux-web-button-container"], button[data-testid="tux-web-button"], [data-testid="tux-web-text"], button'));
 
@@ -3307,23 +2521,55 @@
             const btn = wrapper.querySelector("button") || (wrapper.tagName === "BUTTON" ? wrapper : wrapper.closest("button")) || container;
 
             const isVisible = btn.offsetWidth > 0 || container.offsetWidth > 0 || wrapper.offsetWidth > 0;
+
             const isDisabled = btn.disabled || btn.getAttribute("disabled") !== null || btn.getAttribute("aria-disabled") === "true" || container.getAttribute("aria-disabled") === "true" || btn.classList.contains("disabled") || container.classList.contains("tux-button--disabled") || window.getComputedStyle(btn).pointerEvents === "none" || window.getComputedStyle(container).pointerEvents === "none";
 
             if (isVisible && !isDisabled) {
-              window.lastAutoResendClickTime = now;
-              setStatus("Resend code triggered! Awaiting new OTP...", "running");
-              console.log("[AutoClick] Triggering Resend code click sequence...", { btn, container, wrapper });
+              window.otp_requested_email = null;
+              setStatus("Resend code clicked! Awaiting new OTP...", "running");
+              console.log("[AutoClick] Found active Resend code button. Triggering click sequence...", { btn, container, wrapper });
 
-              try {
-                btn.click();
-              } catch (e) {}
+              const targets = Array.from(new Set([btn, container, wrapper, el])).filter(Boolean);
+
+              for (const target of targets) {
+                clickElement(target, '[AutoClick] Automatically clicked "Resend code" element.', 2000);
+                try {
+                  target.click();
+                  target.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, view: window }));
+                  target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
+                  target.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true, view: window }));
+                  target.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
+                  target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+                } catch (e) {}
+              }
               break;
             }
           }
         }
       }
 
+      function checkCaptchaAndToggleSuite() {
+        const captchaContainer = document.querySelector('#captcha-verify-container-main-page, [id*="captcha-verify-container"], [class*="captcha-verify-container"], #tiktok-verify-ele, .secsdk-captcha-drag-icon');
+        const suitePanel = shadow ? shadow.getElementById("sb-suite-panel") : null;
+        if (!suitePanel) return;
+
+        const isCaptchaActive = !!(captchaContainer && (captchaContainer.offsetWidth > 0 || captchaContainer.offsetHeight > 0) && window.getComputedStyle(captchaContainer).display !== "none" && window.getComputedStyle(captchaContainer).visibility !== "hidden");
+
+        if (isCaptchaActive) {
+          if (suitePanel.style.display !== "none") {
+            console.log("[SocialBee Suite] TikTok CAPTCHA detected active. Hiding automation suite panel.");
+            suitePanel.style.display = "none";
+          }
+        } else {
+          if (suitePanel.style.display === "none") {
+            console.log("[SocialBee Suite] TikTok CAPTCHA no longer active. Restoring automation suite panel.");
+            suitePanel.style.display = "";
+          }
+        }
+      }
+
       function runChecks() {
+        checkCaptchaAndToggleSuite();
         checkForOTPRequirement();
         checkForVerificationOption();
         solveTikTokCaptchaClientSide();
@@ -3439,24 +2685,20 @@
         }
       }
 
-
-
       async function checkAndFetchOTP() {
         if (isCheckingOTP) return;
         const request = GM_getValue("otp_request");
         if (request && request.status === "pending") {
+          const reqAge = Date.now() - (request.timestamp || 0);
+          if (reqAge > 120000) {
+            console.log(`[OTP Link] Pending OTP request for ${request.email} expired (${Math.round(reqAge / 1000)}s old > 120s limit). Clearing request.`);
+            GM_setValue("otp_request", null);
+            return;
+          }
+
           isCheckingOTP = true;
           try {
-            console.log("[OTP Link] Request is pending. Checking saved multi-account keys first...");
-            setStatus(`Checking saved instaddr keys for ${request.email}...`, "running");
-
-            const multiResult = await fetchOTPFromMultiAccounts(request.email);
-            if (multiResult) {
-              console.log("[OTP Link] Multi-account API fetch succeeded!");
-              return;
-            }
-
-            console.log("[OTP Link] Multi-account check completed without match. Refreshing open tab inbox...");
+            console.log("[OTP Link] Request is pending. Refreshing inbox to look for new mail...");
             setStatus(`Refreshing inbox to find mail for ${request.email}...`, "running");
 
             triggerInboxRefresh();
@@ -3490,20 +2732,34 @@
         const secMatch = text.match(/(\d+)\s*(?:sec|s|秒)/i);
         if (secMatch) {
           const secs = parseInt(secMatch[1], 10);
-          return secs <= 300; // Allow up to 5 minutes
+          return secs <= 120; // Allow up to 120 seconds (2 minutes)
         }
 
         const minMatch = text.match(/(\d+)\s*(?:min|m|分)/i);
         if (minMatch) {
           const mins = parseInt(minMatch[1], 10);
-          return mins <= 5; // Allow up to 5 minutes
+          return mins <= 2; // Allow up to 2 minutes
+        }
+
+        const hourMatch = text.match(/(\d+)\s*(?:hour|hr|h|時間)/i);
+        if (hourMatch) {
+          return false; // Reject 1hr or older
+        }
+
+        const dayMatch = text.match(/(\d+)\s*(?:day|d|日)/i);
+        if (dayMatch) {
+          return false; // Reject days old
         }
 
         if (/just now|now|今|新着|less than/i.test(text)) {
           return true;
         }
 
-        return true; // Default to true so we don't reject valid emails without explicit time strings
+        if (/ago|past|前/i.test(text)) {
+          return false;
+        }
+
+        return true;
       }
 
       async function findAndSendOTP(targetEmail) {
@@ -3770,7 +3026,7 @@
       return `http://${host}:4782${path}`;
     }
 
-    if (!window.location.hostname.includes("socialbee.com") && !window.location.hostname.includes("socialbee.io")) {
+    if (!window.location.hostname.includes("socialbee.com") && !window.location.hostname.includes("socialbee.io") && !window.location.hostname.includes("vistasocial.com")) {
       return;
     }
 
@@ -3779,33 +3035,105 @@
     let var4Files = [];
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    function saveFilesToGM(key, fileList) {
-      const promises = Array.from(fileList).map((file) => {
-        return new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            resolve({
-              name: file.name,
-              type: file.type,
-              data: e.target.result,
-            });
-          };
-          reader.readAsDataURL(file);
-        });
-      });
+    const DB_NAME = "SocialBeeMediaDB";
+    const DB_VERSION = 1;
+    const STORE_NAME = "media_files";
 
-      Promise.all(promises).then((dataArray) => {
-        GM_setValue(key, JSON.stringify(dataArray));
-        console.log(`[SocialBee] Saved ${fileList.length} files to GM storage under key "${key}"`);
+    function openMediaDB() {
+      return new Promise((resolve, reject) => {
+        if (!window.indexedDB) {
+          return reject(new Error("IndexedDB not supported"));
+        }
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME);
+          }
+        };
+        request.onsuccess = (e) => resolve(e.target.result);
+        request.onerror = (e) => reject(e.target.error);
       });
     }
 
-    function loadFilesFromGM(key) {
+    async function saveFilesToStorage(key, fileList) {
+      try {
+        const db = await openMediaDB();
+        const filesArray = [];
+        for (let i = 0; i < fileList.length; i++) {
+          const file = fileList[i];
+          filesArray.push({
+            name: file.name,
+            type: file.type,
+            blob: file,
+            lastModified: file.lastModified || Date.now(),
+          });
+        }
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(STORE_NAME, "readwrite");
+          const store = tx.objectStore(STORE_NAME);
+          const req = store.put(filesArray, key);
+          req.onsuccess = () => resolve();
+          req.onerror = (e) => reject(e.target.error);
+        });
+        GM_setValue(key, "");
+        console.log(`[SocialBee] Saved ${fileList.length} files to IndexedDB under key "${key}"`);
+      } catch (err) {
+        console.warn("[SocialBee] IndexedDB save failed, falling back to GM:", err);
+        try {
+          if (!fileList || fileList.length === 0) {
+            GM_setValue(key, "");
+            return;
+          }
+          const promises = Array.from(fileList).map((file) => {
+            return new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                resolve({
+                  name: file.name,
+                  type: file.type,
+                  data: e.target.result,
+                });
+              };
+              reader.readAsDataURL(file);
+            });
+          });
+          const dataArray = await Promise.all(promises);
+          GM_setValue(key, JSON.stringify(dataArray));
+        } catch (e) {
+          console.error("[SocialBee] Error in GM storage fallback:", e);
+        }
+      }
+    }
+
+    async function loadFilesFromStorage(key) {
+      try {
+        const db = await openMediaDB();
+        const records = await new Promise((resolve, reject) => {
+          const tx = db.transaction(STORE_NAME, "readonly");
+          const store = tx.objectStore(STORE_NAME);
+          const req = store.get(key);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = (e) => reject(e.target.error);
+        });
+        if (records && Array.isArray(records) && records.length > 0) {
+          return records
+            .map((item) => {
+              if (item.blob instanceof File) return item.blob;
+              if (item.blob instanceof Blob) return new File([item.blob], item.name, { type: item.type || item.blob.type });
+              return null;
+            })
+            .filter(Boolean);
+        }
+      } catch (err) {
+        console.warn("[SocialBee] IndexedDB load failed, checking GM storage fallback:", err);
+      }
+
       const saved = GM_getValue(key, "");
       if (!saved) return [];
       try {
         const dataArray = JSON.parse(saved);
-        return dataArray.map((item) => {
+        const files = dataArray.map((item) => {
           const arr = item.data.split(",");
           const mime = arr[0].match(/:(.*?);/)[1];
           const bstr = atob(arr[1]);
@@ -3816,10 +3144,24 @@
           }
           return new File([u8arr], item.name, { type: mime });
         });
+        if (files.length > 0) {
+          saveFilesToStorage(key, files).catch(() => {});
+        }
+        return files;
       } catch (e) {
         console.error("[SocialBee] Error loading files from GM storage:", e);
         return [];
       }
+    }
+
+    async function clearFilesFromStorage(key) {
+      try {
+        const db = await openMediaDB();
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        store.delete(key);
+      } catch (e) {}
+      GM_setValue(key, "");
     }
 
     let alertsStyleEl = null;
@@ -3850,6 +3192,7 @@
     const btnStop = shadow.getElementById("sb-btn-stop");
     const btnDeleteAll = shadow.getElementById("sb-btn-delete-all");
     const btnLogoutTiktok = shadow.getElementById("sb-btn-logout-tiktok");
+    const btnLoadServer = shadow.getElementById("sb-btn-load-server");
     const btnShareVars = shadow.getElementById("sb-btn-share-vars");
     const statusText = shadow.getElementById("sb-status-text");
     const statusDot = shadow.getElementById("sb-status-dot");
@@ -4001,35 +3344,66 @@
 
     function renderListPreviews(files, container, countEl, listEl) {
       if (!listEl || !container || !countEl) return;
+
+      if (listEl._activeObjectURLs && Array.isArray(listEl._activeObjectURLs)) {
+        listEl._activeObjectURLs.forEach((url) => {
+          try {
+            URL.revokeObjectURL(url);
+          } catch (e) {}
+        });
+      }
+      listEl._activeObjectURLs = [];
       listEl.innerHTML = "";
+
       if (!files || files.length === 0) {
         container.style.display = "none";
-        countEl.textContent = "0 images";
+        countEl.textContent = "0 files";
         return;
       }
 
       container.style.display = "flex";
-      countEl.textContent = `${files.length} image${files.length !== 1 ? "s" : ""}`;
+      countEl.textContent = `${files.length} file${files.length !== 1 ? "s" : ""}`;
 
       files.forEach((file) => {
         const item = document.createElement("div");
         item.className = "sb-file-preview-item";
 
-        const img = document.createElement("img");
-        img.src = URL.createObjectURL(file);
-        img.onload = () => URL.revokeObjectURL(img.src);
-        img.title = file.name;
+        const isVideo = file.type.startsWith("video/") || /\.(mov|mp4|webm|mkv|avi|flv|wmv|3gp|m4v)$/i.test(file.name);
+        const objectUrl = URL.createObjectURL(file);
+        listEl._activeObjectURLs.push(objectUrl);
 
-        item.appendChild(img);
+        if (isVideo) {
+          const video = document.createElement("video");
+          video.src = objectUrl;
+          video.muted = true;
+          video.autoplay = false;
+          video.preload = "metadata";
+          video.style.width = "100%";
+          video.style.height = "100%";
+          video.style.objectFit = "cover";
+          video.title = file.name;
+          item.appendChild(video);
+        } else {
+          const img = document.createElement("img");
+          img.src = objectUrl;
+          img.title = file.name;
+          item.appendChild(img);
+        }
+
         listEl.appendChild(item);
       });
     }
 
+    const isMediaFile = (file) => {
+      if (!file) return false;
+      return file.type.startsWith("image/") || file.type.startsWith("video/") || /\.(png|jpe?g|gif|webp|bmp|heic|mov|mp4|webm|mkv|avi|flv|wmv|3gp|m4v)$/i.test(file.name);
+    };
+
     if (dropzoneBase && inputBase) {
       setupDropzone(dropzoneBase, inputBase, (files) => {
-        baseFiles = Array.from(files).filter((file) => file.type.startsWith("image/"));
+        baseFiles = Array.from(files).filter(isMediaFile);
         renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
-        saveFilesToGM("sb_base_files", baseFiles);
+        saveFilesToStorage("sb_base_files", baseFiles);
       });
     }
 
@@ -4038,15 +3412,15 @@
         baseFiles = [];
         if (inputBase) inputBase.value = "";
         renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
-        GM_setValue("sb_base_files", "");
+        clearFilesFromStorage("sb_base_files");
       });
     }
 
     if (dropzoneVar4 && inputVar4) {
       setupDropzone(dropzoneVar4, inputVar4, (files) => {
-        var4Files = Array.from(files).filter((file) => file.type.startsWith("image/"));
+        var4Files = Array.from(files).filter(isMediaFile);
         renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
-        saveFilesToGM("sb_var4_files", var4Files);
+        saveFilesToStorage("sb_var4_files", var4Files);
       });
     }
 
@@ -4055,9 +3429,23 @@
         var4Files = [];
         if (inputVar4) inputVar4.value = "";
         renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
-        GM_setValue("sb_var4_files", "");
+        clearFilesFromStorage("sb_var4_files");
       });
     }
+
+    // Restore saved media files asynchronously from IndexedDB on load
+    (async () => {
+      const storedBase = await loadFilesFromStorage("sb_base_files");
+      if (storedBase.length > 0) {
+        baseFiles = storedBase;
+        renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+      }
+      const storedVar4 = await loadFilesFromStorage("sb_var4_files");
+      if (storedVar4.length > 0) {
+        var4Files = storedVar4;
+        renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+      }
+    })();
 
     function setContentEditableText(el, text) {
       el.focus();
@@ -4524,32 +3912,11 @@
       return null;
     }
 
-    function triggerClick(target) {
-      if (!target) return;
-      try {
-        if (typeof target.focus === "function") target.focus();
-        const opts = { bubbles: true, cancelable: true, view: window };
-        target.dispatchEvent(new PointerEvent("pointerdown", opts));
-        target.dispatchEvent(new MouseEvent("mousedown", opts));
-        target.dispatchEvent(new PointerEvent("pointerup", opts));
-        target.dispatchEvent(new MouseEvent("mouseup", opts));
-        target.click();
-      } catch (e) {
-        try {
-          target.click();
-        } catch (err) {}
-      }
-    }
-
     function findDeleteButtonDirect() {
-      const elements = Array.from(
-        document.querySelectorAll(
-          "button, a, i, span, div[role='button'], [class*='Item__StyledItem'], [class*='delete'], [class*='remove'], [class*='disconnect'], [class*='trash']"
-        )
-      );
-
+      const elements = Array.from(document.querySelectorAll("button, a, i, span, div[role='button'], [class*='Item__StyledItem']"));
       const candidates = elements.filter((el) => {
         if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
+
         if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) return false;
 
         if (el.closest("nav, aside, header, [class*='Sidebar'], [class*='sidebar'], [class*='Nav'], [class*='nav']")) return false;
@@ -4561,63 +3928,28 @@
           }
         }
 
-        if (
-          el.dataset.sbDeleteAttempted === "true" ||
-          el.closest("button, a, [class*='Item__StyledItem']")?.dataset.sbDeleteAttempted === "true"
-        ) {
+        if (el.dataset.sbDeleteAttempted === "true" || el.closest("button, a, [class*='Item__StyledItem']")?.dataset.sbDeleteAttempted === "true") {
+          return false;
+        }
+
+        if (el.closest(".modal, .modal-content, .modal-dialog, .modal-container, ngb-modal-window") && !el.closest('[class*="Item__StyledItem"]')) {
           return false;
         }
 
         const text = (el.textContent || "").trim().toLowerCase();
-        const title = (
-          el.getAttribute("title") ||
-          el.getAttribute("data-original-title") ||
-          el.getAttribute("aria-label") ||
-          ""
-        ).toLowerCase();
+        const title = (el.getAttribute("title") || el.getAttribute("data-original-title") || el.getAttribute("aria-label") || "").toLowerCase();
         const className = (el.className || "").toLowerCase();
         const id = (el.id || "").toLowerCase();
 
-        if (text === "cancel" || text === "keep" || text === "no" || text === "close" || text === "back") {
+        if (text.includes("yes") || text.includes("confirm") || text.includes("cancel") || text.includes("no") || text.includes("close") || text.includes("keep") || className.includes("btn-primary-sb")) {
           return false;
         }
 
-        const isTrashIcon =
-          className.includes("trash") ||
-          className.includes("delete") ||
-          className.includes("remove") ||
-          className.includes("disconnect") ||
-          className.includes("fa-unlink");
-
-        const isDeleteWord =
-          text === "delete" ||
-          text === "remove" ||
-          text === "disconnect" ||
-          text === "remove profile" ||
-          text === "remove account" ||
-          text === "delete account" ||
-          text === "disconnect profile" ||
-          text.includes("remove account") ||
-          text.includes("delete account") ||
-          text.includes("disconnect profile") ||
-          text.includes("remove profile") ||
-          text.includes("disconnect account") ||
-          text.includes("unlink account");
-
-        const isDeleteTitle =
-          title.includes("delete") ||
-          title.includes("remove") ||
-          title.includes("disconnect") ||
-          title.includes("unlink") ||
-          title.includes("trash");
-
-        const isDeleteId =
-          id.includes("delete") ||
-          id.includes("remove") ||
-          id.includes("disconnect");
-
-        const isVistaItem =
-          className.includes("item__styleditem") && (text.includes("remove") || text.includes("delete") || text.includes("disconnect"));
+        const isTrashIcon = className.includes("trash") || className.includes("delete") || className.includes("remove") || className.includes("disconnect");
+        const isDeleteWord = text === "delete" || text === "remove" || text === "disconnect" || text === "remove profile" || text.includes("remove account") || text.includes("delete account") || text.includes("disconnect profile") || text.includes("remove profile");
+        const isDeleteTitle = title.includes("delete") || title.includes("remove") || title.includes("disconnect") || title.includes("unlink") || title.includes("trash");
+        const isDeleteId = id.includes("delete") || id.includes("remove") || id.includes("disconnect");
+        const isVistaItem = className.includes("item__styleditem") && (text.includes("remove") || text.includes("delete"));
 
         return isTrashIcon || isDeleteWord || isDeleteTitle || isDeleteId || isVistaItem;
       });
@@ -4627,26 +3959,19 @@
 
     function findProfileSelector() {
       if (window.location.hostname.includes("vistasocial.com")) {
-        const vistaActionBtns = Array.from(
-          document.querySelectorAll(
-            'tbody tr [class*="TableItem__StyledImage"], table tr [class*="TableItem__StyledImage"], tbody tr [class*="TableItem__BodyCell"], table tr [class*="TableItem__BodyCell"], td [class*="TableItem__StyledImage"], td [class*="TableItem__BodyCell"], tr [class*="Row"] [class*="Image"], tr svg[viewBox="8 6 7 12"]'
-          )
-        ).filter((el) => {
+        const vistaActionBtns = Array.from(document.querySelectorAll('tbody tr [class*="TableItem__StyledImage"], table tr [class*="TableItem__StyledImage"], tbody tr [class*="TableItem__BodyCell"], table tr [class*="TableItem__BodyCell"], td [class*="TableItem__StyledImage"], td [class*="TableItem__BodyCell"]')).filter((el) => {
           if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
           if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) return false;
 
+          // Reject top header navigation, sidebars, and nav badges
           if (el.closest("[data-doc-anchor^='nav-'], [class*='Header'], [class*='header'], [class*='Sidebar'], [class*='sidebar'], nav, aside, header")) {
             return false;
           }
 
-          const parentRow = el.closest("tr, td, [class*='Row']");
+          const parentRow = el.closest("tr, td");
           if (!parentRow) return false;
 
-          if (
-            el.dataset.sbProfileSelectAttempted === "true" ||
-            parentRow.dataset.sbProfileSelectAttempted === "true" ||
-            el.closest("tr")?.dataset.sbProfileSelectAttempted === "true"
-          ) {
+          if (el.dataset.sbProfileSelectAttempted === "true" || parentRow.dataset.sbProfileSelectAttempted === "true" || el.closest("tr")?.dataset.sbProfileSelectAttempted === "true") {
             return false;
           }
 
@@ -4667,83 +3992,31 @@
         }
       }
 
-      const elements = Array.from(document.querySelectorAll("a, button, div, li, tr, [role='tab'], [class*='Account'], [class*='Profile'], [class*='card']"));
+      const elements = Array.from(document.querySelectorAll("a, button, div, li, tr, [role='tab']"));
       const items = elements.filter((el) => {
         if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
 
-        if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) {
+        if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root") || el.closest(".modal, .modal-content, ngb-modal-window")) {
           return false;
         }
 
-        if (el.dataset.sbProfileSelectAttempted === "true" || el.closest("a, button, tr, div")?.dataset.sbProfileSelectAttempted === "true") {
+        if (el.dataset.sbProfileSelectAttempted === "true" || el.closest("a, button")?.dataset.sbProfileSelectAttempted === "true") {
           return false;
         }
 
         const className = (el.className || "").toLowerCase();
         const id = (el.id || "").toLowerCase();
 
-        const isProfileClass =
-          className.includes("profile-card") ||
-          className.includes("account-card") ||
-          className.includes("profile-item") ||
-          className.includes("account-item") ||
-          className.includes("connected-account") ||
-          className.includes("sidebar-profile") ||
-          className.includes("social-account") ||
-          className.includes("socialaccount");
-
+        const isProfileClass = className.includes("profile-card") || className.includes("account-card") || className.includes("profile-item") || className.includes("account-item") || className.includes("connected-account") || className.includes("sidebar-profile");
         const isProfileId = id.includes("profile") || id.includes("account");
 
-        const hasProfileParent = el.closest('[class*="profile-list"], [class*="connected-accounts"], [class*="social-accounts"], [class*="profiles-list"], [class*="social-account"], jhi-social-accounts');
-        const isClickableChild = el.tagName === "A" || el.tagName === "BUTTON" || className.includes("active") || className.includes("item") || className.includes("card") || el.getAttribute("role") === "tab" || el.querySelector("i.fa, svg, img");
+        const hasProfileParent = el.closest('[class*="profile-list"], [class*="connected-accounts"], [class*="social-accounts"], [class*="profiles-list"]');
+        const isClickableChild = el.tagName === "A" || el.tagName === "BUTTON" || className.includes("active") || className.includes("item") || className.includes("card") || el.getAttribute("role") === "tab";
 
         return isProfileClass || isProfileId || (hasProfileParent && isClickableChild);
       });
 
       return items.length > 0 ? items[0] : null;
-    }
-
-    function findConfirmButton(excludeTargets = []) {
-      const candidates = Array.from(
-        document.querySelectorAll(
-          ".modal button, .modal div[role='button'], ngb-modal-window button, [role='dialog'] button, dialog button, [class*='Modal'] button, [class*='Dialog'] button, button, div[role='button'], [class*='Item__StyledItem'], [class*='Button']"
-        )
-      );
-
-      return candidates.find((button) => {
-        if (button.offsetWidth === 0 || button.offsetHeight === 0) return false;
-        if (button.closest("#sb-suite-root") || button.closest("#sb-autofill-root")) return false;
-        if (excludeTargets.includes(button)) return false;
-
-        const txt = (button.textContent || "").trim().toLowerCase();
-        const className = (button.className || "").toLowerCase();
-
-        if (txt === "cancel" || txt === "keep" || txt === "no" || txt === "close" || txt === "back") {
-          return false;
-        }
-
-        const matchesText =
-          txt.includes("yes") ||
-          txt.includes("remove") ||
-          txt.includes("delete") ||
-          txt.includes("confirm") ||
-          txt.includes("disconnect") ||
-          txt.includes("unlink") ||
-          txt.includes("proceed") ||
-          txt.includes("accept");
-
-        const matchesClass =
-          className.includes("btn-danger") ||
-          className.includes("btn-primary") ||
-          className.includes("danger") ||
-          className.includes("confirm") ||
-          className.includes("delete") ||
-          className.includes("btn-primary-sb");
-
-        const insideModal = button.closest(".modal, .modal-content, .modal-dialog, ngb-modal-window, [role='dialog'], dialog, [class*='Modal'], [class*='Dialog']");
-
-        return matchesText || (insideModal && matchesClass);
-      });
     }
 
     async function deleteVistaSocialAccounts(stepDelay) {
@@ -4754,6 +4027,7 @@
         const rows = Array.from(document.querySelectorAll('tr[class*="TableItem__Row"], tbody tr')).filter((row) => {
           if (row.offsetWidth === 0 || row.offsetHeight === 0) return false;
           if (row.dataset.sbProfileDeleteAttempted === "true") return false;
+          // Must contain TableItem elements or 3-dots icon
           return row.querySelector('[class*="TableItem__StyledImage"], [class*="TableItem__BodyCell"], svg[viewBox="8 6 7 12"]') !== null;
         });
 
@@ -4773,10 +4047,7 @@
         currentRow.dataset.sbProfileDeleteAttempted = "true";
 
         // Step 1: Find 3-dots button inside this specific row
-        const threeDotsBtn =
-          currentRow.querySelector('[class*="TableItem__StyledImage"]') ||
-          currentRow.querySelector('svg[viewBox="8 6 7 12"]')?.closest("div, td") ||
-          currentRow.querySelector("td:last-child div, td:last-child");
+        const threeDotsBtn = currentRow.querySelector('[class*="TableItem__StyledImage"]') || currentRow.querySelector('svg[viewBox="8 6 7 12"]')?.closest("div, td") || currentRow.querySelector("td:last-child div, td:last-child");
 
         if (!threeDotsBtn) {
           console.warn("[SocialBee Autofill] Could not locate 3-dots button in row:", currentRow);
@@ -4787,7 +4058,11 @@
         threeDotsBtn.scrollIntoView({ block: "center", behavior: "smooth" });
         await sleep(400);
 
-        triggerClick(threeDotsBtn);
+        threeDotsBtn.click();
+        try {
+          threeDotsBtn.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+          threeDotsBtn.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
+        } catch (e) {}
 
         // Step 2: Poll for 'Remove profile' menu button
         setStatus("Waiting for 'Remove profile' menu option...", "running");
@@ -4795,13 +4070,11 @@
         for (let poll = 0; poll < 20; poll++) {
           if (!isRunning) break;
 
-          const allEls = Array.from(
-            document.querySelectorAll('[class*="DropdownMenu"] button, [class*="DropdownMenu"] p, [class*="Item__StyledItem"], button, p, span, div')
-          );
+          const allEls = Array.from(document.querySelectorAll('[class*="DropdownMenu"] button, [class*="DropdownMenu"] p, [class*="Item__StyledItem"], button, p, span, div'));
           removeProfileTarget = allEls.find((el) => {
             if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) return false;
             const txt = (el.textContent || "").trim().toLowerCase();
-            return txt === "remove profile" || (txt.includes("remove profile") && txt.length < 25) || txt === "remove account" || txt === "delete profile";
+            return txt === "remove profile" || (txt.includes("remove profile") && txt.length < 25);
           });
 
           if (removeProfileTarget) break;
@@ -4822,6 +4095,17 @@
         removeProfileBtn.scrollIntoView({ block: "center", behavior: "instant" });
         await sleep(300);
 
+        const triggerClick = (target) => {
+          try {
+            if (typeof target.focus === "function") target.focus();
+            target.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+            target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+            target.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true }));
+            target.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
+            target.click();
+          } catch (e) {}
+        };
+
         triggerClick(removeProfileTarget);
         if (removeProfileBtn !== removeProfileTarget) {
           triggerClick(removeProfileBtn);
@@ -4832,7 +4116,13 @@
         // Step 3: Handle modal confirmation (if present)
         for (let attempt = 0; attempt < 20; attempt++) {
           if (!isRunning) break;
-          const confirmBtn = findConfirmButton([removeProfileBtn, removeProfileTarget]);
+          const confirmBtn = Array.from(document.querySelectorAll("button, div[role='button'], [class*='Button']")).find((button) => {
+            if (button.offsetWidth === 0 || button.offsetHeight === 0) return false;
+            if (button.closest("#sb-suite-root") || button.closest("#sb-autofill-root")) return false;
+            if (button === removeProfileBtn || button === removeProfileTarget) return false;
+            const txt = (button.textContent || "").trim().toLowerCase();
+            return txt.includes("yes, remove") || txt === "remove" || txt.includes("confirm") || txt.includes("delete");
+          });
 
           if (confirmBtn && confirmBtn.offsetWidth > 0) {
             console.log("[SocialBee Autofill] Found confirm button in modal. Clicking:", confirmBtn);
@@ -4914,7 +4204,11 @@
 
             profileItem.scrollIntoView({ block: "center", behavior: "smooth" });
             await sleep(300);
-            triggerClick(profileItem);
+            profileItem.click();
+            try {
+              profileItem.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+              profileItem.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
+            } catch (e) {}
 
             // Poll for delete button to render after clicking profile item (up to 20 attempts ~ 8 seconds)
             setStatus("Waiting for delete button after menu selection...", "running");
@@ -4934,7 +4228,6 @@
                 delete el.dataset.sbDeleteAttempted;
                 delete el.dataset.sbProfileSelectAttempted;
               });
-              consecutiveFailures = 0;
               await sleep(1500);
               continue;
             }
@@ -4945,7 +4238,7 @@
           consecutiveFailures = 0;
 
           let clickTarget = deleteBtn;
-          if (deleteBtn.tagName === "I" || deleteBtn.tagName === "SPAN" || deleteBtn.tagName === "SVG" || deleteBtn.tagName === "PATH") {
+          if (deleteBtn.tagName === "I" || deleteBtn.tagName === "SPAN") {
             clickTarget = deleteBtn.closest("button, a, div[role='button'], [class*='Item__StyledItem']") || deleteBtn;
           }
 
@@ -4959,17 +4252,23 @@
 
           clickTarget.scrollIntoView({ block: "center", behavior: "smooth" });
           await sleep(500);
-          triggerClick(clickTarget);
+          clickTarget.click();
 
-          // Poll for confirmation modal & button (up to 25 attempts ~ 7.5 seconds)
+          // Poll for confirmation modal & button (up to 20 attempts ~ 6 seconds)
           let clickedConfirm = false;
-          for (let attempt = 0; attempt < 25; attempt++) {
+          for (let attempt = 0; attempt < 20; attempt++) {
             if (!isRunning) break;
-            const confirmBtn = findConfirmButton([clickTarget]);
+            const confirmBtn = Array.from(document.querySelectorAll("button, div[role='button'], [class*='Item__StyledItem']")).find((button) => {
+              if (button.offsetWidth === 0 || button.offsetHeight === 0) return false;
+              if (button.closest("#sb-suite-root") || button.closest("#sb-autofill-root")) return false;
+              const txt = (button.textContent || "").trim().toLowerCase();
+              const className = (button.className || "").toLowerCase();
+              return txt.includes("yes, remove social account") || txt.includes("yes, remove") || txt === "remove" || txt === "remove profile" || txt === "delete" || txt.includes("confirm") || txt.includes("disconnect") || (className.includes("btn-primary-sb") && (txt.includes("remove") || txt.includes("disconnect")));
+            });
 
             if (confirmBtn && confirmBtn.offsetWidth > 0) {
-              console.log("[SocialBee Autofill] Found confirm button in modal. Clicking:", confirmBtn);
-              triggerClick(confirmBtn);
+              console.log("[SocialBee Autofill] Found confirm button in modal. Clicking...");
+              confirmBtn.click();
               clickedConfirm = true;
               deletedCount++;
               break;
@@ -4983,8 +4282,9 @@
               clickedConfirm = true;
               deletedCount++;
             } else {
-              console.warn("[SocialBee Autofill] Failed to confirm deletion for target item. Continuing to next...");
-              setStatus(`Skipped account ${deletedCount + 1} (no confirm button).`, "running");
+              console.warn("[SocialBee Autofill] Failed to find/click confirmation button for this item.");
+              setStatus("Could not confirm deletion of account.", "error");
+              break;
             }
           }
 
@@ -5010,17 +4310,101 @@
         window.open("https://www.tiktok.com/logout?auto_close=true", "_blank", "width=500,height=600");
       });
     }
+    if (btnLoadServer) btnLoadServer.addEventListener("click", loadImagesFromServer);
     if (btnShareVars) btnShareVars.addEventListener("click", shareVariationsAutomation);
 
-    const storedBase = loadFilesFromGM("sb_base_files");
-    const storedVar4 = loadFilesFromGM("sb_var4_files");
-    if (storedBase.length > 0 || storedVar4.length > 0) {
-      baseFiles = storedBase;
-      var4Files = storedVar4;
-      renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
-      renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
-      setStatus("Restored saved images from local storage.", "success");
+    function fetchBlobFromUrl(url) {
+      return new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+          method: "GET",
+          url: url,
+          responseType: "blob",
+          onload: (res) => {
+            if (res.status >= 200 && res.status < 300) {
+              resolve({
+                blob: res.response,
+                filename: res.responseHeaders.match(/x-filename:\s*(.+)/i)?.[1]?.trim() || "image.png",
+              });
+            } else {
+              reject(new Error(`Failed to load image: ${res.statusText}`));
+            }
+          },
+          onerror: (err) => reject(err),
+        });
+      });
     }
+
+    function fetchJsonFromUrl(url) {
+      return new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+          method: "GET",
+          url: url,
+          responseType: "json",
+          onload: (res) => {
+            if (res.status >= 200 && res.status < 300) {
+              resolve(res.response);
+            } else {
+              reject(new Error(`Failed to load list: ${res.statusText}`));
+            }
+          },
+          onerror: (err) => reject(err),
+        });
+      });
+    }
+
+    async function loadImagesFromServer() {
+      try {
+        setStatus("Loading server images...", "running");
+        const list = await fetchJsonFromUrl(getServerUrl("/images/list"));
+
+        baseFiles = [];
+        var4Files = [];
+
+        if (list.var_1_3 && list.var_1_3.length > 0) {
+          for (const filename of list.var_1_3) {
+            const fileUrl = getServerUrl(`/images/file?folder=var_1_3&name=${encodeURIComponent(filename)}`);
+            const { blob, filename: serverName } = await fetchBlobFromUrl(fileUrl);
+            const file = new File([blob], serverName, { type: blob.type });
+            baseFiles.push(file);
+          }
+          await saveFilesToStorage("sb_base_files", baseFiles);
+        }
+
+        if (list.var_4_6 && list.var_4_6.length > 0) {
+          for (const filename of list.var_4_6) {
+            const fileUrl = getServerUrl(`/images/file?folder=var_4_6&name=${encodeURIComponent(filename)}`);
+            const { blob, filename: serverName } = await fetchBlobFromUrl(fileUrl);
+            const file = new File([blob], serverName, { type: blob.type });
+            var4Files.push(file);
+          }
+          await saveFilesToStorage("sb_var4_files", var4Files);
+        }
+
+        renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+        renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+
+        setStatus(`Loaded ${baseFiles.length} base & ${var4Files.length} var4-6 images from server.`, "success");
+      } catch (err) {
+        console.error("Failed to load server images:", err);
+        setStatus("Failed to load server images: " + err.message, "error");
+      }
+    }
+
+    (async () => {
+      if (baseFiles.length === 0 && var4Files.length === 0) {
+        const storedBase = await loadFilesFromStorage("sb_base_files");
+        const storedVar4 = await loadFilesFromStorage("sb_var4_files");
+        if (storedBase.length > 0 || storedVar4.length > 0) {
+          baseFiles = storedBase;
+          var4Files = storedVar4;
+          renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+          renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+          setStatus("Restored saved images from local storage.", "success");
+        } else {
+          loadImagesFromServer();
+        }
+      }
+    })();
 
     async function shareVariationsAutomation() {
       isRunning = true;
@@ -5166,15 +4550,17 @@
 
     const suitePanel = shadow.getElementById("sb-suite-panel");
     if (suitePanel) {
-      suitePanel.addEventListener("click", (e) => {
+      suitePanel.addEventListener("click", async (e) => {
         if (suitePanel.classList.contains("minimized")) {
-          const storedBase = loadFilesFromGM("sb_base_files");
-          const storedVar4 = loadFilesFromGM("sb_var4_files");
-          if (storedBase.length > 0 || storedVar4.length > 0) {
-            baseFiles = storedBase;
-            var4Files = storedVar4;
-            renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
-            renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+          if (baseFiles.length === 0 && var4Files.length === 0) {
+            const storedBase = await loadFilesFromStorage("sb_base_files");
+            const storedVar4 = await loadFilesFromStorage("sb_var4_files");
+            if (storedBase.length > 0 || storedVar4.length > 0) {
+              baseFiles = storedBase;
+              var4Files = storedVar4;
+              renderListPreviews(baseFiles, previewContainerBase, previewCountBase, previewListBase);
+              renderListPreviews(var4Files, previewContainerVar4, previewCountVar4, previewListVar4);
+            }
           }
         }
       });
@@ -5235,7 +4621,7 @@
   createUnifiedPanel();
 
   // Dispatch modules based on matched domains/pages
-  if (hostname.includes("tiktok.com") || hostname.includes("kuku.lu") || hostname.includes("socialbee.com") || hostname.includes("socialbee.io")) {
+  if (hostname.includes("tiktok.com") || hostname.includes("kuku.lu") || hostname.includes("socialbee.com") || hostname.includes("socialbee.io") || hostname.includes("vistasocial.com")) {
     try {
       runOtpLinker(suiteShadow);
     } catch (e) {
@@ -5243,7 +4629,7 @@
     }
   }
 
-  if (hostname.includes("socialbee.com") || hostname.includes("socialbee.io")) {
+  if (hostname.includes("socialbee.com") || hostname.includes("socialbee.io") || hostname.includes("vistasocial.com")) {
     try {
       runSocialBeeManager(suiteShadow);
     } catch (e) {

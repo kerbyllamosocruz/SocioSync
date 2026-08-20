@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Beetok
 // @namespace    http://tampermonkey.net/
-// @version      4.5
+// @version      5.0
 // @description  All-in-one automation: caption filler, image manager, OTP synchronization, and TikTok captcha solver.
 // @author       Kerby (Discord: buchinyan)
 // @match        https://*.tiktok.com/*
@@ -780,7 +780,7 @@
         <div id="sb-suite-header">
             <div id="sb-suite-title">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-                <span>Automation Suite v4.3</span>
+                <span>Automation Suite v5.0</span>
             </div>
             <button id="sb-suite-toggle-btn" title="Minimize Panel">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -4170,11 +4170,32 @@
       return null;
     }
 
+    function triggerClick(target) {
+      if (!target) return;
+      try {
+        if (typeof target.focus === "function") target.focus();
+        const opts = { bubbles: true, cancelable: true, view: window };
+        target.dispatchEvent(new PointerEvent("pointerdown", opts));
+        target.dispatchEvent(new MouseEvent("mousedown", opts));
+        target.dispatchEvent(new PointerEvent("pointerup", opts));
+        target.dispatchEvent(new MouseEvent("mouseup", opts));
+        target.click();
+      } catch (e) {
+        try {
+          target.click();
+        } catch (err) {}
+      }
+    }
+
     function findDeleteButtonDirect() {
-      const elements = Array.from(document.querySelectorAll("button, a, i, span, div[role='button'], [class*='Item__StyledItem']"));
+      const elements = Array.from(
+        document.querySelectorAll(
+          "button, a, i, span, div[role='button'], [class*='Item__StyledItem'], [class*='delete'], [class*='remove'], [class*='disconnect'], [class*='trash']"
+        )
+      );
+
       const candidates = elements.filter((el) => {
         if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
-
         if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) return false;
 
         if (el.closest("nav, aside, header, [class*='Sidebar'], [class*='sidebar'], [class*='Nav'], [class*='nav']")) return false;
@@ -4186,28 +4207,63 @@
           }
         }
 
-        if (el.dataset.sbDeleteAttempted === "true" || el.closest("button, a, [class*='Item__StyledItem']")?.dataset.sbDeleteAttempted === "true") {
-          return false;
-        }
-
-        if (el.closest(".modal, .modal-content, .modal-dialog, .modal-container, ngb-modal-window") && !el.closest('[class*="Item__StyledItem"]')) {
+        if (
+          el.dataset.sbDeleteAttempted === "true" ||
+          el.closest("button, a, [class*='Item__StyledItem']")?.dataset.sbDeleteAttempted === "true"
+        ) {
           return false;
         }
 
         const text = (el.textContent || "").trim().toLowerCase();
-        const title = (el.getAttribute("title") || el.getAttribute("data-original-title") || el.getAttribute("aria-label") || "").toLowerCase();
+        const title = (
+          el.getAttribute("title") ||
+          el.getAttribute("data-original-title") ||
+          el.getAttribute("aria-label") ||
+          ""
+        ).toLowerCase();
         const className = (el.className || "").toLowerCase();
         const id = (el.id || "").toLowerCase();
 
-        if (text.includes("yes") || text.includes("confirm") || text.includes("cancel") || text.includes("no") || text.includes("close") || text.includes("keep") || className.includes("btn-primary-sb")) {
+        if (text === "cancel" || text === "keep" || text === "no" || text === "close" || text === "back") {
           return false;
         }
 
-        const isTrashIcon = className.includes("trash") || className.includes("delete") || className.includes("remove") || className.includes("disconnect");
-        const isDeleteWord = text === "delete" || text === "remove" || text === "disconnect" || text === "remove profile" || text.includes("remove account") || text.includes("delete account") || text.includes("disconnect profile") || text.includes("remove profile");
-        const isDeleteTitle = title.includes("delete") || title.includes("remove") || title.includes("disconnect") || title.includes("unlink") || title.includes("trash");
-        const isDeleteId = id.includes("delete") || id.includes("remove") || id.includes("disconnect");
-        const isVistaItem = className.includes("item__styleditem") && (text.includes("remove") || text.includes("delete"));
+        const isTrashIcon =
+          className.includes("trash") ||
+          className.includes("delete") ||
+          className.includes("remove") ||
+          className.includes("disconnect") ||
+          className.includes("fa-unlink");
+
+        const isDeleteWord =
+          text === "delete" ||
+          text === "remove" ||
+          text === "disconnect" ||
+          text === "remove profile" ||
+          text === "remove account" ||
+          text === "delete account" ||
+          text === "disconnect profile" ||
+          text.includes("remove account") ||
+          text.includes("delete account") ||
+          text.includes("disconnect profile") ||
+          text.includes("remove profile") ||
+          text.includes("disconnect account") ||
+          text.includes("unlink account");
+
+        const isDeleteTitle =
+          title.includes("delete") ||
+          title.includes("remove") ||
+          title.includes("disconnect") ||
+          title.includes("unlink") ||
+          title.includes("trash");
+
+        const isDeleteId =
+          id.includes("delete") ||
+          id.includes("remove") ||
+          id.includes("disconnect");
+
+        const isVistaItem =
+          className.includes("item__styleditem") && (text.includes("remove") || text.includes("delete") || text.includes("disconnect"));
 
         return isTrashIcon || isDeleteWord || isDeleteTitle || isDeleteId || isVistaItem;
       });
@@ -4219,21 +4275,24 @@
       if (window.location.hostname.includes("vistasocial.com")) {
         const vistaActionBtns = Array.from(
           document.querySelectorAll(
-            'tbody tr [class*="TableItem__StyledImage"], table tr [class*="TableItem__StyledImage"], tbody tr [class*="TableItem__BodyCell"], table tr [class*="TableItem__BodyCell"], td [class*="TableItem__StyledImage"], td [class*="TableItem__BodyCell"]'
+            'tbody tr [class*="TableItem__StyledImage"], table tr [class*="TableItem__StyledImage"], tbody tr [class*="TableItem__BodyCell"], table tr [class*="TableItem__BodyCell"], td [class*="TableItem__StyledImage"], td [class*="TableItem__BodyCell"], tr [class*="Row"] [class*="Image"], tr svg[viewBox="8 6 7 12"]'
           )
         ).filter((el) => {
           if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
           if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) return false;
 
-          // Reject top header navigation, sidebars, and nav badges
           if (el.closest("[data-doc-anchor^='nav-'], [class*='Header'], [class*='header'], [class*='Sidebar'], [class*='sidebar'], nav, aside, header")) {
             return false;
           }
 
-          const parentRow = el.closest("tr, td");
+          const parentRow = el.closest("tr, td, [class*='Row']");
           if (!parentRow) return false;
 
-          if (el.dataset.sbProfileSelectAttempted === "true" || parentRow.dataset.sbProfileSelectAttempted === "true" || el.closest("tr")?.dataset.sbProfileSelectAttempted === "true") {
+          if (
+            el.dataset.sbProfileSelectAttempted === "true" ||
+            parentRow.dataset.sbProfileSelectAttempted === "true" ||
+            el.closest("tr")?.dataset.sbProfileSelectAttempted === "true"
+          ) {
             return false;
           }
 
@@ -4254,26 +4313,35 @@
         }
       }
 
-      const elements = Array.from(document.querySelectorAll("a, button, div, li, tr, [role='tab']"));
+      const elements = Array.from(document.querySelectorAll("a, button, div, li, tr, [role='tab'], [class*='Account'], [class*='Profile'], [class*='card']"));
       const items = elements.filter((el) => {
         if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
 
-        if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root") || el.closest(".modal, .modal-content, ngb-modal-window")) {
+        if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) {
           return false;
         }
 
-        if (el.dataset.sbProfileSelectAttempted === "true" || el.closest("a, button")?.dataset.sbProfileSelectAttempted === "true") {
+        if (el.dataset.sbProfileSelectAttempted === "true" || el.closest("a, button, tr, div")?.dataset.sbProfileSelectAttempted === "true") {
           return false;
         }
 
         const className = (el.className || "").toLowerCase();
         const id = (el.id || "").toLowerCase();
 
-        const isProfileClass = className.includes("profile-card") || className.includes("account-card") || className.includes("profile-item") || className.includes("account-item") || className.includes("connected-account") || className.includes("sidebar-profile");
+        const isProfileClass =
+          className.includes("profile-card") ||
+          className.includes("account-card") ||
+          className.includes("profile-item") ||
+          className.includes("account-item") ||
+          className.includes("connected-account") ||
+          className.includes("sidebar-profile") ||
+          className.includes("social-account") ||
+          className.includes("socialaccount");
+
         const isProfileId = id.includes("profile") || id.includes("account");
 
-        const hasProfileParent = el.closest('[class*="profile-list"], [class*="connected-accounts"], [class*="social-accounts"], [class*="profiles-list"]');
-        const isClickableChild = el.tagName === "A" || el.tagName === "BUTTON" || className.includes("active") || className.includes("item") || className.includes("card") || el.getAttribute("role") === "tab";
+        const hasProfileParent = el.closest('[class*="profile-list"], [class*="connected-accounts"], [class*="social-accounts"], [class*="profiles-list"], [class*="social-account"], jhi-social-accounts');
+        const isClickableChild = el.tagName === "A" || el.tagName === "BUTTON" || className.includes("active") || className.includes("item") || className.includes("card") || el.getAttribute("role") === "tab" || el.querySelector("i.fa, svg, img");
 
         return isProfileClass || isProfileId || (hasProfileParent && isClickableChild);
       });
@@ -4281,26 +4349,72 @@
       return items.length > 0 ? items[0] : null;
     }
 
+    function findConfirmButton(excludeTargets = []) {
+      const candidates = Array.from(
+        document.querySelectorAll(
+          ".modal button, .modal div[role='button'], ngb-modal-window button, [role='dialog'] button, dialog button, [class*='Modal'] button, [class*='Dialog'] button, button, div[role='button'], [class*='Item__StyledItem'], [class*='Button']"
+        )
+      );
+
+      return candidates.find((button) => {
+        if (button.offsetWidth === 0 || button.offsetHeight === 0) return false;
+        if (button.closest("#sb-suite-root") || button.closest("#sb-autofill-root")) return false;
+        if (excludeTargets.includes(button)) return false;
+
+        const txt = (button.textContent || "").trim().toLowerCase();
+        const className = (button.className || "").toLowerCase();
+
+        if (txt === "cancel" || txt === "keep" || txt === "no" || txt === "close" || txt === "back") {
+          return false;
+        }
+
+        const matchesText =
+          txt.includes("yes") ||
+          txt.includes("remove") ||
+          txt.includes("delete") ||
+          txt.includes("confirm") ||
+          txt.includes("disconnect") ||
+          txt.includes("unlink") ||
+          txt.includes("proceed") ||
+          txt.includes("accept");
+
+        const matchesClass =
+          className.includes("btn-danger") ||
+          className.includes("btn-primary") ||
+          className.includes("danger") ||
+          className.includes("confirm") ||
+          className.includes("delete") ||
+          className.includes("btn-primary-sb");
+
+        const insideModal = button.closest(".modal, .modal-content, .modal-dialog, ngb-modal-window, [role='dialog'], dialog, [class*='Modal'], [class*='Dialog']");
+
+        return matchesText || (insideModal && matchesClass);
+      });
+    }
+
     async function deleteVistaSocialAccounts(stepDelay) {
       let deletedCount = 0;
       let consecutiveFailures = 0;
 
       while (isRunning) {
-        const rows = Array.from(document.querySelectorAll('tr[class*="TableItem__Row"], tbody tr')).filter((row) => {
+        const rows = Array.from(document.querySelectorAll('tr[class*="TableItem__Row"], tbody tr, tr')).filter((row) => {
           if (row.offsetWidth === 0 || row.offsetHeight === 0) return false;
+          if (row.querySelector("th")) return false;
+          if (row.closest("#sb-suite-root") || row.closest("#sb-autofill-root")) return false;
           if (row.dataset.sbProfileDeleteAttempted === "true") return false;
-          // Must contain TableItem elements or 3-dots icon
-          return row.querySelector('[class*="TableItem__StyledImage"], [class*="TableItem__BodyCell"], svg[viewBox="8 6 7 12"]') !== null;
+          return (
+            row.querySelector('[class*="TableItem__StyledImage"], [class*="TableItem__BodyCell"], svg[viewBox="8 6 7 12"], svg, td') !== null
+          );
         });
 
         if (rows.length === 0) {
           if (consecutiveFailures < 2) {
             consecutiveFailures++;
-            console.warn(`[SocialBee Autofill] No remaining Vista Social rows found (retry ${consecutiveFailures}/2)...`);
+            console.warn(`[SocialBee Autofill] No remaining profile rows found (retry ${consecutiveFailures}/2)...`);
             await sleep(1500);
             continue;
           }
-          console.log("[SocialBee Autofill] No remaining Vista Social profile rows found. Deletion complete!");
+          console.log("[SocialBee Autofill] No remaining profile rows found. Deletion complete!");
           break;
         }
 
@@ -4311,8 +4425,10 @@
         // Step 1: Find 3-dots button inside this specific row
         const threeDotsBtn =
           currentRow.querySelector('[class*="TableItem__StyledImage"]') ||
-          currentRow.querySelector('svg[viewBox="8 6 7 12"]')?.closest("div, td") ||
-          currentRow.querySelector("td:last-child div, td:last-child");
+          currentRow.querySelector('svg[viewBox="8 6 7 12"]')?.closest("div, td, button") ||
+          currentRow.querySelector('button[aria-label*="more"], button[title*="more"], [class*="three-dots"], [class*="action"], [class*="menu"], [class*="dropdown"]') ||
+          currentRow.querySelector('svg, i.fa-ellipsis-v, i.fa-ellipsis-h, [class*="dots"]') ||
+          currentRow.querySelector("td:last-child button, td:last-child div, td:last-child");
 
         if (!threeDotsBtn) {
           console.warn("[SocialBee Autofill] Could not locate 3-dots button in row:", currentRow);
@@ -4323,25 +4439,38 @@
         threeDotsBtn.scrollIntoView({ block: "center", behavior: "smooth" });
         await sleep(400);
 
-        threeDotsBtn.click();
+        triggerClick(threeDotsBtn);
         try {
-          threeDotsBtn.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-          threeDotsBtn.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
+          threeDotsBtn.click();
         } catch (e) {}
 
-        // Step 2: Poll for 'Remove profile' menu button
-        setStatus("Waiting for 'Remove profile' menu option...", "running");
+        // Step 2: Poll for 'Remove account' / 'Remove profile' menu button
+        setStatus("Waiting for 'Remove account' / 'Remove profile' menu option...", "running");
         let removeProfileTarget = null;
         for (let poll = 0; poll < 20; poll++) {
           if (!isRunning) break;
 
           const allEls = Array.from(
-            document.querySelectorAll('[class*="DropdownMenu"] button, [class*="DropdownMenu"] p, [class*="Item__StyledItem"], button, p, span, div')
+            document.querySelectorAll(
+              '[class*="DropdownMenu"] button, [class*="DropdownMenu"] p, [class*="DropdownMenu"] span, [class*="DropdownMenu"] div, [class*="Item__StyledItem"], button, p, span, div, a'
+            )
           );
           removeProfileTarget = allEls.find((el) => {
             if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) return false;
             const txt = (el.textContent || "").trim().toLowerCase();
-            return txt === "remove profile" || (txt.includes("remove profile") && txt.length < 25);
+            return (
+              txt === "remove account" ||
+              txt === "remove profile" ||
+              txt === "delete account" ||
+              txt === "delete profile" ||
+              txt.includes("remove account") ||
+              txt.includes("delete account") ||
+              txt.includes("remove profile") ||
+              txt.includes("delete profile") ||
+              txt.includes("disconnect account") ||
+              txt.includes("disconnect profile") ||
+              txt.includes("unlink account")
+            );
           });
 
           if (removeProfileTarget) break;
@@ -4351,27 +4480,16 @@
         if (!isRunning) break;
 
         if (!removeProfileTarget) {
-          console.warn("[SocialBee Autofill] 'Remove profile' button did not appear after clicking 3 dots.");
+          console.warn("[SocialBee Autofill] 'Remove account' button did not appear after clicking 3 dots.");
           continue;
         }
 
-        const removeProfileBtn = removeProfileTarget.closest('button, [class*="Item__StyledItem"]') || removeProfileTarget;
-        console.log("[SocialBee Autofill] Found 'Remove profile' target:", removeProfileTarget, "button wrapper:", removeProfileBtn);
+        const removeProfileBtn = removeProfileTarget.closest('button, a, [class*="Item__StyledItem"]') || removeProfileTarget;
+        console.log("[SocialBee Autofill] Found 'Remove account' target:", removeProfileTarget, "button wrapper:", removeProfileBtn);
 
-        setStatus(`Clicking 'Remove profile' for account ${deletedCount + 1}...`, "running");
+        setStatus(`Clicking 'Remove account' for account ${deletedCount + 1}...`, "running");
         removeProfileBtn.scrollIntoView({ block: "center", behavior: "instant" });
         await sleep(300);
-
-        const triggerClick = (target) => {
-          try {
-            if (typeof target.focus === "function") target.focus();
-            target.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
-            target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-            target.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true }));
-            target.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
-            target.click();
-          } catch (e) {}
-        };
 
         triggerClick(removeProfileTarget);
         if (removeProfileBtn !== removeProfileTarget) {
@@ -4381,19 +4499,15 @@
         await sleep(500);
 
         // Step 3: Handle modal confirmation (if present)
+        let clickedConfirm = false;
         for (let attempt = 0; attempt < 20; attempt++) {
           if (!isRunning) break;
-          const confirmBtn = Array.from(document.querySelectorAll("button, div[role='button'], [class*='Button']")).find((button) => {
-            if (button.offsetWidth === 0 || button.offsetHeight === 0) return false;
-            if (button.closest("#sb-suite-root") || button.closest("#sb-autofill-root")) return false;
-            if (button === removeProfileBtn || button === removeProfileTarget) return false;
-            const txt = (button.textContent || "").trim().toLowerCase();
-            return txt.includes("yes, remove") || txt === "remove" || txt.includes("confirm") || txt.includes("delete");
-          });
+          const confirmBtn = findConfirmButton([removeProfileBtn, removeProfileTarget]);
 
           if (confirmBtn && confirmBtn.offsetWidth > 0) {
             console.log("[SocialBee Autofill] Found confirm button in modal. Clicking:", confirmBtn);
             triggerClick(confirmBtn);
+            clickedConfirm = true;
             break;
           }
           await sleep(300);
@@ -4422,7 +4536,7 @@
       try {
         const stepDelay = Math.max(300, parseInt(shadow.getElementById("sb-delay").value, 10) || 1500);
 
-        if (window.location.hostname.includes("vistasocial.com")) {
+        if (window.location.hostname.includes("vistasocial.com") || document.querySelector('tr[class*="TableItem__Row"], tbody tr')) {
           const deletedCount = await deleteVistaSocialAccounts(stepDelay);
           setStatus(`Successfully removed ${deletedCount} account${deletedCount !== 1 ? "s" : ""}!`, "success");
           return;
@@ -4471,11 +4585,7 @@
 
             profileItem.scrollIntoView({ block: "center", behavior: "smooth" });
             await sleep(300);
-            profileItem.click();
-            try {
-              profileItem.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-              profileItem.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
-            } catch (e) {}
+            triggerClick(profileItem);
 
             // Poll for delete button to render after clicking profile item (up to 20 attempts ~ 8 seconds)
             setStatus("Waiting for delete button after menu selection...", "running");
@@ -4495,6 +4605,7 @@
                 delete el.dataset.sbDeleteAttempted;
                 delete el.dataset.sbProfileSelectAttempted;
               });
+              consecutiveFailures = 0;
               await sleep(1500);
               continue;
             }
@@ -4505,7 +4616,7 @@
           consecutiveFailures = 0;
 
           let clickTarget = deleteBtn;
-          if (deleteBtn.tagName === "I" || deleteBtn.tagName === "SPAN") {
+          if (deleteBtn.tagName === "I" || deleteBtn.tagName === "SPAN" || deleteBtn.tagName === "SVG" || deleteBtn.tagName === "PATH") {
             clickTarget = deleteBtn.closest("button, a, div[role='button'], [class*='Item__StyledItem']") || deleteBtn;
           }
 
@@ -4519,32 +4630,17 @@
 
           clickTarget.scrollIntoView({ block: "center", behavior: "smooth" });
           await sleep(500);
-          clickTarget.click();
+          triggerClick(clickTarget);
 
-          // Poll for confirmation modal & button (up to 20 attempts ~ 6 seconds)
+          // Poll for confirmation modal & button (up to 25 attempts ~ 7.5 seconds)
           let clickedConfirm = false;
-          for (let attempt = 0; attempt < 20; attempt++) {
+          for (let attempt = 0; attempt < 25; attempt++) {
             if (!isRunning) break;
-            const confirmBtn = Array.from(document.querySelectorAll("button, div[role='button'], [class*='Item__StyledItem']")).find((button) => {
-              if (button.offsetWidth === 0 || button.offsetHeight === 0) return false;
-              if (button.closest("#sb-suite-root") || button.closest("#sb-autofill-root")) return false;
-              const txt = (button.textContent || "").trim().toLowerCase();
-              const className = (button.className || "").toLowerCase();
-              return (
-                txt.includes("yes, remove social account") ||
-                txt.includes("yes, remove") ||
-                txt === "remove" ||
-                txt === "remove profile" ||
-                txt === "delete" ||
-                txt.includes("confirm") ||
-                txt.includes("disconnect") ||
-                (className.includes("btn-primary-sb") && (txt.includes("remove") || txt.includes("disconnect")))
-              );
-            });
+            const confirmBtn = findConfirmButton([clickTarget]);
 
             if (confirmBtn && confirmBtn.offsetWidth > 0) {
-              console.log("[SocialBee Autofill] Found confirm button in modal. Clicking...");
-              confirmBtn.click();
+              console.log("[SocialBee Autofill] Found confirm button in modal. Clicking:", confirmBtn);
+              triggerClick(confirmBtn);
               clickedConfirm = true;
               deletedCount++;
               break;
@@ -4558,9 +4654,8 @@
               clickedConfirm = true;
               deletedCount++;
             } else {
-              console.warn("[SocialBee Autofill] Failed to find/click confirmation button for this item.");
-              setStatus("Could not confirm deletion of account.", "error");
-              break;
+              console.warn("[SocialBee Autofill] Failed to confirm deletion for target item. Continuing to next...");
+              setStatus(`Skipped account ${deletedCount + 1} (no confirm button).`, "running");
             }
           }
 

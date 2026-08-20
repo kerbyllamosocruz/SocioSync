@@ -15,6 +15,8 @@
 // @grant        GM_addValueChangeListener
 // @grant        GM_xmlhttpRequest
 // @grant        GM_openInTab
+// @grant        GM_cookie
+// @grant        GM_setClipboard
 // @connect      localhost
 // @connect      127.0.0.1
 // @connect      10.0.2.2
@@ -171,11 +173,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 0;
-        }
-
-        #sb-suite-panel.minimized #sb-suite-toggle-btn::before {
-            content: var(--suite-icon, '🤖');
         }
 
         #sb-suite-header {
@@ -192,13 +189,16 @@
             font-weight: 700;
             font-size: 13px;
             letter-spacing: 0.5px;
-            background: linear-gradient(90deg, #818cf8, #c084fc);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
             display: flex;
             align-items: center;
             gap: 8px;
             text-transform: uppercase;
+        }
+
+        #sb-suite-title span {
+            background: linear-gradient(90deg, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         #sb-suite-toggle-btn {
@@ -261,6 +261,10 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
             text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
 
         .tab-btn:hover {
@@ -674,12 +678,23 @@
     panel.id = "sb-suite-panel";
     panel.innerHTML = `
         <div id="sb-suite-header">
-            <div id="sb-suite-title">⚡ Automation Suite v4.2</div>
-            <button id="sb-suite-toggle-btn" title="Minimize Panel">✕</button>
+            <div id="sb-suite-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                <span>Automation Suite v4.3</span>
+            </div>
+            <button id="sb-suite-toggle-btn" title="Minimize Panel">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
         </div>
         <div id="sb-suite-tabs">
-            <button id="tab-btn-sb" class="tab-btn active">🐝 SocialBee</button>
-            <button id="tab-btn-otp" class="tab-btn">🔑 TikTok & OTP</button>
+            <button id="tab-btn-sb" class="tab-btn active">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                <span>Social Publisher</span>
+            </button>
+            <button id="tab-btn-otp" class="tab-btn">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span>TikTok &amp; OTP</span>
+            </button>
         </div>
         <div id="sb-suite-content">
             <!-- SocialBee Content -->
@@ -736,8 +751,9 @@
                 </div>
 
                 <details id="sb-delays-config" style="margin-top: 4px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; background: rgba(255, 255, 255, 0.02);">
-                    <summary style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #9ca3af; padding: 10px 12px; cursor: pointer; user-select: none;">
-                        ⚙️ Delay Configurations
+                    <summary style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #9ca3af; padding: 10px 12px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                        <span>Delay Configurations</span>
                     </summary>
                     <div style="padding: 0 12px 12px 12px; display: flex; flex-direction: column; gap: 10px;">
                         <div class="sb-autofill-field">
@@ -781,15 +797,30 @@
                 </div>
 
                 <div class="sb-autofill-actions">
-                    <button id="sb-btn-start" class="sb-btn sb-btn-primary">Start Fill</button>
-                    <button id="sb-btn-stop" class="sb-btn sb-btn-secondary" disabled>Stop</button>
+                    <button id="sb-btn-start" class="sb-btn sb-btn-primary">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        <span>Start Fill</span>
+                    </button>
+                    <button id="sb-btn-stop" class="sb-btn sb-btn-secondary" disabled>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                        <span>Stop</span>
+                    </button>
                 </div>
                 <div class="sb-autofill-actions" style="margin-top: 8px;">
-                    <button id="sb-btn-share-vars" class="sb-btn sb-btn-primary" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border: none; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25); flex: 1;">🔄 Share Vars</button>
+                    <button id="sb-btn-share-vars" class="sb-btn sb-btn-primary" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border: none; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25); flex: 1;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                        <span>Share Vars</span>
+                    </button>
                 </div>
                 <div class="sb-autofill-actions" style="margin-top: 8px;">
-                    <button id="sb-btn-logout-tiktok" class="sb-btn" style="background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%); border: none; box-shadow: 0 4px 12px rgba(244, 63, 94, 0.25); flex: 1; color: white;">🔑 Logout TikTok</button>
-                    <button id="sb-btn-delete-all" class="sb-btn sb-btn-danger" style="flex: 1;">🗑️ Delete Accounts</button>
+                    <button id="sb-btn-logout-tiktok" class="sb-btn" style="background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%); border: none; box-shadow: 0 4px 12px rgba(244, 63, 94, 0.25); flex: 1; color: white;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                        <span>Logout TikTok</span>
+                    </button>
+                    <button id="sb-btn-delete-all" class="sb-btn sb-btn-danger" style="flex: 1;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                        <span>Delete Accounts</span>
+                    </button>
                 </div>
             </div>
 
@@ -807,18 +838,26 @@
                     <div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                             <div style="font-size: 8px; text-transform: uppercase; color: #9ca3af; font-weight: 600; letter-spacing: 0.05em; text-align: left;">Autofill from CSV</div>
-                            <button id="otp-csv-toggle-btn" style="background: none; border: none; color: #818cf8; font-size: 8px; cursor: pointer; padding: 2px 4px; border-radius: 3px; font-weight: 600; transition: background 0.2s;">📝 Edit CSV</button>
+                            <button id="otp-csv-toggle-btn" style="background: none; border: none; color: #818cf8; font-size: 8px; cursor: pointer; padding: 2px 4px; border-radius: 3px; font-weight: 600; transition: background 0.2s; display: inline-flex; align-items: center; gap: 3px;">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit CSV
+                            </button>
                         </div>
                         <div style="display: flex; gap: 6px; align-items: center;">
                             <input type="file" id="otp-csv-file" accept=".csv" style="display: none;" />
-                            <button id="otp-csv-upload-btn" style="background: rgba(255, 255, 255, 0.06); border: 1px dashed rgba(255, 255, 255, 0.2); color: #e5e7eb; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1;">📂 Load</button>
+                            <button id="otp-csv-upload-btn" style="background: rgba(255, 255, 255, 0.06); border: 1px dashed rgba(255, 255, 255, 0.2); color: #e5e7eb; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Load
+                            </button>
                             <select id="otp-csv-select" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 10px; padding: 4px 6px; border-radius: 4px; flex: 2; display: none; width: 100%;">
                                 <option value="">-- Choose Account --</option>
                             </select>
                         </div>
                         <div id="otp-csv-nav-container" style="display: none; gap: 6px; margin-top: 6px;">
-                            <button id="otp-csv-btn-prev" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; text-align: center; border-style: solid;">◀ Prev</button>
-                            <button id="otp-csv-btn-next" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; text-align: center; border-style: solid;">Next ▶</button>
+                            <button id="otp-csv-btn-prev" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; text-align: center; border-style: solid; display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> Prev
+                            </button>
+                            <button id="otp-csv-btn-next" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex: 1; text-align: center; border-style: solid; display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+                                Next <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
                         </div>
                         <div id="otp-csv-editor-container" style="display: none; margin-top: 6px; flex-direction: column; gap: 6px;">
                             <textarea id="otp-csv-textarea" placeholder="username,password,status&#10;user1,pass1,&#10;user2,pass2,Done" style="background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 9px; font-family: monospace; width: 100%; height: 90px; box-sizing: border-box; resize: vertical; padding: 6px; border-radius: 4px;"></textarea>
@@ -840,7 +879,16 @@
             </div>
 
             <div style="margin: 8px 12px 0 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-                <button id="sb-btn-export-session" class="sb-btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); border: none; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); width: 100%; color: white;">📋 Copy All Cookies (SocialBee / Vista)</button>
+                <div style="display: flex; gap: 6px;">
+                    <button id="sb-btn-export-session" class="sb-btn" style="flex: 1; background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); border: none; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); color: white;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        <span>Export Cookies</span>
+                    </button>
+                    <button id="sb-btn-import-cookie" class="sb-btn" style="flex: 1; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25); color: white;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span>Import &amp; Reload</span>
+                    </button>
+                </div>
             </div>
 
             <div class="suite-footer">
@@ -869,30 +917,31 @@
         tabContentOtp.classList.add("active");
         tabContentSb.classList.remove("active");
       });
-      panel.style.setProperty("--suite-icon", '"🐝"');
     } else {
       shadow.getElementById("sb-suite-tabs").style.display = "none";
       tabContentSb.classList.remove("active");
       tabContentOtp.classList.add("active");
-      panel.style.setProperty("--suite-icon", '"🔑"');
     }
 
     if (role === "Login Tab") {
       shadow.getElementById("otp-login-only-controls").style.display = "block";
     }
 
-
-
     // Toggle minimize
     const toggleBtn = shadow.getElementById("sb-suite-toggle-btn");
+    const publisherSvgIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>`;
+    const otpSvgIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+    const closeSvgIcon = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+
     toggleBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       panel.classList.toggle("minimized");
       if (panel.classList.contains("minimized")) {
-        toggleBtn.innerHTML = panel.style.getPropertyValue("--suite-icon").replace(/"/g, "") || "🤖";
+        const activeTab = shadow.querySelector(".tab-btn.active");
+        toggleBtn.innerHTML = (activeTab && activeTab.id === "tab-btn-otp") ? otpSvgIcon : publisherSvgIcon;
         toggleBtn.title = "Maximize Panel";
       } else {
-        toggleBtn.innerHTML = "✕";
+        toggleBtn.innerHTML = closeSvgIcon;
         toggleBtn.title = "Minimize Panel";
       }
     });
@@ -900,16 +949,216 @@
     panel.addEventListener("click", (e) => {
       if (panel.classList.contains("minimized")) {
         panel.classList.remove("minimized");
-        toggleBtn.innerHTML = "✕";
+        toggleBtn.innerHTML = closeSvgIcon;
         toggleBtn.title = "Minimize Panel";
       }
     });
 
-    function getCurrentDomainCookies() {
+    async function getClipboardData() {
+      // 1. Try Tampermonkey GM_getClipboard callback (extension level - reads OS clipboard without browser DOM prompt)
+      if (typeof GM_getClipboard === "function") {
+        try {
+          const gmData = await new Promise((resolve) => {
+            let resolved = false;
+            const timer = setTimeout(() => {
+              if (!resolved) { resolved = true; resolve(null); }
+            }, 500);
+
+            try {
+              GM_getClipboard((data) => {
+                if (!resolved) {
+                  resolved = true;
+                  clearTimeout(timer);
+                  resolve(data);
+                }
+              });
+            } catch (e) {
+              if (!resolved) { resolved = true; clearTimeout(timer); resolve(null); }
+            }
+          });
+          if (gmData && typeof gmData === "string" && gmData.trim().startsWith("[")) {
+            return gmData.trim();
+          }
+        } catch (e) {}
+      }
+
+      // 2. Try GM.getClipboard if available
+      if (typeof GM !== "undefined" && typeof GM.getClipboard === "function") {
+        try {
+          const gm2Data = await GM.getClipboard();
+          if (gm2Data && typeof gm2Data === "string" && gm2Data.trim().startsWith("[")) {
+            return gm2Data.trim();
+          }
+        } catch (e) {}
+      }
+
+      // 3. Try standard Web Navigator Clipboard API
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const navData = await navigator.clipboard.readText();
+          if (navData && navData.trim().startsWith("[")) return navData.trim();
+        }
+      } catch (e) {}
+
+      // 4. Try internal Tampermonkey global memory cache
+      try {
+        const cached = GM_getValue("last_exported_cookies", "");
+        if (cached && cached.trim().startsWith("[")) return cached.trim();
+      } catch (e) {}
+
+      return null;
+    }
+
+    // Instant 1-Click Cookie Import (Zero Clipboard Permission Popup)
+    const btnImportCookie = shadow.getElementById("sb-btn-import-cookie");
+    if (btnImportCookie) {
+      btnImportCookie.addEventListener("click", async (e) => {
+        let rawText = "";
+
+        if (!e.shiftKey) {
+          rawText = await getClipboardData();
+        }
+
+        // Fallback prompt only if auto retrieval finds no valid JSON array or user held Shift
+        if (!rawText || !rawText.trim().startsWith("[")) {
+          rawText = prompt("Paste your Cookie-Editor JSON array here:");
+        }
+
+        if (!rawText || !rawText.trim()) return;
+
+        let cookieArray = [];
+        try {
+          const parsed = JSON.parse(rawText.trim());
+          cookieArray = Array.isArray(parsed) ? parsed : [parsed];
+        } catch (err) {
+          alert("Failed to parse JSON. Please ensure you copied a valid Cookie-Editor JSON array.");
+          return;
+        }
+
+        btnImportCookie.disabled = true;
+        btnImportCookie.style.background = "linear-gradient(135deg, #059669 0%, #047857 100%)";
+        btnImportCookie.innerHTML = `<span>⏳ Applying ${cookieArray.length} Cookies...</span>`;
+
+        let successCount = 0;
+        for (const cookieItem of cookieArray) {
+          if (!cookieItem.name || cookieItem.value === undefined) continue;
+
+          const domain = cookieItem.domain || window.location.hostname;
+          const cleanDomain = domain.replace(/^\./, "");
+          const path = cookieItem.path || "/";
+          const isSecure = cookieItem.secure ?? (window.location.protocol === "https:");
+          const cookieUrl = `http${isSecure ? "s" : ""}://${cleanDomain}${path}`;
+
+          if (typeof GM_cookie !== "undefined" && typeof GM_cookie.set === "function") {
+            await new Promise((resolve) => {
+              const setObj = {
+                url: cookieUrl,
+                name: cookieItem.name,
+                value: String(cookieItem.value),
+                path: path,
+                secure: isSecure,
+                httpOnly: cookieItem.httpOnly ?? false,
+              };
+
+              // If hostOnly is explicitly true, omit domain so Chrome sets hostOnly: true
+              if (!cookieItem.hostOnly && domain) {
+                setObj.domain = domain;
+              }
+
+              if (cookieItem.expirationDate) setObj.expirationDate = cookieItem.expirationDate;
+              if (cookieItem.sameSite && cookieItem.sameSite !== "unspecified") {
+                setObj.sameSite = cookieItem.sameSite;
+              }
+
+              GM_cookie.set(setObj, (err) => {
+                if (!err) {
+                  successCount++;
+                  resolve();
+                } else {
+                  const fallbackObj = { ...setObj };
+                  if (fallbackObj.domain) {
+                    delete fallbackObj.domain;
+                  } else if (domain) {
+                    fallbackObj.domain = domain;
+                  }
+                  GM_cookie.set(fallbackObj, (err2) => {
+                    if (!err2) successCount++;
+                    resolve();
+                  });
+                }
+              });
+            });
+          } else {
+            try {
+              let cookieStr = `${cookieItem.name}=${encodeURIComponent(cookieItem.value)}; path=${path}`;
+              if (domain && !window.location.hostname.includes("localhost")) {
+                cookieStr += `; domain=${domain}`;
+              }
+              if (isSecure) cookieStr += `; secure`;
+              if (cookieItem.expirationDate) {
+                cookieStr += `; expires=${new Date(cookieItem.expirationDate * 1000).toUTCString()}`;
+              }
+              document.cookie = cookieStr;
+              successCount++;
+            } catch (err) {}
+          }
+        }
+
+        btnImportCookie.innerHTML = `<span>✅ Applied ${successCount} Cookies! Reloading...</span>`;
+        setTimeout(() => {
+          window.location.reload();
+        }, 800);
+      });
+    }
+
+    async function getCurrentDomainCookies() {
+      const isHttps = window.location.protocol === "https:";
+
+      // Use GM_cookie.list if available to read HttpOnly authentication cookies
+      if (typeof GM_cookie !== "undefined" && typeof GM_cookie.list === "function") {
+        try {
+          const list = await new Promise((resolve) => {
+            GM_cookie.list({}, (cookies, error) => {
+              if (!error && cookies && cookies.length > 0) {
+                resolve(cookies);
+              } else {
+                resolve(null);
+              }
+            });
+          });
+          if (list && list.length > 0) {
+            const currentHost = window.location.hostname;
+            const relevantList = list.filter((c) => {
+              const d = (c.domain || "").toLowerCase();
+              return (
+                d.includes("vistasocial") ||
+                d.includes("socialbee") ||
+                d.includes("kuku.lu") ||
+                d.includes("tiktok") ||
+                d.includes(currentHost)
+              );
+            });
+            return (relevantList.length > 0 ? relevantList : list).map((c) => ({
+              domain: c.domain,
+              expirationDate: c.expirationDate || (Math.floor(Date.now() / 1000) + 31536000),
+              hostOnly: c.hostOnly ?? false,
+              httpOnly: c.httpOnly ?? false,
+              name: c.name,
+              path: c.path || "/",
+              sameSite: c.sameSite || "unspecified",
+              secure: c.secure ?? isHttps,
+              session: c.session ?? false,
+              storeId: c.storeId || null,
+              value: c.value,
+            }));
+          }
+        } catch (e) {}
+      }
+
+      // Fallback to document.cookie if GM_cookie.list is not available
       const cookiesList = [];
       const currentHost = window.location.hostname;
       const domainName = currentHost.startsWith(".") ? currentHost : "." + currentHost;
-      const isHttps = window.location.protocol === "https:";
 
       if (document.cookie) {
         document.cookie.split(";").forEach((pair) => {
@@ -936,26 +1185,29 @@
       return cookiesList;
     }
 
-    function cacheCurrentDomainCookies() {
+    async function cacheCurrentDomainCookies() {
       const host = window.location.hostname;
-      const currentCookies = getCurrentDomainCookies();
+      const currentCookies = await getCurrentDomainCookies();
       if (host.includes("kuku.lu")) {
         GM_setValue("cached_cookies_kuku", currentCookies);
       } else if (host.includes("socialbee.com") || host.includes("socialbee.io")) {
         GM_setValue("cached_cookies_socialbee", currentCookies);
+      } else if (host.includes("vistasocial.com")) {
+        GM_setValue("cached_cookies_vistasocial", currentCookies);
       }
     }
 
     cacheCurrentDomainCookies();
 
     async function exportCombinedCookiesJSON() {
-      cacheCurrentDomainCookies();
+      await cacheCurrentDomainCookies();
 
       const kukuCookies = GM_getValue("cached_cookies_kuku", []);
       const sbCookies = GM_getValue("cached_cookies_socialbee", []);
+      const vistaCookies = GM_getValue("cached_cookies_vistasocial", []);
 
       const host = window.location.hostname;
-      const liveCookies = getCurrentDomainCookies();
+      const liveCookies = await getCurrentDomainCookies();
 
       let mergedList = [];
       if (host.includes("kuku.lu")) {
@@ -974,6 +1226,9 @@
       const combinedCookies = Array.from(uniqueMap.values());
 
       const jsonString = JSON.stringify(combinedCookies, null, 2);
+
+      // Save to internal Tampermonkey global memory for zero-prompt instant import
+      GM_setValue("last_exported_cookies", jsonString);
 
       let copied = false;
       try {
@@ -4025,35 +4280,100 @@
       return null;
     }
 
+    function triggerClick(target) {
+      if (!target) return;
+      try {
+        if (typeof target.focus === "function") target.focus();
+        const opts = { bubbles: true, cancelable: true, view: window };
+        target.dispatchEvent(new PointerEvent("pointerdown", opts));
+        target.dispatchEvent(new MouseEvent("mousedown", opts));
+        target.dispatchEvent(new PointerEvent("pointerup", opts));
+        target.dispatchEvent(new MouseEvent("mouseup", opts));
+        target.click();
+      } catch (e) {
+        try {
+          target.click();
+        } catch (err) {}
+      }
+    }
+
     function findDeleteButtonDirect() {
-      const elements = Array.from(document.querySelectorAll("button, a, i, span, div[role='button'], [class*='Item__StyledItem']"));
+      const elements = Array.from(
+        document.querySelectorAll(
+          "button, a, i, span, div[role='button'], [class*='Item__StyledItem'], [class*='delete'], [class*='remove'], [class*='disconnect'], [class*='trash']"
+        )
+      );
+
       const candidates = elements.filter((el) => {
         if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
-
         if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) return false;
 
-        if (el.dataset.sbDeleteAttempted === "true" || el.closest("button, a, [class*='Item__StyledItem']")?.dataset.sbDeleteAttempted === "true") {
-          return false;
+        if (el.closest("nav, aside, header, [class*='Sidebar'], [class*='sidebar'], [class*='Nav'], [class*='nav']")) return false;
+
+        if (el.closest("a[href]")) {
+          const href = (el.closest("a[href]").getAttribute("href") || "").toLowerCase();
+          if (href.includes("/ai") || href.includes("/dashboard") || href.includes("/planner") || href.includes("/inbox")) {
+            return false;
+          }
         }
 
-        if (el.closest(".modal, .modal-content, .modal-dialog, .modal-container, ngb-modal-window") && !el.closest('[class*="Item__StyledItem"]')) {
+        if (
+          el.dataset.sbDeleteAttempted === "true" ||
+          el.closest("button, a, [class*='Item__StyledItem']")?.dataset.sbDeleteAttempted === "true"
+        ) {
           return false;
         }
 
         const text = (el.textContent || "").trim().toLowerCase();
-        const title = (el.getAttribute("title") || el.getAttribute("data-original-title") || el.getAttribute("aria-label") || "").toLowerCase();
+        const title = (
+          el.getAttribute("title") ||
+          el.getAttribute("data-original-title") ||
+          el.getAttribute("aria-label") ||
+          ""
+        ).toLowerCase();
         const className = (el.className || "").toLowerCase();
         const id = (el.id || "").toLowerCase();
 
-        if (text.includes("yes") || text.includes("confirm") || text.includes("cancel") || text.includes("no") || text.includes("close") || text.includes("keep") || className.includes("btn-primary-sb")) {
+        if (text === "cancel" || text === "keep" || text === "no" || text === "close" || text === "back") {
           return false;
         }
 
-        const isTrashIcon = className.includes("trash") || className.includes("delete") || className.includes("remove") || className.includes("disconnect");
-        const isDeleteWord = text === "delete" || text === "remove" || text === "disconnect" || text === "remove profile" || text.includes("remove account") || text.includes("delete account") || text.includes("disconnect profile") || text.includes("remove profile");
-        const isDeleteTitle = title.includes("delete") || title.includes("remove") || title.includes("disconnect") || title.includes("unlink") || title.includes("trash");
-        const isDeleteId = id.includes("delete") || id.includes("remove") || id.includes("disconnect");
-        const isVistaItem = className.includes("item__styleditem") && (text.includes("remove") || text.includes("delete"));
+        const isTrashIcon =
+          className.includes("trash") ||
+          className.includes("delete") ||
+          className.includes("remove") ||
+          className.includes("disconnect") ||
+          className.includes("fa-unlink");
+
+        const isDeleteWord =
+          text === "delete" ||
+          text === "remove" ||
+          text === "disconnect" ||
+          text === "remove profile" ||
+          text === "remove account" ||
+          text === "delete account" ||
+          text === "disconnect profile" ||
+          text.includes("remove account") ||
+          text.includes("delete account") ||
+          text.includes("disconnect profile") ||
+          text.includes("remove profile") ||
+          text.includes("disconnect account") ||
+          text.includes("unlink account");
+
+        const isDeleteTitle =
+          title.includes("delete") ||
+          title.includes("remove") ||
+          title.includes("disconnect") ||
+          title.includes("unlink") ||
+          title.includes("trash");
+
+        const isDeleteId =
+          id.includes("delete") ||
+          id.includes("remove") ||
+          id.includes("disconnect");
+
+        const isVistaItem =
+          className.includes("item__styleditem") && (text.includes("remove") || text.includes("delete") || text.includes("disconnect"));
 
         return isTrashIcon || isDeleteWord || isDeleteTitle || isDeleteId || isVistaItem;
       });
@@ -4065,32 +4385,35 @@
       if (window.location.hostname.includes("vistasocial.com")) {
         const vistaActionBtns = Array.from(
           document.querySelectorAll(
-            '[class*="TableItem__StyledImage"], [class*="TableItem__BodyCell"], button, div[role="button"], [class*="Dropdown"], [class*="Menu"], [class*="Options"], [class*="Actions"]'
+            'tbody tr [class*="TableItem__StyledImage"], table tr [class*="TableItem__StyledImage"], tbody tr [class*="TableItem__BodyCell"], table tr [class*="TableItem__BodyCell"], td [class*="TableItem__StyledImage"], td [class*="TableItem__BodyCell"], tr [class*="Row"] [class*="Image"], tr svg[viewBox="8 6 7 12"]'
           )
         ).filter((el) => {
           if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
           if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) return false;
-          if (el.dataset.sbProfileSelectAttempted === "true" || el.closest("td, tr, button, div")?.dataset.sbProfileSelectAttempted === "true") return false;
 
-          const text = (el.textContent || "").trim().toLowerCase();
-          const className = (el.className || "").toLowerCase();
+          if (el.closest("[data-doc-anchor^='nav-'], [class*='Header'], [class*='header'], [class*='Sidebar'], [class*='sidebar'], nav, aside, header")) {
+            return false;
+          }
 
-          const hasSvgDots = el.querySelector("svg") !== null || el.tagName.toLowerCase() === "svg";
-          const isTableBodyCell = className.includes("tableitem__bodycell") || className.includes("tableitem__styledimage");
-          const isActionMenu =
-            isTableBodyCell ||
-            className.includes("dots") ||
-            className.includes("option") ||
-            className.includes("action") ||
-            className.includes("dropdown") ||
-            className.includes("more") ||
-            className.includes("menu") ||
-            text === "..." ||
-            text === "…" ||
-            hasSvgDots;
+          const parentRow = el.closest("tr, td, [class*='Row']");
+          if (!parentRow) return false;
 
-          const parentRow = el.closest('tr, [class*="Row"], [class*="Card"], [class*="Item"], [class*="Profile"]');
-          return (parentRow || isTableBodyCell) && isActionMenu;
+          if (
+            el.dataset.sbProfileSelectAttempted === "true" ||
+            parentRow.dataset.sbProfileSelectAttempted === "true" ||
+            el.closest("tr")?.dataset.sbProfileSelectAttempted === "true"
+          ) {
+            return false;
+          }
+
+          if (el.closest("a[href]")) {
+            const href = (el.closest("a[href]").getAttribute("href") || "").toLowerCase();
+            if (href.includes("/ai") || href.includes("/dashboard") || href.includes("/planner") || href.includes("/inbox") || href.includes("/automations")) {
+              return false;
+            }
+          }
+
+          return true;
         });
 
         if (vistaActionBtns.length > 0) {
@@ -4100,31 +4423,187 @@
         }
       }
 
-      const elements = Array.from(document.querySelectorAll("a, button, div, li, tr, [role='tab']"));
+      const elements = Array.from(document.querySelectorAll("a, button, div, li, tr, [role='tab'], [class*='Account'], [class*='Profile'], [class*='card']"));
       const items = elements.filter((el) => {
         if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
 
-        if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root") || el.closest(".modal, .modal-content, ngb-modal-window")) {
+        if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) {
           return false;
         }
 
-        if (el.dataset.sbProfileSelectAttempted === "true" || el.closest("a, button")?.dataset.sbProfileSelectAttempted === "true") {
+        if (el.dataset.sbProfileSelectAttempted === "true" || el.closest("a, button, tr, div")?.dataset.sbProfileSelectAttempted === "true") {
           return false;
         }
 
         const className = (el.className || "").toLowerCase();
         const id = (el.id || "").toLowerCase();
 
-        const isProfileClass = className.includes("profile-card") || className.includes("account-card") || className.includes("profile-item") || className.includes("account-item") || className.includes("connected-account") || className.includes("sidebar-profile");
+        const isProfileClass =
+          className.includes("profile-card") ||
+          className.includes("account-card") ||
+          className.includes("profile-item") ||
+          className.includes("account-item") ||
+          className.includes("connected-account") ||
+          className.includes("sidebar-profile") ||
+          className.includes("social-account") ||
+          className.includes("socialaccount");
+
         const isProfileId = id.includes("profile") || id.includes("account");
 
-        const hasProfileParent = el.closest('[class*="profile-list"], [class*="connected-accounts"], [class*="social-accounts"], [class*="profiles-list"]');
-        const isClickableChild = el.tagName === "A" || el.tagName === "BUTTON" || className.includes("active") || className.includes("item") || className.includes("card") || el.getAttribute("role") === "tab";
+        const hasProfileParent = el.closest('[class*="profile-list"], [class*="connected-accounts"], [class*="social-accounts"], [class*="profiles-list"], [class*="social-account"], jhi-social-accounts');
+        const isClickableChild = el.tagName === "A" || el.tagName === "BUTTON" || className.includes("active") || className.includes("item") || className.includes("card") || el.getAttribute("role") === "tab" || el.querySelector("i.fa, svg, img");
 
         return isProfileClass || isProfileId || (hasProfileParent && isClickableChild);
       });
 
       return items.length > 0 ? items[0] : null;
+    }
+
+    function findConfirmButton(excludeTargets = []) {
+      const candidates = Array.from(
+        document.querySelectorAll(
+          ".modal button, .modal div[role='button'], ngb-modal-window button, [role='dialog'] button, dialog button, [class*='Modal'] button, [class*='Dialog'] button, button, div[role='button'], [class*='Item__StyledItem'], [class*='Button']"
+        )
+      );
+
+      return candidates.find((button) => {
+        if (button.offsetWidth === 0 || button.offsetHeight === 0) return false;
+        if (button.closest("#sb-suite-root") || button.closest("#sb-autofill-root")) return false;
+        if (excludeTargets.includes(button)) return false;
+
+        const txt = (button.textContent || "").trim().toLowerCase();
+        const className = (button.className || "").toLowerCase();
+
+        if (txt === "cancel" || txt === "keep" || txt === "no" || txt === "close" || txt === "back") {
+          return false;
+        }
+
+        const matchesText =
+          txt.includes("yes") ||
+          txt.includes("remove") ||
+          txt.includes("delete") ||
+          txt.includes("confirm") ||
+          txt.includes("disconnect") ||
+          txt.includes("unlink") ||
+          txt.includes("proceed") ||
+          txt.includes("accept");
+
+        const matchesClass =
+          className.includes("btn-danger") ||
+          className.includes("btn-primary") ||
+          className.includes("danger") ||
+          className.includes("confirm") ||
+          className.includes("delete") ||
+          className.includes("btn-primary-sb");
+
+        const insideModal = button.closest(".modal, .modal-content, .modal-dialog, ngb-modal-window, [role='dialog'], dialog, [class*='Modal'], [class*='Dialog']");
+
+        return matchesText || (insideModal && matchesClass);
+      });
+    }
+
+    async function deleteVistaSocialAccounts(stepDelay) {
+      let deletedCount = 0;
+      let consecutiveFailures = 0;
+
+      while (isRunning) {
+        const rows = Array.from(document.querySelectorAll('tr[class*="TableItem__Row"], tbody tr')).filter((row) => {
+          if (row.offsetWidth === 0 || row.offsetHeight === 0) return false;
+          if (row.dataset.sbProfileDeleteAttempted === "true") return false;
+          return row.querySelector('[class*="TableItem__StyledImage"], [class*="TableItem__BodyCell"], svg[viewBox="8 6 7 12"]') !== null;
+        });
+
+        if (rows.length === 0) {
+          if (consecutiveFailures < 2) {
+            consecutiveFailures++;
+            console.warn(`[SocialBee Autofill] No remaining Vista Social rows found (retry ${consecutiveFailures}/2)...`);
+            await sleep(1500);
+            continue;
+          }
+          console.log("[SocialBee Autofill] No remaining Vista Social profile rows found. Deletion complete!");
+          break;
+        }
+
+        consecutiveFailures = 0;
+        const currentRow = rows[0];
+        currentRow.dataset.sbProfileDeleteAttempted = "true";
+
+        // Step 1: Find 3-dots button inside this specific row
+        const threeDotsBtn =
+          currentRow.querySelector('[class*="TableItem__StyledImage"]') ||
+          currentRow.querySelector('svg[viewBox="8 6 7 12"]')?.closest("div, td") ||
+          currentRow.querySelector("td:last-child div, td:last-child");
+
+        if (!threeDotsBtn) {
+          console.warn("[SocialBee Autofill] Could not locate 3-dots button in row:", currentRow);
+          continue;
+        }
+
+        setStatus(`Opening menu for profile ${deletedCount + 1}...`, "running");
+        threeDotsBtn.scrollIntoView({ block: "center", behavior: "smooth" });
+        await sleep(400);
+
+        triggerClick(threeDotsBtn);
+
+        // Step 2: Poll for 'Remove profile' menu button
+        setStatus("Waiting for 'Remove profile' menu option...", "running");
+        let removeProfileTarget = null;
+        for (let poll = 0; poll < 20; poll++) {
+          if (!isRunning) break;
+
+          const allEls = Array.from(
+            document.querySelectorAll('[class*="DropdownMenu"] button, [class*="DropdownMenu"] p, [class*="Item__StyledItem"], button, p, span, div')
+          );
+          removeProfileTarget = allEls.find((el) => {
+            if (el.closest("#sb-suite-root") || el.closest("#sb-autofill-root")) return false;
+            const txt = (el.textContent || "").trim().toLowerCase();
+            return txt === "remove profile" || (txt.includes("remove profile") && txt.length < 25) || txt === "remove account" || txt === "delete profile";
+          });
+
+          if (removeProfileTarget) break;
+          await sleep(300);
+        }
+
+        if (!isRunning) break;
+
+        if (!removeProfileTarget) {
+          console.warn("[SocialBee Autofill] 'Remove profile' button did not appear after clicking 3 dots.");
+          continue;
+        }
+
+        const removeProfileBtn = removeProfileTarget.closest('button, [class*="Item__StyledItem"]') || removeProfileTarget;
+        console.log("[SocialBee Autofill] Found 'Remove profile' target:", removeProfileTarget, "button wrapper:", removeProfileBtn);
+
+        setStatus(`Clicking 'Remove profile' for account ${deletedCount + 1}...`, "running");
+        removeProfileBtn.scrollIntoView({ block: "center", behavior: "instant" });
+        await sleep(300);
+
+        triggerClick(removeProfileTarget);
+        if (removeProfileBtn !== removeProfileTarget) {
+          triggerClick(removeProfileBtn);
+        }
+
+        await sleep(500);
+
+        // Step 3: Handle modal confirmation (if present)
+        for (let attempt = 0; attempt < 20; attempt++) {
+          if (!isRunning) break;
+          const confirmBtn = findConfirmButton([removeProfileBtn, removeProfileTarget]);
+
+          if (confirmBtn && confirmBtn.offsetWidth > 0) {
+            console.log("[SocialBee Autofill] Found confirm button in modal. Clicking:", confirmBtn);
+            triggerClick(confirmBtn);
+            break;
+          }
+          await sleep(300);
+        }
+
+        deletedCount++;
+        setStatus(`Successfully removed ${deletedCount} account${deletedCount !== 1 ? "s" : ""}!`, "running");
+        await sleep(stepDelay + 1000);
+      }
+
+      return deletedCount;
     }
 
     async function deleteAllAccounts() {
@@ -4141,6 +4620,13 @@
 
       try {
         const stepDelay = Math.max(300, parseInt(shadow.getElementById("sb-delay").value, 10) || 1500);
+
+        if (window.location.hostname.includes("vistasocial.com")) {
+          const deletedCount = await deleteVistaSocialAccounts(stepDelay);
+          setStatus(`Successfully removed ${deletedCount} account${deletedCount !== 1 ? "s" : ""}!`, "success");
+          return;
+        }
+
         let deletedCount = 0;
         let consecutiveFailures = 0;
 
@@ -4184,11 +4670,7 @@
 
             profileItem.scrollIntoView({ block: "center", behavior: "smooth" });
             await sleep(300);
-            profileItem.click();
-            try {
-              profileItem.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-              profileItem.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
-            } catch (e) {}
+            triggerClick(profileItem);
 
             // Poll for delete button to render after clicking profile item (up to 20 attempts ~ 8 seconds)
             setStatus("Waiting for delete button after menu selection...", "running");
@@ -4208,6 +4690,7 @@
                 delete el.dataset.sbDeleteAttempted;
                 delete el.dataset.sbProfileSelectAttempted;
               });
+              consecutiveFailures = 0;
               await sleep(1500);
               continue;
             }
@@ -4218,7 +4701,7 @@
           consecutiveFailures = 0;
 
           let clickTarget = deleteBtn;
-          if (deleteBtn.tagName === "I" || deleteBtn.tagName === "SPAN") {
+          if (deleteBtn.tagName === "I" || deleteBtn.tagName === "SPAN" || deleteBtn.tagName === "SVG" || deleteBtn.tagName === "PATH") {
             clickTarget = deleteBtn.closest("button, a, div[role='button'], [class*='Item__StyledItem']") || deleteBtn;
           }
 
@@ -4232,32 +4715,17 @@
 
           clickTarget.scrollIntoView({ block: "center", behavior: "smooth" });
           await sleep(500);
-          clickTarget.click();
+          triggerClick(clickTarget);
 
-          // Poll for confirmation modal & button (up to 20 attempts ~ 6 seconds)
+          // Poll for confirmation modal & button (up to 25 attempts ~ 7.5 seconds)
           let clickedConfirm = false;
-          for (let attempt = 0; attempt < 20; attempt++) {
+          for (let attempt = 0; attempt < 25; attempt++) {
             if (!isRunning) break;
-            const confirmBtn = Array.from(document.querySelectorAll("button, div[role='button'], [class*='Item__StyledItem']")).find((button) => {
-              if (button.offsetWidth === 0 || button.offsetHeight === 0) return false;
-              if (button.closest("#sb-suite-root") || button.closest("#sb-autofill-root")) return false;
-              const txt = (button.textContent || "").trim().toLowerCase();
-              const className = (button.className || "").toLowerCase();
-              return (
-                txt.includes("yes, remove social account") ||
-                txt.includes("yes, remove") ||
-                txt === "remove" ||
-                txt === "remove profile" ||
-                txt === "delete" ||
-                txt.includes("confirm") ||
-                txt.includes("disconnect") ||
-                (className.includes("btn-primary-sb") && (txt.includes("remove") || txt.includes("disconnect")))
-              );
-            });
+            const confirmBtn = findConfirmButton([clickTarget]);
 
             if (confirmBtn && confirmBtn.offsetWidth > 0) {
-              console.log("[SocialBee Autofill] Found confirm button in modal. Clicking...");
-              confirmBtn.click();
+              console.log("[SocialBee Autofill] Found confirm button in modal. Clicking:", confirmBtn);
+              triggerClick(confirmBtn);
               clickedConfirm = true;
               deletedCount++;
               break;
@@ -4271,9 +4739,8 @@
               clickedConfirm = true;
               deletedCount++;
             } else {
-              console.warn("[SocialBee Autofill] Failed to find/click confirmation button for this item.");
-              setStatus("Could not confirm deletion of account.", "error");
-              break;
+              console.warn("[SocialBee Autofill] Failed to confirm deletion for target item. Continuing to next...");
+              setStatus(`Skipped account ${deletedCount + 1} (no confirm button).`, "running");
             }
           }
 
